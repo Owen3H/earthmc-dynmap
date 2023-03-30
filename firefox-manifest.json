@@ -15,7 +15,8 @@
 
 	"content_scripts": [{
 		"matches": ["https://earthmc.net/map/*"],
-		"js": ["content.js"]
+		"js": ["content.js"],
+		"css": ["leaflet.css"]
 	}],
 
 	"permissions": [
