@@ -574,24 +574,20 @@ window.fetch = async (...args) => {
 	
 	const isMarkers = response.url.includes('markers.json')
 	const isSettings = response.url.includes('minecraft_overworld/settings.json')
+	if (!isMarkers && !isSettings) return response
 
 	// Modify contents of markers.json and settings.json
-	if (isMarkers || isSettings) {
-		const data = await response.clone().json()
-		// TODO: Check that the data is valid
-		
-		let modified = data
-		if (isMarkers) {
-			if (preventMapUpdate) return null
-			
-			preventMapUpdate = true
-			modified = main(data)
-		}
-		
-		if (isSettings) modified = modifySettings(data)
-
-		return new Response(JSON.stringify(modifiedJson))
+	if (isMarkers) {
+		if (preventMapUpdate) return null
+		preventMapUpdate = true
 	}
 
-	return response
+	const data = await response.clone().json()
+	// TODO: Check that the data is valid
+
+	const modified = isMarkers ? main(data) : isSettings 
+		? modifySettings(data) 
+		: data;
+
+	return new Response(JSON.stringify(modified))
 }
