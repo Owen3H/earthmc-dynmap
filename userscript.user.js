@@ -71,13 +71,14 @@ function addElement(parent, element, returnWhat, all = false) {
 async function fetchJSON(url, options = null) {
 	const response = await fetch(url, options)
 	if (response.status == 404) return false
-	else if (response.ok) return response.json()
-	else return null
+	if (response.ok) return response.json()
+	
+	return null
 }
 
 // content.js
 
-const apiURL = 'https://api.earthmc.net/v3/aurora'
+const OAPI_BASE = 'https://api.earthmc.net/v3/aurora'
 
 init()
 appendStyle()
@@ -266,7 +267,7 @@ async function locateNation(nation) {
 	if (nation == '') return
 
 	const query = { query: [nation], template: { capital: true } }
-	const data = await fetchJSON(apiURL + '/nations', {method: 'POST', body: JSON.stringify(query)})
+	const data = await fetchJSON(`${OAPI_BASE}/nations`, {method: 'POST', body: JSON.stringify(query)})
 	if (data == false) return sendAlert('Searched nation has not been found.')
 	if (data == null) return sendAlert('Service is currently unavailable, please try later.')
 
@@ -282,7 +283,7 @@ async function locateResident(resident) {
 	if (resident == '') return
 
 	const query = { query: [resident], template: { town: true } }
-	const data = await fetchJSON(apiURL + '/players', {method: 'POST', body: JSON.stringify(query)})
+	const data = await fetchJSON(`${OAPI_BASE}/players`, {method: 'POST', body: JSON.stringify(query)})
 	if (data == false) return sendAlert('Searched resident has not been found.')
 	if (data == null) return sendAlert('Service is currently unavailable, please try later.')
 
@@ -296,7 +297,7 @@ async function locateResident(resident) {
 
 async function getTownSpawn(town) {
 	const query = { query: [town], template: { coordinates: true } }
-	const data = await fetchJSON(apiURL + '/towns', {method: 'POST', body: JSON.stringify(query)})
+	const data = await fetchJSON(`${OAPI_BASE}/towns`, {method: 'POST', body: JSON.stringify(query)})
 	if (data == false || data == undefined) return false
 	if (data == null) return null
 	return { x: Math.round(data[0].coordinates.spawn.x), z: Math.round(data[0].coordinates.spawn.z) }
@@ -331,9 +332,11 @@ function modifySettings(data) {
 	return data
 }
 
-function roundTo16(number) {
-	return Math.round(number / 16) * 16
-}
+/** @param {string} str */
+const isNumeric = (str) => Number.isFinite(+str)
+
+/** @param {number} num */
+const roundTo16 = (num) => Math.round(num / 16) * 16
 
 // Fowler-Noll-Vo hash function
 function hashCode(string) {
@@ -658,11 +661,12 @@ async function addCountryLayer(data) {
 	try {
 		const points = []
 		const countries = JSON.parse(localStorage['emcdynmapplus-borders'])
-		for (const line of Object.values(countries)) {
+		for (const k of countries) {
+			const line = countries[k]
 			const linePoints = []
-			for (const x in line.x) {
-				if (isNaN(parseInt(line.x[x]))) continue
-				linePoints.push({ "x": line.x[x], "z": line.z[x] })
+			for (let i = 0; i < x.length; i++) {
+				if (!isNumeric(line.x[i])) continue
+				linePoints.push({ x: line.x[i], z: line.z[i] })
 			}
 			points.push(linePoints)
 		}

@@ -1,3 +1,9 @@
+import { 
+	MAPI_BASE, OAPI_BASE,
+	CURRENT_MAP,
+	fetchJSON
+} from "./httputil"
+
 const htmlCode = {
 	buttons: {
 		locate: '<button class="sidebar-button" id="locate-button">Locate</button>',
@@ -19,7 +25,7 @@ const htmlCode = {
 	currentMapModeLabel: '<div class="sidebar-option" id="current-map-mode-label">Current map mode: {currentMapMode}</div>',
 	alertBox: '<div id="alert"><p id="alert-message">{message}</p><br><button id="alert-close">OK</button></div>'
 }
-const apiURL = 'https://api.earthmc.net/v3/aurora'
+
 const currentMapMode = localStorage['emcdynmapplus-mapmode'] ?? 'meganations'
 
 init()
@@ -126,16 +132,15 @@ function loadDarkMode() {
 	)
 }
 
+/**
+ * @param {boolean} isChecked 
+ */
 function toggleDarkMode(isChecked) {
-	if (isChecked) {
-		localStorage['emcdynmapplus-darkmode'] = true
-		loadDarkMode()
-	}
-	else {
-		localStorage['emcdynmapplus-darkmode'] = false
-		document.querySelector('#dark-mode').remove()
-		waitForHTMLelement('.leaflet-map-pane').then(element => element.style.filter = '')
-	}
+	localStorage['emcdynmapplus-darkmode'] = isChecked
+	if (isChecked) return loadDarkMode()
+
+	document.querySelector('#dark-mode').remove()
+	waitForHTMLelement('.leaflet-map-pane').then(element => element.style.filter = '')
 }
 
 function locate(selectValue, inputValue) {
@@ -176,6 +181,9 @@ function addOptions(sidebar) {
 	checkbox.darkMode.addEventListener('change', event => toggleDarkMode(event.target.checked))
 }
 
+/**
+ * @param {string} date 
+ */
 function searchArchive(date) {
 	if (date == '') return
 	const URLDate = date.replaceAll('-', '')
@@ -223,13 +231,9 @@ function addOption(index, optionId, optionName, variable) {
 	return checkbox
 }
 
-async function fetchJSON(url, options = null) {
-	const response = await fetch(url, options)
-	if (response.status == 404) return false
-	else if (response.ok) return response.json()
-	else return null
-}
-
+/**
+ * @param {string} town 
+ */
 async function locateTown(town) {
 	town = town.trim().toLowerCase()
 	if (town == '') return
@@ -237,16 +241,19 @@ async function locateTown(town) {
 	const coords = await getTownSpawn(town)
 	if (coords == false) return sendAlert('Searched town has not been found.')
 	if (coords == null) return sendAlert('Service is currently unavailable, please try later.')
-	location.href = `https://map.earthmc.net/?zoom=4&x=${coords.x}&z=${coords.z}`
-
+		
+	location.href = `https://map.earthmc.net?zoom=4&x=${coords.x}&z=${coords.z}`
 }
 
+/**
+ * @param {string} nation 
+ */
 async function locateNation(nation) {
 	nation = nation.trim().toLowerCase()
 	if (nation == '') return
 
 	const query = { query: [nation], template: { capital: true } }
-	const data = await fetchJSON(apiURL + '/nations', {method: 'POST', body: JSON.stringify(query)})
+	const data = await fetchJSON(`${OAPI_BASE}/${CURRENT_MAP}/nations`, {method: 'POST', body: JSON.stringify(query)})
 	if (data == false) return sendAlert('Searched nation has not been found.')
 	if (data == null) return sendAlert('Service is currently unavailable, please try later.')
 
@@ -254,15 +261,18 @@ async function locateNation(nation) {
 	const coords = await getTownSpawn(capital)
 	if (coords == false) return sendAlert('Unexpected error occurred while searching for nation, please try later.')
 	if (coords == null) return sendAlert('Service is currently unavailable, please try later.')
-	location.href = `https://map.earthmc.net/?zoom=4&x=${coords.x}&z=${coords.z}`
+	location.href = `${MAPI_BASE}?zoom=4&x=${coords.x}&z=${coords.z}`
 }
 
+/**
+ * @param {string} resident 
+ */
 async function locateResident(resident) {
 	resident = resident.trim().toLowerCase()
 	if (resident == '') return
 
 	const query = { query: [resident], template: { town: true } }
-	const data = await fetchJSON(apiURL + '/players', {method: 'POST', body: JSON.stringify(query)})
+	const data = await fetchJSON(`${OAPI_BASE}/${CURRENT_MAP}/players`, {method: 'POST', body: JSON.stringify(query)})
 	if (data == false) return sendAlert('Searched resident has not been found.')
 	if (data == null) return sendAlert('Service is currently unavailable, please try later.')
 
@@ -271,13 +281,18 @@ async function locateResident(resident) {
 	const coords = await getTownSpawn(town)
 	if (coords == false) return sendAlert('Unexpected error occurred while searching for resident, please try later.')
 	if (coords == null) return sendAlert('Service is currently unavailable, please try later.')
-	location.href = `https://map.earthmc.net/?zoom=4&x=${coords.x}&z=${coords.z}`
+	location.href = `${MAPI_BASE}?zoom=4&x=${coords.x}&z=${coords.z}`
 }
 
+/**
+ * @param {string} town 
+ */
 async function getTownSpawn(town) {
 	const query = { query: [town], template: { coordinates: true } }
-	const data = await fetchJSON(apiURL + '/towns', {method: 'POST', body: JSON.stringify(query)})
+	const data = await fetchJSON(`${OAPI_BASE}/${CURRENT_MAP}/towns`, {method: 'POST', body: JSON.stringify(query)})
 	if (data == false || data == undefined) return false
 	if (data == null) return null
-	return { x: Math.round(data[0].coordinates.spawn.x), z: Math.round(data[0].coordinates.spawn.z) }
+
+	const spawn = data[0].coordinates.spawn
+	return { x: Math.round(spawn.x), z: Math.round(spawn.z) }
 }

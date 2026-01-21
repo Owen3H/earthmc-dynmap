@@ -1,3 +1,10 @@
+import { 
+	PROXY_URL,
+	CAPI_BASE, OAPI_BASE,
+	CURRENT_MAP,
+	fetchJSON
+} from "./httputil"
+
 const { fetch: originalFetch } = window
 const htmlCode = {
 	playerLookup: '<div class="leaflet-control-layers leaflet-control left-container" id="player-lookup"></div>',
@@ -9,7 +16,6 @@ const htmlCode = {
 	alertBox: '<div id="alert"><p id="alert-message">{message}</p><br><button id="alert-close">OK</button></div>',
 	message: '<div class="message" id="alert"><p id="alert-message">{message}</p></div>'
 }
-const proxyURL = 'https://api.codetabs.com/v1/proxy/?quest='
 
 let alliances = null
 const currentMapMode = localStorage['emcdynmapplus-mapmode'] ?? 'meganations'
@@ -40,9 +46,11 @@ function modifySettings(data) {
 	return data
 }
 
-function roundTo16(number) {
-	return Math.round(number / 16) * 16
-}
+/** @param {string} str */
+const isNumeric = (str) => Number.isFinite(+str)
+
+/** @param {number} num */
+const roundTo16 = (num) => Math.round(num / 16) * 16
 
 // Fowler-Noll-Vo hash function
 function hashCode(string) {
@@ -54,14 +62,17 @@ function hashCode(string) {
 	return '#' + ((hexValue >>> 0) % 16777216).toString(16).padStart(6, '0')
 }
 
-// Shoelace formula
+/**
+ * Shoelace formula
+ * @param {{x: number, z: number}[]} vertices 
+ */
 function getArea(vertices) {
-	const n = vertices.length
-	let area = 0
+	const amtVerts = vertices.length
+	let area, i = 0
 
 	// Vertices need rounding to 16 because data has imprecise coordinates
-	for (let i = 0; i < n; i++) {
-		const j = (i + 1) % n
+	for (; i < amtVerts; i++) {
+		const j = (i + 1) % amtVerts
 		area += roundTo16(vertices[i].x) * roundTo16(vertices[j].z)
 		area -= roundTo16(vertices[j].x) * roundTo16(vertices[i].z)
 	}
@@ -71,10 +82,10 @@ function getArea(vertices) {
 
 // By James Halliday (substack)
 function pointInPolygon(vertex, polygon) {
-	let x = vertex.x, z = vertex.z
+	let { x, z } = vertex
 	let n = polygon.length
 	let inside = false
-	for (let i = 0, j = n - 1; i < n; j = i++ ) {
+	for (let i = 0, j = n - 1; i < n; j = i++) {
 		let xi = polygon[i].x
 		let zi = polygon[i].z
 		let xj = polygon[j].x
@@ -130,15 +141,17 @@ function modifyOldDescription(marker) {
 function modifyDescription(marker) {
 	// Gather some information
 	const town = marker.tooltip.match(/<b>(.*)<\/b>/)[1]
+	const isCapital = marker.tooltip.match(/\(Capital of (.*)\)/) != null
 	const nation = marker.tooltip.match(/\(\b(?:Member|Capital)\b of (.*)\)\n/)?.[1]
 	const mayor = marker.popup.match(/Mayor: <b>(.*)<\/b>/)?.[1]
-	let councillors = marker.popup.match(/Councillors: <b>(.*)<\/b>/)?.[1].split(', ')
-	councillors = councillors.filter(councillor => councillor != 'None')
+	
 	const residents = marker.popup.match(/<\/summary>\n    \t(.*)\n   \t<\/details>/)?.[1]
 	const residentNum = residents.split(', ').length
-	const isCapital = marker.tooltip.match(/\(Capital of (.*)\)/) != null
 
-	// Fix bug with names wrapped in angle brackets
+	const councillors = marker.popup.match(/Councillors: <b>(.*)<\/b>/)?.[1]
+		.split(', ').filter(councillor => councillor != 'None')
+
+	// Fixes a bug with names that are wrapped in angle brackets
 	const names = {
 		town: town.replaceAll('<', '&lt;').replaceAll('>', '&gt;'),
 		nation: nation?.replaceAll('<', '&lt;').replaceAll('>', '&gt;') ?? nation
@@ -146,8 +159,8 @@ function modifyDescription(marker) {
 
 	// Calculate town's area
 	let area = 0
-	const iteratedRegions = []
 	if (marker.type == 'polygon') {
+		const iteratedRegions = []
 		for (const regionVertices of marker.points[0]) {
 
 			// Exclude non-affiliated regions entirely inside town
@@ -222,10 +235,8 @@ function modifyDescription(marker) {
 }
 
 function convertOldMarkersStructure(markers) {
-	return Object.entries(markers.areas).map(([key, value]) => {
-
-		if (key.includes('_Shop')) return undefined // Remove shop areas
-		const points = value.x.map((x, index) => ({ x, z: value.z[index] }))
+	return Object.entries(markers.areas).flatMap(([key, v]) => {
+		if (key.includes('_Shop')) return []
 		return {
 			fillColor: value.fillcolor,
 			color: value.color,
@@ -233,12 +244,15 @@ function convertOldMarkersStructure(markers) {
 			weight: value.weight,
 			opacity: value.opacity,
 			type: 'polygon',
-			points: points
+			points: v.x.map((x, i) => ({ x, z: v.z[i] }))
 		}
-
-	}).filter(Boolean)
+	})
 }
 
+/**
+ * @param {string} nation 
+ * @returns 
+ */
 function getNationAlliances(nation) {
 	const nationAlliances = []
 	if (alliances == null) return nationAlliances
@@ -247,6 +261,7 @@ function getNationAlliances(nation) {
 		if (alliance.type != currentMapMode) continue
 		nationAlliances.push({name: alliance.name, colours: alliance.colours})
 	}
+
 	return nationAlliances
 }
 
@@ -254,15 +269,15 @@ function colorTowns(marker) {
 	const nation = marker.tooltip.match(/\(\b(?:Member|Capital)\b of (.*)\)\n/)?.[1]
 	const mayor = marker.popup.match(/Mayor: <b>(.*)<\/b>/)?.[1]
 	const isRuin = (mayor.match(/NPC[0-9]+/) != null)
-	const isNationless = (nation == null)
-	const nationHasDefaultColor = (marker.color == '#3fb4ff' && marker.fillColor == '#3fb4ff') // Default blue
-
+	//const isNationless = (nation == null)
+	
 	// Universal properties for the map modes
 	if (currentMapMode == 'alliances') {
 		marker.color = '#000000' // Black
 		marker.fillColor = '#000000'
 		marker.weight = 0.5
 	} else {
+		const nationHasDefaultColor = (marker.color == '#3fb4ff' && marker.fillColor == '#3fb4ff') // Default blue
 		if (nationHasDefaultColor) {
 			marker.color = '#363636' // Dark gray
 			marker.fillColor = hashCode(nation)
@@ -337,7 +352,6 @@ function addElement(parent, element, returnWhat, all = false) {
 }
 
 async function main(data) {
-
 	if (currentMapMode == 'archive') {
 		data = await getArchive(data)
 	}
@@ -367,6 +381,7 @@ async function main(data) {
 
 		marker = colorTowns(marker)
 	}
+	
 	return data
 }
 
@@ -375,7 +390,7 @@ async function addCountryLayer(data) {
 	if (!localStorage['emcdynmapplus-borders']) {
 		const loadingMessage = addElement(document.body, htmlCode.message.replace('{message}', 'Downloading country borders...'), '.message')
 		const markersURL = 'https://web.archive.org/web/2024id_/https://earthmc.net/map/aurora/standalone/MySQL_markers.php?marker=_markers_/marker_earth.json'
-		const fetch = await fetchJSON(proxyURL + markersURL)
+		const fetch = await fetchJSON(PROXY_URL + markersURL)
 		loadingMessage.remove()
 		if (!fetch) {
 			sendAlert('Could not download optional country borders layer, you could try again later.')
@@ -387,11 +402,12 @@ async function addCountryLayer(data) {
 	try {
 		const points = []
 		const countries = JSON.parse(localStorage['emcdynmapplus-borders'])
-		for (const line of Object.values(countries)) {
+		for (const k of countries) {
+			const line = countries[k]
 			const linePoints = []
-			for (const x in line.x) {
-				if (isNaN(parseInt(line.x[x]))) continue
-				linePoints.push({ 'x': line.x[x], 'z': line.z[x] })
+			for (let i = 0; i < x.length; i++) {
+				if (!isNumeric(line.x[i])) continue
+				linePoints.push({ x: line.x[i], z: line.z[i] })
 			}
 			points.push(linePoints)
 		}
@@ -416,16 +432,20 @@ async function addCountryLayer(data) {
 	}
 }
 
+/**
+ * @param {string} player 
+ * @param {boolean} showOnlineStatus 
+ * @returns 
+ */
 async function lookupPlayer(player, showOnlineStatus = true) {
-
 	if (document.querySelector('#player-lookup') != null) document.querySelector('#player-lookup').remove()
 	if (document.querySelector('#player-lookup-loading') != null) document.querySelector('#player-lookup-loading').remove()
 	const loading = addElement(document.querySelector('.leaflet-top.leaflet-left'), htmlCode.playerLookupLoading, '#player-lookup-loading')
 
 	const query = { query: [player] }
-	const data = await fetchJSON('https://api.earthmc.net/v3/aurora/players', { method: 'POST', body: JSON.stringify(query) })
-	if (data == false) return sendAlert('Unexpected error occurred while looking the player up, please try later.')
-	if (data == null) return sendAlert('Service is currently unavailable, please try later.')
+	const players = await fetchJSON(`${OAPI_BASE}/${CURRENT_MAP}/players`, { method: 'POST', body: JSON.stringify(query) })
+	if (players == false) return sendAlert('Unexpected error occurred while looking the player up, please try later.')
+	if (players == null) return sendAlert('Service is currently unavailable, please try later.')
 
 	loading.remove()
 	const lookup = addElement(document.querySelector('.leaflet-top.leaflet-left'), htmlCode.playerLookup, '#player-lookup')
@@ -440,23 +460,25 @@ async function lookupPlayer(player, showOnlineStatus = true) {
 	lookup.insertAdjacentHTML('beforeend', '{last-online}')
 	lookup.insertAdjacentHTML('beforeend', '<span class="close-container">X</span>')
 
+	const player = players[0]
+
 	// Gather data
-	const isOnline = data[0].status.isOnline
-	const balance = data[0].stats.balance
-	const town = data[0].town.name
-	const nation = data[0].nation.name
-	const lastOnline = new Date(data[0].timestamps.lastOnline).toLocaleDateString('fr')
+	const isOnline = player.status.isOnline
+	const balance = player.stats.balance
+	const town = player.town.name
+	const nation = player.nation.name
+	const lastOnline = new Date(player.timestamps.lastOnline).toLocaleDateString('fr')
 	let onlineStatus = '<span id="player-lookup-online" style="color: {online-color}">{online}</span>'
-	const about = (!data[0].about || data[0].about == '/res set about [msg]') ? '' : `<br><i>${data[0].about}</i>`
+	const about = (!player.about || player.about == '/res set about [msg]') ? '' : `<br><i>${player.about}</i>`
 	let rank = 'Townless'
-	if (data[0].status.hasTown) rank = 'Resident'
-	if (data[0].ranks.townRanks.includes('Councillor')) rank = 'Councillor'
-	if (data[0].status.isMayor) rank = 'Mayor'
-	if (data[0].ranks.nationRanks.includes('Chancellor')) rank = 'Chancellor'
-	if (data[0].status.isKing) rank = 'Leader'
+	if (player.status.hasTown) rank = 'Resident'
+	if (player.ranks.townRanks.includes('Councillor')) rank = 'Councillor'
+	if (player.status.isMayor) rank = 'Mayor'
+	if (player.ranks.nationRanks.includes('Chancellor')) rank = 'Chancellor'
+	if (player.status.isKing) rank = 'Leader'
 
 	// Place data
-	const playerAvatarURL = 'https://mc-heads.net/avatar/' + data[0].uuid.replaceAll('-', '')
+	const playerAvatarURL = 'https://mc-heads.net/avatar/' + player.uuid.replaceAll('-', '')
 	document.querySelector('#player-lookup-avatar').setAttribute('src', playerAvatarURL)
 	lookup.innerHTML = lookup.innerHTML
 		.replace('{player}', player)
@@ -472,15 +494,8 @@ async function lookupPlayer(player, showOnlineStatus = true) {
 	lookup.querySelector('.close-container').addEventListener('click', event => { event.target.parentElement.remove() })
 }
 
-async function fetchJSON(url, options = null) {
-	const response = await fetch(url, options)
-	if (response.status == 404) return false
-	else if (response.ok) return response.json()
-	else return null
-}
-
 async function getAlliances() {
-	const alliances = await fetchJSON('https://emctoolkit.vercel.app/api/aurora/alliances')
+	const alliances = await fetchJSON(`${CAPI_BASE}/${CURRENT_MAP}/alliances`)
 	if (!alliances) {
 		const cache = JSON.parse(localStorage['emcdynmapplus-alliances'])
 		if (cache == null) {
@@ -493,7 +508,7 @@ async function getAlliances() {
 
 	const finalArray = []
 	for (const alliance of alliances) {
-		let allianceType = alliance.type.toLowerCase() || 'mega'
+		const allianceType = alliance.type.toLowerCase() || 'mega'
 		if (allianceType == 'sub') continue
 		finalArray.push({
 			name: alliance.fullName || alliance.allianceName,
@@ -520,7 +535,7 @@ async function getArchive(data) {
 	}
 	markersURL = archiveWebsite + markersURL
 
-	let archive = await fetchJSON(proxyURL + markersURL)
+	let archive = await fetchJSON(PROXY_URL + markersURL)
 	if (!archive) return sendAlert('Archive service is currently unavailable, please try later.')
 	let actualArchiveDate
 
@@ -550,26 +565,26 @@ window.fetch = async (...args) => {
 	let response = await originalFetch(resource, config)
 
 	if (response.url.includes('web.archive.org')) return response
+	
+	const isMarkers = response.url.includes('markers.json')
+	const isSettings = response.url.includes('minecraft_overworld/settings.json')
 
 	// Modify contents of markers.json and settings.json
-	if (response.url.includes('markers.json') || response.url.includes('minecraft_overworld/settings.json')) {
+	if (isMarkers || isSettings) {
+		const data = await response.clone().json()
+		// TODO: Check that the data is valid
+		
+		let modified = data
+		if (isMarkers) {
+			if (preventMapUpdate) return null
+			
+			preventMapUpdate = true
+			modified = main(data)
+		}
+		
+		if (isSettings) modified = modifySettings(data)
 
-		const modifiedJson = await response.clone().json().then(data => {
-
-			// markers.json
-			if (response.url.includes('markers.json')) {
-				if (preventMapUpdate == false) {
-					preventMapUpdate = true
-					return main(data)
-				}
-				else return null
-			}
-
-			// settings.json
-			if (response.url.includes('minecraft_overworld/settings.json')) return modifySettings(data)
-		})
 		return new Response(JSON.stringify(modifiedJson))
-
 	}
 
 	return response
