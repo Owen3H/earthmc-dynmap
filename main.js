@@ -34,10 +34,10 @@ waitForHTMLelement('.leaflet-nameplate-pane').then(element => {
 })
 
 /**
- * Sends an alert message in a box at the center of the screen.
- * @param {string} message
+ * Shows an alert message in a box at the center of the screen.
+ * @param {string} message 
  */
-function sendAlert(message) {
+function showAlert(message) {
 	if (document.querySelector('#alert') != null) document.querySelector('#alert').remove()
 	document.body.insertAdjacentHTML('beforeend', htmlCode.alertBox.replace('{message}', message))
 	document.querySelector('#alert-close').addEventListener('click', event => { event.target.parentElement.remove() })
@@ -375,7 +375,7 @@ async function main(data) {
 	data = await addCountryLayer(data)
 
 	if (!data?.[0]?.markers?.length) {
-		sendAlert('Unexpected error occurred while loading the map, maybe EarthMC is down? Try again later.')
+		showAlert('Unexpected error occurred while loading the map, maybe EarthMC is down? Try again later.')
 		return data
 	}
 
@@ -407,7 +407,7 @@ async function addCountryLayer(data) {
 		const fetch = await fetchJSON(PROXY_URL + markersURL)
 		loadingMessage.remove()
 		if (!fetch) {
-			sendAlert('Could not download optional country borders layer, you could try again later.')
+			showAlert('Could not download optional country borders layer, you could try again later.')
 			return data
 		}
 		localStorage['emcdynmapplus-borders'] = JSON.stringify(fetch.sets['borders.Country Borders'].lines)
@@ -440,7 +440,7 @@ async function addCountryLayer(data) {
 			}]
 		}
 	} catch (_) {
-		sendAlert(`Could not set up a layer of country borders. You may need to clear this website's data. If problem persists, contact the developer.`)
+		showAlert(`Could not set up a layer of country borders. You may need to clear this website's data. If problem persists, contact the developer.`)
 	}
 
 	return data
@@ -458,8 +458,8 @@ async function lookupPlayer(player, showOnlineStatus = true) {
 
 	const query = { query: [player] }
 	const players = await fetchJSON(`${OAPI_BASE}/${CURRENT_MAP}/players`, { method: 'POST', body: JSON.stringify(query) })
-	if (players == false) return sendAlert('Unexpected error occurred while looking the player up, please try later.')
-	if (players == null) return sendAlert('Service is currently unavailable, please try later.')
+	if (players == false) return showAlert('Unexpected error occurred while looking the player up, please try later.')
+	if (players == null) return showAlert('Service is currently unavailable, please try later.')
 
 	loading.remove()
 	const lookup = addElement(document.querySelector('.leaflet-top.leaflet-left'), htmlCode.playerLookup, '#player-lookup')
@@ -513,10 +513,10 @@ async function getAlliances() {
 	if (!alliances) {
 		const cache = JSON.parse(localStorage['emcdynmapplus-alliances'])
 		if (cache == null) {
-			sendAlert('Service responsible for loading alliances will be available later.')
+			showAlert('Service responsible for loading alliances will be available later.')
 			return []
 		}
-		sendAlert('Service responsible for loading alliances is currently unavailable, but locally-cached data will be used.')
+		showAlert('Service responsible for loading alliances is currently unavailable, but locally-cached data will be used.')
 		return cache
 	}
 
@@ -550,7 +550,7 @@ async function getArchive(data) {
 	markersURL = archiveWebsite + markersURL
 
 	let archive = await fetchJSON(PROXY_URL + markersURL)
-	if (!archive) return sendAlert('Archive service is currently unavailable, please try later.')
+	if (!archive) return showAlert('Archive service is currently unavailable, please try later.')
 	let actualArchiveDate
 
 	// Structure of markers.json changed
@@ -566,7 +566,7 @@ async function getArchive(data) {
 	document.querySelector('#current-map-mode-label').textContent += ` (${actualArchiveDate})`
 	loadingMessage.remove()
 	if (actualArchiveDate.replaceAll('-', '') != archiveDate()) {
-		sendAlert(`The closest archive to your prompt comes from ${actualArchiveDate}.`)
+		showAlert(`The closest archive to your prompt comes from ${actualArchiveDate}.`)
 	}
 
 	return data

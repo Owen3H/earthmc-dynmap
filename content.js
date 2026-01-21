@@ -46,7 +46,11 @@ function init() {
 	checkForUpdate()
 }
 
-function sendAlert(message) {
+/**
+ * Shows an alert message in a box at the center of the screen.
+ * @param {string} message 
+ */
+function showAlert(message) {
 	if (document.querySelector('#alert') != null) document.querySelector('#alert').remove()
 	document.body.insertAdjacentHTML('beforeend', htmlCode.alertBox.replace('{message}', message))
 	document.querySelector('#alert-close').addEventListener('click', event => { event.target.parentElement.remove() })
@@ -120,6 +124,17 @@ function decreaseBrightness(boxTicked) {
 	element.style.filter = boxTicked ? 'brightness(50%)' : ''
 }
 
+/**
+ * @param {boolean} boxTicked 
+ */
+function toggleDarkMode(boxTicked) {
+	localStorage['emcdynmapplus-darkmode'] = boxTicked
+	if (boxTicked) return loadDarkMode()
+
+	document.querySelector('#dark-mode').remove()
+	waitForHTMLelement('.leaflet-map-pane').then(element => element.style.filter = '')
+}
+
 function loadDarkMode() {
 	document.head.insertAdjacentHTML('beforeend',
 		`<style id="dark-mode">
@@ -138,17 +153,6 @@ function loadDarkMode() {
 }
 
 /**
- * @param {boolean} isChecked 
- */
-function toggleDarkMode(isChecked) {
-	localStorage['emcdynmapplus-darkmode'] = isChecked
-	if (isChecked) return loadDarkMode()
-
-	document.querySelector('#dark-mode').remove()
-	waitForHTMLelement('.leaflet-map-pane').then(element => element.style.filter = '')
-}
-
-/**
  * Runs appropriate locator func based on selectValue, passing inputValue as the argument. 
  * @param {string} selectValue
  * @param {string} inputValue
@@ -159,22 +163,6 @@ function locate(selectValue, inputValue) {
 		case 'Nation': locateNation(inputValue); break
 		case 'Resident': locateResident(inputValue); break
 	}
-}
-
-function checkForUpdate() {
-	const cachedVer = localStorage['emcdynmapplus-version']
-	const latestVer = chrome.runtime.getManifest().version
-
-	if (!cachedVer) return localStorage['emcdynmapplus-version'] = latestVer
-	if (cachedVer != latestVer) {
-		const changelogURL = `${PROJECT_URL}/releases/v${latestVer}`
-		sendAlert(`
-			Extension has been automatically updated from ${cachedVer} to ${latestVer}. 
-			Read what has been changed <a href="${changelogURL}" target="_blank">here</a>.
-		`)
-	}
-
-	localStorage['emcdynmapplus-version'] = latestVer
 }
 
 /**
@@ -208,6 +196,9 @@ function searchArchive(date) {
 	location.reload()
 }
 
+/**
+ * @param {HTMLElement} sidebar 
+ */
 function addLocateMenu(sidebar) {
 	const locateMenu = addElement(sidebar, htmlCode.sidebarOption, '.sidebar-option', true)[0]
 	locateMenu.id = 'locate-menu'
@@ -263,10 +254,10 @@ async function locateTown(town) {
 	if (town == '') return
 
 	const coords = await getTownSpawn(town)
-	if (coords == false) return sendAlert('Searched town has not been found.')
-	if (coords == null) return sendAlert('Service is currently unavailable, please try later.')
-		
-	location.href = `https://map.earthmc.net?zoom=4&x=${coords.x}&z=${coords.z}`
+	if (coords == false) return showAlert('Searched town has not been found.')
+	if (coords == null) return showAlert('Service is currently unavailable, please try later.')
+
+	location.href = `${MAPI_BASE}?zoom=4&x=${coords.x}&z=${coords.z}`
 }
 
 /**
@@ -278,13 +269,13 @@ async function locateNation(nation) {
 
 	const query = { query: [nation], template: { capital: true } }
 	const data = await fetchJSON(`${OAPI_BASE}/${CURRENT_MAP}/nations`, {method: 'POST', body: JSON.stringify(query)})
-	if (data == false) return sendAlert('Searched nation has not been found.')
-	if (data == null) return sendAlert('Service is currently unavailable, please try later.')
+	if (data == false) return showAlert('Searched nation has not been found.')
+	if (data == null) return showAlert('Service is currently unavailable, please try later.')
 
 	const capital = data[0].capital.name
 	const coords = await getTownSpawn(capital)
-	if (coords == false) return sendAlert('Unexpected error occurred while searching for nation, please try later.')
-	if (coords == null) return sendAlert('Service is currently unavailable, please try later.')
+	if (coords == false) return showAlert('Unexpected error occurred while searching for nation, please try later.')
+	if (coords == null) return showAlert('Service is currently unavailable, please try later.')
 	location.href = `${MAPI_BASE}?zoom=4&x=${coords.x}&z=${coords.z}`
 }
 
@@ -297,14 +288,14 @@ async function locateResident(resident) {
 
 	const query = { query: [resident], template: { town: true } }
 	const data = await fetchJSON(`${OAPI_BASE}/${CURRENT_MAP}/players`, {method: 'POST', body: JSON.stringify(query)})
-	if (data == false) return sendAlert('Searched resident has not been found.')
-	if (data == null) return sendAlert('Service is currently unavailable, please try later.')
+	if (data == false) return showAlert('Searched resident has not been found.')
+	if (data == null) return showAlert('Service is currently unavailable, please try later.')
 
 	const town = data[0].town.name
-	if (!town) return sendAlert('The searched resident is townless.')
+	if (!town) return showAlert('The searched resident is townless.')
 	const coords = await getTownSpawn(town)
-	if (coords == false) return sendAlert('Unexpected error occurred while searching for resident, please try later.')
-	if (coords == null) return sendAlert('Service is currently unavailable, please try later.')
+	if (coords == false) return showAlert('Unexpected error occurred while searching for resident, please try later.')
+	if (coords == null) return showAlert('Service is currently unavailable, please try later.')
 	location.href = `${MAPI_BASE}?zoom=4&x=${coords.x}&z=${coords.z}`
 }
 
@@ -319,4 +310,23 @@ async function getTownSpawn(town) {
 
 	const spawn = data[0].coordinates.spawn
 	return { x: Math.round(spawn.x), z: Math.round(spawn.z) }
+}
+
+/**
+ * @returns {string}
+ */
+function checkForUpdate() {
+	const cachedVer = localStorage['emcdynmapplus-version']
+	const latestVer = chrome.runtime.getManifest().version
+
+	if (!cachedVer) return localStorage['emcdynmapplus-version'] = latestVer
+	if (cachedVer != latestVer) {
+		const changelogURL = `${PROJECT_URL}/releases/v${latestVer}`
+		showAlert(`
+			Extension has been automatically updated from ${cachedVer} to ${latestVer}. 
+			Read what has been changed <a href="${changelogURL}" target="_blank">here</a>.
+		`)
+	}
+
+	return localStorage['emcdynmapplus-version'] = latestVer
 }
