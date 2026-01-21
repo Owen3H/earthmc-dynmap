@@ -14,13 +14,16 @@ const htmlCode = {
 	scrollableResidentList: '<div class="resident-list" id="scrollable-list">\t{list}</div>',
 	playerLookupLoading: '<div class="leaflet-control-layers leaflet-control left-container" id="player-lookup-loading">Loading...</button>',
 	alertBox: '<div id="alert"><p id="alert-message">{message}</p><br><button id="alert-close">OK</button></div>',
-	message: '<div class="message" id="alert"><p id="alert-message">{message}</p></div>'
+	alertMsg: '<div class="message" id="alert"><p id="alert-message">{message}</p></div>'
 }
 
+const archiveDate = () => parseInt(localStorage['emcdynmapplus-archive-date'])
+
 let alliances = null
-const currentMapMode = localStorage['emcdynmapplus-mapmode'] ?? 'meganations'
-if (currentMapMode != 'default' && currentMapMode != 'archive') getAlliances().then(result => alliances = result)
-const archiveDate = parseInt(localStorage['emcdynmapplus-archive-date'])
+const currentMapMode = () => localStorage['emcdynmapplus-mapmode'] ?? 'meganations'
+if (currentMapMode() != 'default' && currentMapMode() != 'archive') {
+	getAlliances().then(result => alliances = result)
+}
 
 // Add clickable player nameplates
 waitForHTMLelement('.leaflet-nameplate-pane').then(element => {
@@ -30,6 +33,10 @@ waitForHTMLelement('.leaflet-nameplate-pane').then(element => {
 	})
 })
 
+/**
+ * Sends an alert message in a box at the center of the screen.
+ * @param {string} message
+ */
 function sendAlert(message) {
 	if (document.querySelector('#alert') != null) document.querySelector('#alert').remove()
 	document.body.insertAdjacentHTML('beforeend', htmlCode.alertBox.replace('{message}', message))
@@ -108,7 +115,7 @@ function modifyOldDescription(marker) {
 
 	// Modify description
 	if (isCapital) marker.popup = marker.popup.replace('120%">', '120%">★ ')
-	if (archiveDate < 20220906) {
+	if (archiveDate() < 20220906) {
 		marker.popup = marker.popup.replace(/">hasUpkeep:.+?(?<=<br \/>)/, '; white-space:pre">')
 	}
 	else marker.popup = marker.popup.replace('">pvp:', '; white-space:pre">pvp:')
@@ -181,9 +188,9 @@ function modifyDescription(marker) {
 	}
 
 	// Create clickable resident lists
-	const residentList = (currentMapMode == 'archive') ? residents :
+	const residentList = (currentMapMode() == 'archive') ? residents :
 		residents.split(', ').map(resident => htmlCode.residentClickable.replaceAll('{player}', resident)).join(', ')
-	const councillorList = (currentMapMode == 'archive') ? councillors :
+	const councillorList = (currentMapMode() == 'archive') ? councillors :
 		councillors.map(councillor => htmlCode.residentClickable.replaceAll('{player}', councillor)).join(', ')
 
 	// Modify description
@@ -205,7 +212,7 @@ function modifyDescription(marker) {
 		.replace(nation, names.nation)
 		.replaceAll('<b>false</b>', '<b><span style="color: red">No</span></b>') // 'False' flag
 		.replaceAll('<b>true</b>', '<b><span style="color: green">Yes</span></b>') // 'True' flag
-	if (currentMapMode != 'archive') {
+	if (currentMapMode() != 'archive') {
 		marker.popup = marker.popup
 		.replace(/Mayor: <b>(.*)<\/b>/, `Mayor: <b>${htmlCode.residentClickable.replaceAll('{player}', mayor)}</b>`) // Lookup mayor
 		.replace(/Councillors: <b>(.*)<\/b>/, `Councillors: <b>${councillorList}</b>`) // Lookup councillors
@@ -223,7 +230,7 @@ function modifyDescription(marker) {
 		.replace(nation, names.nation)
 
 	// Add 'Part of' label
-	if (currentMapMode == 'archive' || currentMapMode == 'default') return marker
+	if (currentMapMode() == 'archive' || currentMapMode() == 'default') return marker
 	const nationAlliances = getNationAlliances(nation)
 	if (nationAlliances.length > 0) {
 		const allianceList = nationAlliances.map(alliance => alliance.name).join(', ')
@@ -258,7 +265,7 @@ function getNationAlliances(nation) {
 	if (alliances == null) return nationAlliances
 	for (const alliance of alliances) {
 		if (!alliance.nations.includes(nation)) continue
-		if (alliance.type != currentMapMode) continue
+		if (alliance.type != currentMapMode()) continue
 		nationAlliances.push({name: alliance.name, colours: alliance.colours})
 	}
 
@@ -272,7 +279,7 @@ function colorTowns(marker) {
 	//const isNationless = (nation == null)
 	
 	// Universal properties for the map modes
-	if (currentMapMode == 'alliances') {
+	if (currentMapMode() == 'alliances') {
 		marker.color = '#000000' // Black
 		marker.fillColor = '#000000'
 		marker.weight = 0.5
@@ -352,7 +359,7 @@ function addElement(parent, element, returnWhat, all = false) {
 }
 
 async function main(data) {
-	if (currentMapMode == 'archive') {
+	if (currentMapMode() == 'archive') {
 		data = await getArchive(data)
 	}
 
@@ -367,7 +374,7 @@ async function main(data) {
 	for (let marker of data[0].markers) {
 		if (marker.type != 'polygon' && marker.type != 'icon') continue
 
-		marker = (currentMapMode != 'archive' || archiveDate >= 20240701)
+		marker = (currentMapMode() != 'archive' || archiveDate() >= 20240701)
 		? modifyDescription(marker) : modifyOldDescription(marker)
 
 		if (marker.type != 'polygon') continue
@@ -377,7 +384,7 @@ async function main(data) {
 		marker.fillOpacity = 0.33
 		marker.weight = 1.5
 
-		if (currentMapMode == 'default' || currentMapMode == 'archive') continue
+		if (currentMapMode() == 'default' || currentMapMode() == 'archive') continue
 
 		marker = colorTowns(marker)
 	}
@@ -386,9 +393,8 @@ async function main(data) {
 }
 
 async function addCountryLayer(data) {
-
 	if (!localStorage['emcdynmapplus-borders']) {
-		const loadingMessage = addElement(document.body, htmlCode.message.replace('{message}', 'Downloading country borders...'), '.message')
+		const loadingMessage = addElement(document.body, htmlCode.alertMsg.replace('{message}', 'Downloading country borders...'), '.message')
 		const markersURL = 'https://web.archive.org/web/2024id_/https://earthmc.net/map/aurora/standalone/MySQL_markers.php?marker=_markers_/marker_earth.json'
 		const fetch = await fetchJSON(PROXY_URL + markersURL)
 		loadingMessage.remove()
@@ -425,11 +431,11 @@ async function addCountryLayer(data) {
 				'points': points
 			}]
 		}
-		return data
-	} catch (error) {
+	} catch (_) {
 		sendAlert(`Could not set up a layer of country borders. You may need to clear this website's data. If problem persists, contact the developer.`)
-		return data
 	}
+
+	return data
 }
 
 /**
@@ -523,14 +529,14 @@ async function getAlliances() {
 }
 
 async function getArchive(data) {
-	const loadingMessage = addElement(document.body, htmlCode.message.replace('{message}', 'Loading archive, please wait...'), '.message')
+	const loadingMessage = addElement(document.body, htmlCode.alertMsg.replace('{message}', 'Loading archive, please wait...'), '.message')
 
-	const archiveWebsite = `https://web.archive.org/web/${archiveDate}id_/`
+	const archiveWebsite = `https://web.archive.org/web/${archiveDate()}id_/`
 	// markers.json URL changed over time
 	let markersURL = 'https://map.earthmc.net/tiles/minecraft_overworld/markers.json'
-	if (archiveDate < 20230212) {
+	if (archiveDate() < 20230212) {
 		markersURL = 'https://earthmc.net/map/aurora/tiles/_markers_/marker_earth.json'
-	} else if (archiveDate < 20240701) {
+	} else if (archiveDate() < 20240701) {
 		markersURL = 'https://earthmc.net/map/aurora/standalone/MySQL_markers.php?marker=_markers_/marker_earth.json'
 	}
 	markersURL = archiveWebsite + markersURL
@@ -540,7 +546,7 @@ async function getArchive(data) {
 	let actualArchiveDate
 
 	// Structure of markers.json changed
-	if (archiveDate < 20240701) {
+	if (archiveDate() < 20240701) {
 		data[0].markers = convertOldMarkersStructure(archive.sets['townyPlugin.markerset'])
 		actualArchiveDate = archive.timestamp
 	} else {
@@ -551,7 +557,7 @@ async function getArchive(data) {
 	actualArchiveDate = new Date(parseInt(actualArchiveDate)).toLocaleDateString('en-ca')
 	document.querySelector('#current-map-mode-label').textContent += ` (${actualArchiveDate})`
 	loadingMessage.remove()
-	if (actualArchiveDate.replaceAll('-', '') != archiveDate) {
+	if (actualArchiveDate.replaceAll('-', '') != archiveDate()) {
 		sendAlert(`The closest archive to your prompt comes from ${actualArchiveDate}.`)
 	}
 

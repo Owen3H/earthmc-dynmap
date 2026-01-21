@@ -1,7 +1,8 @@
 import { 
 	MAPI_BASE, OAPI_BASE,
 	CURRENT_MAP,
-	fetchJSON
+	fetchJSON,
+	PROJECT_URL
 } from "./httputil"
 
 const htmlCode = {
@@ -26,9 +27,24 @@ const htmlCode = {
 	alertBox: '<div id="alert"><p id="alert-message">{message}</p><br><button id="alert-close">OK</button></div>'
 }
 
-const currentMapMode = localStorage['emcdynmapplus-mapmode'] ?? 'meganations'
-
 init()
+
+function init() {
+	injectMainScript()
+	localStorage['emcdynmapplus-mapmode'] = localStorage['emcdynmapplus-mapmode'] ?? 'meganations'
+	localStorage['emcdynmapplus-darkened'] = localStorage['emcdynmapplus-darkened'] ?? true
+
+	waitForHTMLelement('.leaflet-tile-pane').then(() => {
+		if (localStorage['emcdynmapplus-darkened'] == 'true') decreaseBrightness(true)
+	})
+	waitForHTMLelement('.leaflet-top.leaflet-left').then(element => addMainMenu(element))
+
+	if (localStorage['emcdynmapplus-darkmode'] == 'true') loadDarkMode()
+	// Fix nameplates appearing over popups
+	waitForHTMLelement('.leaflet-nameplate-pane').then(element => element.style = '')
+
+	checkForUpdate()
+}
 
 function sendAlert(message) {
 	if (document.querySelector('#alert') != null) document.querySelector('#alert').remove()
@@ -79,14 +95,10 @@ function addMainMenu(parent) {
 
 	// Current map mode label
 	const currentMapModeLabel = addElement(sidebar, htmlCode.currentMapModeLabel, '#current-map-mode-label')
-	currentMapModeLabel.textContent = currentMapModeLabel.textContent.replace('{currentMapMode}', currentMapMode)
+	currentMapModeLabel.textContent = currentMapModeLabel.textContent.replace('{currentMapMode}', currentMapMode())
 }
 
-function decreaseBrightness(isChecked) {
-	const element = document.querySelector('.leaflet-tile-pane')
-	localStorage['emcdynmapplus-darkened'] = isChecked
-	element.style.filter = (isChecked) ? 'brightness(50%)' : ''
-}
+const currentMapMode = () => localStorage['emcdynmapplus-mapmode'] ?? 'meganations'
 
 function switchMapMode() {
 	const nextMapMode = {
@@ -94,25 +106,18 @@ function switchMapMode() {
 		alliances: 'default',
 		default: 'meganations'
 	}
-	localStorage['emcdynmapplus-mapmode'] = nextMapMode[currentMapMode] ?? 'meganations'
+	localStorage['emcdynmapplus-mapmode'] = nextMapMode[currentMapMode()] ?? 'meganations'
 	location.reload()
 }
 
-function init() {
-	injectMainScript()
-	localStorage['emcdynmapplus-mapmode'] = localStorage['emcdynmapplus-mapmode'] ?? 'meganations'
-	localStorage['emcdynmapplus-darkened'] = localStorage['emcdynmapplus-darkened'] ?? true
-
-	waitForHTMLelement('.leaflet-tile-pane').then(() => {
-		if (localStorage['emcdynmapplus-darkened'] == 'true') decreaseBrightness(true)
-	})
-	waitForHTMLelement('.leaflet-top.leaflet-left').then(element => addMainMenu(element))
-
-	if (localStorage['emcdynmapplus-darkmode'] == 'true') loadDarkMode()
-	// Fix nameplates appearing over popups
-	waitForHTMLelement('.leaflet-nameplate-pane').then(element => element.style = '')
-
-	checkForUpdate()
+/**
+ * 
+ * @param {boolean} boxTicked 
+ */
+function decreaseBrightness(boxTicked) {
+	const element = document.querySelector('.leaflet-tile-pane')
+	localStorage['emcdynmapplus-darkened'] = boxTicked
+	element.style.filter = boxTicked ? 'brightness(50%)' : ''
 }
 
 function loadDarkMode() {
@@ -143,6 +148,11 @@ function toggleDarkMode(isChecked) {
 	waitForHTMLelement('.leaflet-map-pane').then(element => element.style.filter = '')
 }
 
+/**
+ * Runs appropriate locator func based on selectValue, passing inputValue as the argument. 
+ * @param {string} selectValue
+ * @param {string} inputValue
+ */
 function locate(selectValue, inputValue) {
 	switch (selectValue) {
 		case 'Town': locateTown(inputValue); break
@@ -152,18 +162,24 @@ function locate(selectValue, inputValue) {
 }
 
 function checkForUpdate() {
-	const version = {
-		cached: localStorage['emcdynmapplus-version'],
-		latest: chrome.runtime.getManifest().version
+	const cachedVer = localStorage['emcdynmapplus-version']
+	const latestVer = chrome.runtime.getManifest().version
+
+	if (!cachedVer) return localStorage['emcdynmapplus-version'] = latestVer
+	if (cachedVer != latestVer) {
+		const changelogURL = `${PROJECT_URL}/releases/v${latestVer}`
+		sendAlert(`
+			Extension has been automatically updated from ${cachedVer} to ${latestVer}. 
+			Read what has been changed <a href="${changelogURL}" target="_blank">here</a>.
+		`)
 	}
-	if (!version.cached) return localStorage['emcdynmapplus-version'] = version.latest
-	if (version.cached != version.latest) {
-		const changelogURL = 'https://github.com/3meraldK/earthmc-dynmap/releases/v' + version.latest
-		sendAlert(`Extension has been automatically updated from ${version.cached} to ${version.latest}. Read what has been changed <a href="${changelogURL}" target="_blank">here</a>.`)
-	}
-	localStorage['emcdynmapplus-version'] = version.latest
+
+	localStorage['emcdynmapplus-version'] = latestVer
 }
 
+/**
+ * @param {HTMLElement} sidebar 
+ */
 function addOptions(sidebar) {
 	const optionsButton = addElement(sidebar, htmlCode.buttons.options, '#options-button')
 	const optionsMenu = addElement(sidebar, htmlCode.options.menu, '#options-menu')
@@ -215,9 +231,17 @@ function addLocateMenu(sidebar) {
 	})
 }
 
-function addElement(parent, element, returnWhat, all = false) {
+/**
+ * 
+ * @param {HTMLElement} parent 
+ * @param {HTMLElement} element 
+ * @param {any} selector 
+ * @param {boolean} all 
+ * @returns 
+ */
+function addElement(parent, element, selector, all = false) {
 	parent.insertAdjacentHTML('beforeend', element)
-	return (!all) ? parent.querySelector(returnWhat) : parent.querySelectorAll(returnWhat)
+	return (!all) ? parent.querySelector(selector) : parent.querySelectorAll(selector)
 }
 
 function addOption(index, optionId, optionName, variable) {

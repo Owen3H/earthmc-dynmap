@@ -6,6 +6,7 @@ export const MAPI_BASE = `https://map.${EMC_DOMAIN}`
 export const CAPI_BASE = `https://emcstats.bot.nu`
 
 export const PROXY_URL = `https://api.codetabs.com/v1/proxy/?quest=`
+export const PROJECT_URL = "https://github.com/3meraldK/earthmc-dynmap"
 
 /**
  * Fetches data at url, parsing it as JSON unless we received 404.
