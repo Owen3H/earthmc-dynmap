@@ -43,13 +43,18 @@ function sendAlert(message) {
 	document.querySelector('#alert-close').addEventListener('click', event => { event.target.parentElement.remove() })
 }
 
+/**
+ * @param {object} data - The settings response JSON data.
+ */
 function modifySettings(data) {
 	data['player_tracker'].nameplates['show_heads'] = true
 	data['player_tracker'].nameplates['heads_url'] = 'https://mc-heads.net/avatar/{uuid}/16'
-	data.zoom.def = 0
+	
 	// Set camera on Europe
 	data.spawn.x = 2000
 	data.spawn.z = -10000
+	
+	data.zoom.def = 0
 	return data
 }
 
@@ -358,6 +363,9 @@ function addElement(parent, element, returnWhat, all = false) {
 	return (!all) ? parent.querySelector(returnWhat) : parent.querySelectorAll(returnWhat)
 }
 
+/**
+ * @param {Array<any>} data - The markers response JSON data.
+ */
 async function main(data) {
 	if (currentMapMode() == 'archive') {
 		data = await getArchive(data)
@@ -583,11 +591,13 @@ window.fetch = async (...args) => {
 	}
 
 	const data = await response.clone().json()
+	if (data.length < 1) return null // prevent a map update from bad data
+
 	// TODO: Check that the data is valid
 
-	const modified = isMarkers ? main(data) : isSettings 
-		? modifySettings(data) 
-		: data;
+	const modified =
+		isMarkers ? main(data) : 
+		isSettings ? modifySettings(data) : data;
 
 	return new Response(JSON.stringify(modified))
 }
