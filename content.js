@@ -27,47 +27,24 @@ function init() {
 	localStorage['emcdynmapplus-mapmode'] = localStorage['emcdynmapplus-mapmode'] ?? 'meganations'
 	localStorage['emcdynmapplus-darkened'] = localStorage['emcdynmapplus-darkened'] ?? true
 
-	waitForHTMLelement('.leaflet-tile-pane').then(() => {
+	waitForElement('.leaflet-tile-pane').then(() => {
 		if (localStorage['emcdynmapplus-darkened'] == 'true') decreaseBrightness(true)
 	})
-	waitForHTMLelement('.leaflet-top.leaflet-left').then(element => addMainMenu(element))
+	waitForElement('.leaflet-top.leaflet-left').then(element => addMainMenu(element))
 
 	if (localStorage['emcdynmapplus-darkmode'] == 'true') loadDarkMode()
 	// Fix nameplates appearing over popups
-	waitForHTMLelement('.leaflet-nameplate-pane').then(element => element.style = '')
+	waitForElement('.leaflet-nameplate-pane').then(element => element.style = '')
 
 	checkForUpdate()
 }
 
-/**
- * Shows an alert message in a box at the center of the screen.
- * @param {string} message 
- */
-function showAlert(message) {
-	if (document.querySelector('#alert') != null) document.querySelector('#alert').remove()
-	document.body.insertAdjacentHTML('beforeend', htmlCode.alertBox.replace('{message}', message))
-	document.querySelector('#alert-close').addEventListener('click', event => { event.target.parentElement.remove() })
-}
-
+/** Injects the main.js file into the page context, similar to adding <script src="main.js"></script> */
 function injectMainScript() {
 	const mainScript = document.createElement('script')
 	mainScript.src = chrome.runtime.getURL('main.js')
 	mainScript.onload = function () { this.remove() };
 	(document.head || document.documentElement).appendChild(mainScript)
-}
-
-function waitForHTMLelement(selector) {
-	return new Promise(resolve => {
-		if (document.querySelector(selector)) return resolve(document.querySelector(selector))
-
-		const observer = new MutationObserver(() => {
-			if (document.querySelector(selector)) {
-				resolve(document.querySelector(selector))
-				observer.disconnect()
-			}
-		})
-		observer.observe(document.body, { childList: true, subtree: true })
-	})
 }
 
 function addMainMenu(parent) {
@@ -125,7 +102,7 @@ function toggleDarkMode(boxTicked) {
 	if (boxTicked) return loadDarkMode()
 
 	document.querySelector('#dark-mode').remove()
-	waitForHTMLelement('.leaflet-map-pane').then(element => element.style.filter = '')
+	waitForElement('.leaflet-map-pane').then(element => element.style.filter = '')
 }
 
 function loadDarkMode() {
@@ -213,19 +190,6 @@ function addLocateMenu(sidebar) {
 	locateButton.addEventListener('click', () => {
 		locate(locateSelect.value, locateInput.value)
 	})
-}
-
-/**
- * 
- * @param {HTMLElement} parent 
- * @param {HTMLElement} element 
- * @param {any} selector 
- * @param {boolean} all 
- * @returns 
- */
-function addElement(parent, element, selector, all = false) {
-	parent.insertAdjacentHTML('beforeend', element)
-	return (!all) ? parent.querySelector(selector) : parent.querySelectorAll(selector)
 }
 
 function addOption(index, optionId, optionName, variable) {

@@ -1,9 +1,3 @@
-const {
-	fetchJSON, PROXY_URL,
-	CAPI_BASE, OAPI_BASE, 
-	CURRENT_MAP
-} = window
-
 const htmlCode = {
 	playerLookup: '<div class="leaflet-control-layers leaflet-control left-container" id="player-lookup"></div>',
 	partOfLabel: '<span id="part-of-label">Part of <b>{allianceList}</b></span>',
@@ -24,22 +18,12 @@ if (currentMapMode() != 'default' && currentMapMode() != 'archive') {
 }
 
 // Add clickable player nameplates
-waitForHTMLelement('.leaflet-nameplate-pane').then(element => {
+waitForElement('.leaflet-nameplate-pane').then(element => {
 	element.addEventListener('click', event => {
 		const username = event.target.textContent || event.target.parentElement.parentElement.textContent
 		if (username.length > 0) lookupPlayer(username, false)
 	})
 })
-
-/**
- * Shows an alert message in a box at the center of the screen.
- * @param {string} message 
- */
-function showAlert(message) {
-	if (document.querySelector('#alert') != null) document.querySelector('#alert').remove()
-	document.body.insertAdjacentHTML('beforeend', htmlCode.alertBox.replace('{message}', message))
-	document.querySelector('#alert-close').addEventListener('click', event => { event.target.parentElement.remove() })
-}
 
 /**
  * @param {object} data - The settings response JSON data.
@@ -338,27 +322,6 @@ function addChunksLayer(data) {
 		}]
 	}
 	return data
-}
-
-function waitForHTMLelement(selector) {
-	return new Promise(resolve => {
-		if (document.querySelector(selector)) {
-			return resolve(document.querySelector(selector))
-		}
-
-		const observer = new MutationObserver(() => {
-			if (document.querySelector(selector)) {
-				resolve(document.querySelector(selector))
-				observer.disconnect()
-			}
-		})
-		observer.observe(document.body, { childList: true, subtree: true })
-	})
-}
-
-function addElement(parent, element, returnWhat, all = false) {
-	parent.insertAdjacentHTML('beforeend', element)
-	return (!all) ? parent.querySelector(returnWhat) : parent.querySelectorAll(returnWhat)
 }
 
 /**

@@ -15,7 +15,7 @@
 
 	"content_scripts": [{
 		"matches": ["https://map.earthmc.net/*"],
-		"js": ["httputil.js", "content.js"],
+		"js": ["httputil.js", "ui.js", "content.js"],
 		"css": ["style.css"]
 	}]
 }
