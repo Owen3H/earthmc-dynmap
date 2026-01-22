@@ -7,7 +7,7 @@
 // @iconURL      https://raw.githubusercontent.com/3meraldK/earthmc-dynmap/main/icon.png
 // ==/UserScript==
 
-// Both files
+// All files consolidated
 
 const htmlCode = {
 	playerLookup: '<div class="leaflet-control-layers leaflet-control left-container" id="player-lookup"></div>',
@@ -39,34 +39,47 @@ const htmlCode = {
 	// For userscript
 	updateNotification: '<div class="leaflet-control-layers leaflet-control left-container" id="update-notification">{text}<br><span class="close-container">X</span></div>'
 }
-const currentMapMode = localStorage['emcdynmapplus-mapmode'] ?? 'meganations'
 
-function sendAlert(message) {
+const currentMapMode = () => localStorage['emcdynmapplus-mapmode'] ?? 'meganations'
+
+/**
+ * Shows an alert message in a box at the center of the screen.
+ * @param {string} message 
+ */
+function showAlert(message) {
 	if (document.querySelector('#alert') != null) document.querySelector('#alert').remove()
 	document.body.insertAdjacentHTML('beforeend', htmlCode.alertBox.replace('{message}', message))
 	document.querySelector('#alert-close').addEventListener('click', event => { event.target.parentElement.remove() })
 }
 
-function waitForHTMLelement(selector) {
-	return new Promise(resolve => {
-		if (document.querySelector(selector)) {
-			return resolve(document.querySelector(selector))
-		}
-
-		const observer = new MutationObserver(() => {
-			if (document.querySelector(selector)) {
-				resolve(document.querySelector(selector))
-				observer.disconnect()
-			}
-		})
-		observer.observe(document.body, { childList: true, subtree: true })
-	})
-}
-
-function addElement(parent, element, returnWhat, all = false) {
+/**
+ * @param {HTMLElement} parent
+ * @param {HTMLElement} element
+ * @param {string} selector
+ * @param {boolean} all
+ */
+function addElement(parent, element, selector, all = false) {
 	parent.insertAdjacentHTML('beforeend', element)
-	return (!all) ? parent.querySelector(returnWhat) : parent.querySelectorAll(returnWhat)
+	return (!all) ? parent.querySelector(selector) : parent.querySelectorAll(selector)
 }
+
+/**
+ * @param {string} selector
+ * @returns {Promise<Element | null>}
+ */
+const waitForElement = (selector) => new Promise(resolve => {
+    const selected = document.querySelector(selector)
+    if (selected) return resolve(selected)
+
+    const observer = new MutationObserver(() => {
+        const selected = document.querySelector(selector)
+        if (selected) {
+            resolve(selected)
+            observer.disconnect()
+        }
+    })
+    observer.observe(document.body, { childList: true, subtree: true })
+})
 
 async function fetchJSON(url, options = null) {
 	const response = await fetch(url, options)
@@ -76,9 +89,9 @@ async function fetchJSON(url, options = null) {
 	return null
 }
 
-// content.js
-
 const OAPI_BASE = 'https://api.earthmc.net/v3/aurora'
+const CAPI_BASE = 'https://emcstats.bot.nu'
+const CURRENT_MAP = 'aurora'
 
 init()
 appendStyle()
@@ -105,7 +118,7 @@ function addMainMenu(parent) {
 
 	// Current map mode label
 	const currentMapModeLabel = addElement(sidebar, htmlCode.currentMapModeLabel, '#current-map-mode-label')
-	currentMapModeLabel.textContent = currentMapModeLabel.textContent.replace('{currentMapMode}', currentMapMode)
+	currentMapModeLabel.textContent = currentMapModeLabel.textContent.replace('{currentMapMode}', currentMapMode())
 }
 
 function decreaseBrightness(isChecked) {
@@ -120,7 +133,7 @@ function switchMapMode() {
 		alliances: 'default',
 		default: 'meganations'
 	}
-	localStorage['emcdynmapplus-mapmode'] = nextMapMode[currentMapMode] ?? 'meganations'
+	localStorage['emcdynmapplus-mapmode'] = nextMapMode[currentMapMode()] ?? 'meganations'
 	location.reload()
 }
 
@@ -128,17 +141,29 @@ function init() {
 	localStorage['emcdynmapplus-mapmode'] = localStorage['emcdynmapplus-mapmode'] ?? 'meganations'
 	localStorage['emcdynmapplus-darkened'] = localStorage['emcdynmapplus-darkened'] ?? true
 
-	waitForHTMLelement('.leaflet-tile-pane').then(() => {
+	waitForElement('.leaflet-tile-pane').then(() => {
 		if (localStorage['emcdynmapplus-darkened'] == 'true') decreaseBrightness(true)
 	})
-	waitForHTMLelement('.leaflet-top.leaflet-left').then(element => {
+	waitForElement('.leaflet-top.leaflet-left').then(element => {
 		addMainMenu(element)
 		checkForUpdate(element) // For userscript
+
+		// Prevents panning the map when on this element by
+        // stopping the mouse event from propogating to Leaflet.
+        el.addEventListener('mousedown', e => e.stopPropagation())
+
+        // blocks the map (Leaflet) from zooming when 
+        // double clicking in the sidebar main menu
+        el.addEventListener('dblclick', e => {
+            e.stopPropagation()
+            e.preventDefault()
+        })
 	})
 
 	if (localStorage['emcdynmapplus-darkmode'] == 'true') loadDarkMode()
+	
 	// Fix nameplates appearing over popups
-	waitForHTMLelement('.leaflet-nameplate-pane').then(element => element.style = '')
+	waitForElement('.leaflet-nameplate-pane').then(element => element.style = '')
 }
 
 function loadDarkMode() {
@@ -166,7 +191,7 @@ function toggleDarkMode(isChecked) {
 	else {
 		localStorage['emcdynmapplus-darkmode'] = false
 		document.querySelector('#dark-mode').remove()
-		waitForHTMLelement('.leaflet-map-pane').then(element => element.style.filter = '')
+		waitForElement('.leaflet-map-pane').then(element => element.style.filter = '')
 	}
 }
 
@@ -256,10 +281,10 @@ async function locateTown(town) {
 	if (town == '') return
 
 	const coords = await getTownSpawn(town)
-	if (coords == false) return sendAlert('Searched town has not been found.')
-	if (coords == null) return sendAlert('Service is currently unavailable, please try later.')
-	location.href = `https://map.earthmc.net/?zoom=4&x=${coords.x}&z=${coords.z}`
+	if (coords == false) return showAlert('Searched town has not been found.')
+	if (coords == null) return showAlert('Service is currently unavailable, please try later.')
 
+	location.href = `https://map.earthmc.net/?zoom=4&x=${coords.x}&z=${coords.z}`
 }
 
 async function locateNation(nation) {
@@ -268,13 +293,13 @@ async function locateNation(nation) {
 
 	const query = { query: [nation], template: { capital: true } }
 	const data = await fetchJSON(`${OAPI_BASE}/nations`, {method: 'POST', body: JSON.stringify(query)})
-	if (data == false) return sendAlert('Searched nation has not been found.')
-	if (data == null) return sendAlert('Service is currently unavailable, please try later.')
+	if (data == false) return showAlert('Searched nation has not been found.')
+	if (data == null) return showAlert('Service is currently unavailable, please try later.')
 
 	const capital = data[0].capital.name
 	const coords = await getTownSpawn(capital)
-	if (coords == false) return sendAlert('Unexpected error occurred while searching for nation, please try later.')
-	if (coords == null) return sendAlert('Service is currently unavailable, please try later.')
+	if (coords == false) return showAlert('Unexpected error occurred while searching for nation, please try later.')
+	if (coords == null) return showAlert('Service is currently unavailable, please try later.')
 	location.href = `https://map.earthmc.net/?zoom=4&x=${coords.x}&z=${coords.z}`
 }
 
@@ -284,14 +309,14 @@ async function locateResident(resident) {
 
 	const query = { query: [resident], template: { town: true } }
 	const data = await fetchJSON(`${OAPI_BASE}/players`, {method: 'POST', body: JSON.stringify(query)})
-	if (data == false) return sendAlert('Searched resident has not been found.')
-	if (data == null) return sendAlert('Service is currently unavailable, please try later.')
+	if (data == false) return showAlert('Searched resident has not been found.')
+	if (data == null) return showAlert('Service is currently unavailable, please try later.')
 
 	const town = data[0].town.name
-	if (!town) return sendAlert('The searched resident is townless.')
+	if (!town) return showAlert('The searched resident is townless.')
 	const coords = await getTownSpawn(town)
-	if (coords == false) return sendAlert('Unexpected error occurred while searching for resident, please try later.')
-	if (coords == null) return sendAlert('Service is currently unavailable, please try later.')
+	if (coords == false) return showAlert('Unexpected error occurred while searching for resident, please try later.')
+	if (coords == null) return showAlert('Service is currently unavailable, please try later.')
 	location.href = `https://map.earthmc.net/?zoom=4&x=${coords.x}&z=${coords.z}`
 }
 
@@ -311,11 +336,14 @@ unsafeWindow.lookupPlayerFunc = lookupPlayer
 const proxyURL = 'https://api.codetabs.com/v1/proxy/?quest='
 
 let alliances = null
-if (currentMapMode != 'default' && currentMapMode != 'archive') getAlliances().then(result => alliances = result)
+if (currentMapMode() != 'default' && currentMapMode() != 'archive') {
+	getAlliances().then(result => alliances = result)
+}
+
 const archiveDate = parseInt(localStorage['emcdynmapplus-archive-date'])
 
 // Add clickable player nameplates
-waitForHTMLelement('.leaflet-nameplate-pane').then(element => {
+waitForElement('.leaflet-nameplate-pane').then(element => {
 	element.addEventListener('click', event => {
 		const username = event.target.textContent || event.target.parentElement.parentElement.textContent
 		if (username.length > 0) lookupPlayer(username, false)
@@ -363,12 +391,16 @@ function getArea(vertices) {
 	return (Math.abs(area) / 2) / (16 * 16)
 }
 
-// By James Halliday (substack)
+/**
+ * Credit: James Halliday (substack)
+ * @param {{x: number, z: number}} vertex 
+ * @param {Array<{x: number, z: number}>} polygon
+ */
 function pointInPolygon(vertex, polygon) {
-	let x = vertex.x, z = vertex.z
+	let { x, z } = vertex
 	let n = polygon.length
 	let inside = false
-	for (let i = 0, j = n - 1; i < n; j = i++ ) {
+	for (let i = 0, j = n - 1; i < n; j = i++) {
 		let xi = polygon[i].x
 		let zi = polygon[i].z
 		let xj = polygon[j].x
@@ -378,12 +410,15 @@ function pointInPolygon(vertex, polygon) {
 			&& (x < (xj - xi) * (z - zi) / (zj - zi) + xi)
 		if (intersect) inside = !inside
 	}
+
 	return inside
 }
 
-// Modify town descriptions for Dynmap archives
+/**
+ * Modify town descriptions for Dynmap archives
+ * @param {{tooltip: string, popup: string}} marker 
+ */
 function modifyOldDescription(marker) {
-	// Gather some information
 	const residents = marker.popup.match(/Members <span style="font-weight:bold">(.*)<\/span><br \/>Flags/)?.[1]
 	const residentNum = residents?.split(', ')?.length || 0
 	const isCapital = marker.popup.match(/capital: true/) != null
@@ -424,15 +459,16 @@ function modifyOldDescription(marker) {
 }
 
 function modifyDescription(marker) {
-	// Gather some information
 	const town = marker.tooltip.match(/<b>(.*)<\/b>/)[1]
 	const nation = marker.tooltip.match(/\(\b(?:Member|Capital)\b of (.*)\)\n/)?.[1]
 	const mayor = marker.popup.match(/Mayor: <b>(.*)<\/b>/)?.[1]
-	let councillors = marker.popup.match(/Councillors: <b>(.*)<\/b>/)?.[1].split(', ')
-	councillors = councillors.filter(councillor => councillor != 'None')
+	const isCapital = marker.tooltip.match(/\(Capital of (.*)\)/) != null
+
 	const residents = marker.popup.match(/<\/summary>\n    \t(.*)\n   \t<\/details>/)?.[1]
 	const residentNum = residents.split(', ').length
-	const isCapital = marker.tooltip.match(/\(Capital of (.*)\)/) != null
+
+	const councillors = marker.popup.match(/Councillors: <b>(.*)<\/b>/)?.[1]
+		.split(', ').filter(councillor => councillor != 'None')
 
 	// Fix bug with names wrapped in angle brackets
 	const names = {
@@ -445,7 +481,6 @@ function modifyDescription(marker) {
 	const iteratedRegions = []
 	if (marker.type == 'polygon') {
 		for (const regionVertices of marker.points[0]) {
-
 			// Exclude non-affiliated regions entirely inside town
 			if (iteratedRegions.length > 0) {
 				let isInsidePolygon = false
@@ -459,14 +494,14 @@ function modifyDescription(marker) {
 			}
 			else area += getArea(regionVertices)
 			iteratedRegions.push(regionVertices)
-
 		}
 	}
 
 	// Create clickable resident lists
-	const residentList = (currentMapMode == 'archive') ? residents :
+	const residentList = (currentMapMode() == 'archive') ? residents :
 		residents.split(', ').map(resident => htmlCode.residentClickable.replaceAll('{player}', resident)).join(', ')
-	const councillorList = (currentMapMode == 'archive') ? councillors :
+	
+	const councillorList = (currentMapMode() == 'archive') ? councillors :
 		councillors.map(councillor => htmlCode.residentClickable.replaceAll('{player}', councillor)).join(', ')
 
 	// Modify description
@@ -486,13 +521,17 @@ function modifyDescription(marker) {
 		.replace('Size: <b>0 chunks</b><br/>', '') // Remove 0 chunks town size info
 		.replaceAll('<b>false</b>', '<b><span style="color: red">No</span></b>') // 'False' flag
 		.replaceAll('<b>true</b>', '<b><span style="color: green">Yes</span></b>') // 'True' flag
-	if (currentMapMode != 'archive') {
+	
+	if (currentMapMode() != 'archive') {
 		marker.popup = marker.popup
-		.replace(/Mayor: <b>(.*)<\/b>/, `Mayor: <b>${htmlCode.residentClickable.replaceAll('{player}', mayor)}</b>`) // Lookup mayor
-		.replace(/Councillors: <b>(.*)<\/b>/, `Councillors: <b>${councillorList}</b>`) // Lookup councillors
+			.replace(/Mayor: <b>(.*)<\/b>/, `Mayor: <b>${htmlCode.residentClickable.replaceAll('{player}', mayor)}</b>`) // Lookup mayor
+			.replace(/Councillors: <b>(.*)<\/b>/, `Councillors: <b>${councillorList}</b>`) // Lookup councillors
 	}
-	if (isCapital) marker.popup = marker.popup
-		.replace('<span style="font-size:120%;">', '<span style="font-size: 120%">★ ') // Add capital star
+
+	if (isCapital) {
+		// Add capital star
+		marker.popup = marker.popup.replace('<span style="font-size:120%;">', '<span style="font-size: 120%">★ ')
+	}
 
 	// Modify tooltip
 	marker.tooltip = marker.tooltip
@@ -504,7 +543,7 @@ function modifyDescription(marker) {
 		.replace(nation, names.nation)
 
 	// Add 'Part of' label
-	if (currentMapMode == 'archive' || currentMapMode == 'default') return marker
+	if (currentMapMode() == 'archive' || currentMapMode() == 'default') return marker
 	const nationAlliances = getNationAlliances(nation)
 	if (nationAlliances.length > 0) {
 		const allianceList = nationAlliances.map(alliance => alliance.name).join(', ')
@@ -515,44 +554,51 @@ function modifyDescription(marker) {
 	return marker
 }
 
+/**
+ * @param {object} markers - The old markers response JSON data
+ */
 function convertOldMarkersStructure(markers) {
-	return Object.entries(markers.areas).map(([key, value]) => {
-
-		if (key.includes('_Shop')) return undefined // Remove shop areas
-		const points = value.x.map((x, index) => ({ x, z: value.z[index] }))
+	return Object.entries(markers.areas).flatMap(([key, v]) => {
+		if (key.includes('_Shop')) return []
 		return {
-			fillColor: value.fillcolor,
-			color: value.color,
-			popup: value.desc ?? `<div><b>${value.label}</b></div>`,
-			weight: value.weight,
-			opacity: value.opacity,
+			fillColor: v.fillcolor,
+			color: v.color,
+			popup: v.desc ?? `<div><b>${v.label}</b></div>`,
+			weight: v.weight,
+			opacity: v.opacity,
 			type: 'polygon',
-			points: points
+			points: v.x.map((x, i) => ({ x, z: v.z[i] }))
 		}
-
-	}).filter(Boolean)
+	})
 }
 
+/**
+ * Gets all alliances the input nation exists within / is related to.
+ * @param {string} nation 
+ * @returns {Array<{name: string, colours: { fill: string, outline: string }}>}
+ */
 function getNationAlliances(nation) {
+	if (alliances == null) return []
+
 	const nationAlliances = []
-	if (alliances == null) return nationAlliances
 	for (const alliance of alliances) {
 		if (!alliance.nations.includes(nation)) continue
-		if (alliance.type != currentMapMode) continue
+		if (alliance.modeType != currentMapMode()) continue
 		nationAlliances.push({name: alliance.name, colours: alliance.colours})
 	}
+
 	return nationAlliances
 }
 
 function colorTowns(marker) {
 	const nation = marker.tooltip.match(/\(\b(?:Member|Capital)\b of (.*)\)\n/)?.[1]
+	const nationHasDefaultColor = (marker.color == '#3fb4ff' && marker.fillColor == '#3fb4ff') // Default blue
 	const mayor = marker.popup.match(/Mayor: <b>(.*)<\/b>/)?.[1]
 	const isRuin = (mayor.match(/NPC[0-9]+/) != null)
-	const isNationless = (nation == null)
-	const nationHasDefaultColor = (marker.color == '#3fb4ff' && marker.fillColor == '#3fb4ff') // Default blue
+	//const isNationless = (nation == null)
 
 	// Universal properties for the map modes
-	if (currentMapMode == 'alliances') {
+	if (currentMapMode() == 'alliances') {
 		marker.color = '#000000' // Black
 		marker.fillColor = '#000000'
 		marker.weight = 0.5
@@ -610,8 +656,8 @@ function addChunksLayer(data) {
 }
 
 async function main(data) {
-
-	if (currentMapMode == 'archive') {
+	const mapMode = currentMapMode()
+	if (mapMode == 'archive') {
 		data = await getArchive(data)
 	}
 
@@ -619,15 +665,16 @@ async function main(data) {
 	data = await addCountryLayer(data)
 
 	if (!data?.[0]?.markers?.length) {
-		sendAlert('Unexpected error occurred while loading the map, maybe EarthMC is down? Try again later.')
+		showAlert('Unexpected error occurred while loading the map, maybe EarthMC is down? Try again later.')
 		return data
 	}
 
 	for (let marker of data[0].markers) {
 		if (marker.type != 'polygon' && marker.type != 'icon') continue
 
-		marker = (currentMapMode != 'archive' || archiveDate >= 20240701)
-		? modifyDescription(marker) : modifyOldDescription(marker)
+		marker = (mapMode != 'archive' || archiveDate >= 20240701)
+			? modifyDescription(marker) 
+			: modifyOldDescription(marker)
 
 		if (marker.type != 'polygon') continue
 
@@ -636,7 +683,7 @@ async function main(data) {
 		marker.fillOpacity = 0.33
 		marker.weight = 1.5
 
-		if (currentMapMode == 'default' || currentMapMode == 'archive') continue
+		if (mapMode == 'default' || mapMode == 'archive') continue
 
 		marker = colorTowns(marker)
 	}
@@ -644,14 +691,13 @@ async function main(data) {
 }
 
 async function addCountryLayer(data) {
-
 	if (!localStorage['emcdynmapplus-borders']) {
 		const loadingMessage = addElement(document.body, htmlCode.message.replace('{message}', 'Downloading country borders...'), '.message')
 		const markersURL = 'https://web.archive.org/web/2024id_/https://earthmc.net/map/aurora/standalone/MySQL_markers.php?marker=_markers_/marker_earth.json'
 		const fetch = await fetchJSON(proxyURL + markersURL)
 		loadingMessage.remove()
 		if (!fetch) {
-			sendAlert('Could not download optional country borders layer, you could try again later.')
+			showAlert('Could not download optional country borders layer, you could try again later.')
 			return data
 		}
 		localStorage['emcdynmapplus-borders'] = JSON.stringify(fetch.sets['borders.Country Borders'].lines)
@@ -686,21 +732,20 @@ async function addCountryLayer(data) {
 		}
 		return data
 	} catch (error) {
-		sendAlert(`Could not set up a layer of country borders. You may need to clear this website's data. If problem persists, contact the developer.`)
+		showAlert(`Could not set up a layer of country borders. You may need to clear this website's data. If problem persists, contact the developer.`)
 		return data
 	}
 }
 
-async function lookupPlayer(player, showOnlineStatus = true) {
-
+async function lookupPlayer(playerName, showOnlineStatus = true) {
 	if (document.querySelector('#player-lookup') != null) document.querySelector('#player-lookup').remove()
 	if (document.querySelector('#player-lookup-loading') != null) document.querySelector('#player-lookup-loading').remove()
 	const loading = addElement(document.querySelector('.leaflet-top.leaflet-left'), htmlCode.playerLookupLoading, '#player-lookup-loading')
 
-	const query = { query: [player] }
-	const data = await fetchJSON('https://api.earthmc.net/v3/aurora/players', { method: 'POST', body: JSON.stringify(query) })
-	if (data == false) return sendAlert('Unexpected error occurred while looking the player up, please try later.')
-	if (data == null) return sendAlert('Service is currently unavailable, please try later.')
+	const query = { query: [playerName] }
+	const players = await fetchJSON('https://api.earthmc.net/v3/aurora/players', { method: 'POST', body: JSON.stringify(query) })
+	if (players == false) return showAlert('Unexpected error occurred while looking the player up, please try later.')
+	if (players == null) return showAlert('Service is currently unavailable, please try later.')
 
 	loading.remove()
 	const lookup = addElement(document.querySelector('.leaflet-top.leaflet-left'), htmlCode.playerLookup, '#player-lookup')
@@ -715,26 +760,28 @@ async function lookupPlayer(player, showOnlineStatus = true) {
 	lookup.insertAdjacentHTML('beforeend', '{last-online}')
 	lookup.insertAdjacentHTML('beforeend', '<span class="close-container">X</span>')
 
+	const player = players[0]
+
 	// Gather data
-	const isOnline = data[0].status.isOnline
-	const balance = data[0].stats.balance
-	const town = data[0].town.name
-	const nation = data[0].nation.name
-	const lastOnline = new Date(data[0].timestamps.lastOnline).toLocaleDateString('fr')
+	const isOnline = player.status.isOnline
+	const balance = player.stats.balance
+	const town = player.town.name
+	const nation = player.nation.name
+	const lastOnline = new Date(player.timestamps.lastOnline).toLocaleDateString('fr')
 	let onlineStatus = '<span id="player-lookup-online" style="color: {online-color}">{online}</span>'
-	const about = (!data[0].about || data[0].about == '/res set about [msg]') ? '' : `<br><i>${data[0].about}</i>`
+	const about = (!player.about || player.about == '/res set about [msg]') ? '' : `<br><i>${player.about}</i>`
 	let rank = 'Townless'
-	if (data[0].status.hasTown) rank = 'Resident'
-	if (data[0].ranks.townRanks.includes('Councillor')) rank = 'Councillor'
-	if (data[0].status.isMayor) rank = 'Mayor'
-	if (data[0].ranks.nationRanks.includes('Chancellor')) rank = 'Chancellor'
-	if (data[0].status.isKing) rank = 'Leader'
+	if (player.status.hasTown) rank = 'Resident'
+	if (player.ranks.townRanks.includes('Councillor')) rank = 'Councillor'
+	if (player.status.isMayor) rank = 'Mayor'
+	if (player.ranks.nationRanks.includes('Chancellor')) rank = 'Chancellor'
+	if (player.status.isKing) rank = 'Leader'
 
 	// Place data
-	const playerAvatarURL = 'https://mc-heads.net/avatar/' + data[0].uuid.replaceAll('-', '')
+	const playerAvatarURL = 'https://mc-heads.net/avatar/' + player.uuid.replaceAll('-', '')
 	document.querySelector('#player-lookup-avatar').setAttribute('src', playerAvatarURL)
 	lookup.innerHTML = lookup.innerHTML
-		.replace('{player}', player)
+		.replace('{player}', player.name || playerName)
 		.replace('{about}', about)
 		.replace('{show-online-status}', showOnlineStatus ? onlineStatus : '')
 		.replace('{online-color}', isOnline ? 'green' : 'red')
@@ -747,27 +794,45 @@ async function lookupPlayer(player, showOnlineStatus = true) {
 	lookup.querySelector('.close-container').addEventListener('click', event => { event.target.parentElement.remove() })
 }
 
+// Black
+const DEFAULT_ALLIANCE_COLOURS = { fill: '#000000', outline: '#000000' }
+
+/**
+ * @param {{fill: string, outline: string}} colours  
+ */
+function parseColours(colours) {
+	if (!colours) return DEFAULT_ALLIANCE_COLOURS
+	colours.fill = "#" + colours.fill.replaceAll("#", "")
+	colours.outline = "#" + colours.outline.replaceAll("#", "")
+	return colours
+}
+
+/**
+ * @returns {Array<{name: string, modeType: string, nations: Array<string>, colours: {fill: string, outline: string}}>}
+ */
 async function getAlliances() {
-	const alliances = await fetchJSON('https://emcstats.bot.nu/aurora/alliances')
+	const alliances = await fetchJSON(`${CAPI_BASE}/${CURRENT_MAP}/alliances`)
 	if (!alliances) {
 		const cache = JSON.parse(localStorage['emcdynmapplus-alliances'])
 		if (cache == null) {
-			sendAlert('Service responsible for loading alliances will be available later.')
+			showAlert('Service responsible for loading alliances will be available later.')
 			return []
 		}
-		sendAlert('Service responsible for loading alliances is currently unavailable, but locally-cached data will be used.')
+
+		showAlert('Service responsible for loading alliances is currently unavailable, but locally-cached data will be used.')
 		return cache
 	}
 
 	const finalArray = []
 	for (const alliance of alliances) {
-		let allianceType = alliance.type.toLowerCase() || 'mega'
-		if (allianceType == 'sub') continue
+		const allianceType = alliance.type.toLowerCase() || 'mega'
+		if (allianceType == 'sub') continue // TODO: This doesn't exist anymore. Remove or replace with 'org' ?
+
 		finalArray.push({
-			name: alliance.fullName || alliance.allianceName,
-			type: allianceType == 'mega' ? 'meganations' : 'alliances',
-			nations: alliance.nations,
-			colours: alliance.colours || { fill: '#000000', outline: '#000000' } // Black
+			name: alliance.label || alliance.identifier,
+			modeType: allianceType == 'mega' ? 'meganations' : 'alliances',
+			nations: alliance.ownNations,
+			colours: parseColours(alliance.optional.colours)
 		})
 	}
 
@@ -789,7 +854,7 @@ async function getArchive(data) {
 	markersURL = archiveWebsite + markersURL
 
 	let archive = await fetchJSON(proxyURL + markersURL)
-	if (!archive) return sendAlert('Archive service is currently unavailable, please try later.')
+	if (!archive) return showAlert('Archive service is currently unavailable, please try later.')
 	let actualArchiveDate
 
 	// Structure of markers.json changed
@@ -805,7 +870,7 @@ async function getArchive(data) {
 	document.querySelector('#current-map-mode-label').textContent += ` (${actualArchiveDate})`
 	loadingMessage.remove()
 	if (actualArchiveDate.replaceAll('-', '') != archiveDate) {
-		sendAlert(`The closest archive to your prompt comes from ${actualArchiveDate}.`)
+		showAlert(`The closest archive to your prompt comes from ${actualArchiveDate}.`)
 	}
 
 	return data
@@ -814,27 +879,28 @@ async function getArchive(data) {
 // Replace the default fetch() with ours to intercept responses
 let preventMapUpdate = false
 unsafeWindow.fetch = async (...args) => {
-	let [resource, config] = args
-	let response = await originalFetch(resource, config)
+	let [url, opts] = args
+	let response = await originalFetch(url, opts)
 
 	if (response.url.includes('web.archive.org')) return response
+	const isMarkers = response.url.includes('markers.json')
+	const isSettings = response.url.includes('minecraft_overworld/settings.json')
 
 	// Modify contents of markers.json and settings.json
-	if (response.url.includes('markers.json') || response.url.includes('minecraft_overworld/settings.json')) {
-
+	if (isMarkers || isSettings) {
 		const modifiedJson = await response.clone().json().then(data => {
+			// settings.json
+			if (isSettings) return modifySettings(data)
 
 			// markers.json
-			if (response.url.includes('markers.json')) {
+			if (isMarkers) {
 				if (preventMapUpdate == false) {
 					preventMapUpdate = true
 					return main(data)
 				}
-				else return null
+				
+				return null
 			}
-
-			// settings.json
-			if (response.url.includes('minecraft_overworld/settings.json')) return modifySettings(data)
 		})
 	
 		return new Response(JSON.stringify(modifiedJson))

@@ -62,7 +62,11 @@ function getArea(vertices) {
 	return (Math.abs(area) / 2) / (16 * 16)
 }
 
-// Credit: James Halliday (substack)
+/**
+ * Credit: James Halliday (substack)
+ * @param {{x: number, z: number}} vertex 
+ * @param {Array<{x: number, z: number}>} polygon
+ */
 function pointInPolygon(vertex, polygon) {
 	let { x, z } = vertex
 	let n = polygon.length
@@ -77,9 +81,9 @@ function pointInPolygon(vertex, polygon) {
 			&& (x < (xj - xi) * (z - zi) / (zj - zi) + xi)
 		if (intersect) inside = !inside
 	}
+
 	return inside
 }
-
 
 /**
  * Modifies town descriptions for Dynmap archives
@@ -168,9 +172,10 @@ function modifyDescription(marker) {
 	}
 
 	// Create clickable resident lists
-	const residentList = (currentMapMode() == 'archive') ? residents :
+	const isArchiveMode = currentMapMode() == 'archive'
+	const residentList = isArchiveMode ? residents :
 		residents.split(', ').map(resident => htmlCode.residentClickable.replaceAll('{player}', resident)).join(', ')
-	const councillorList = (currentMapMode() == 'archive') ? councillors :
+	const councillorList = isArchiveMode ? councillors :
 		councillors.map(councillor => htmlCode.residentClickable.replaceAll('{player}', councillor)).join(', ')
 
 	// Modify description
@@ -221,15 +226,18 @@ function modifyDescription(marker) {
 	return marker
 }
 
+/**
+ * @param {object} markers - The old markers response JSON data
+ */
 function convertOldMarkersStructure(markers) {
 	return Object.entries(markers.areas).flatMap(([key, v]) => {
 		if (key.includes('_Shop')) return []
 		return {
-			fillColor: value.fillcolor,
-			color: value.color,
-			popup: value.desc ?? `<div><b>${value.label}</b></div>`,
-			weight: value.weight,
-			opacity: value.opacity,
+			fillColor: v.fillcolor,
+			color: v.color,
+			popup: v.desc ?? `<div><b>${v.label}</b></div>`,
+			weight: v.weight,
+			opacity: v.opacity,
 			type: 'polygon',
 			points: v.x.map((x, i) => ({ x, z: v.z[i] }))
 		}
@@ -485,7 +493,7 @@ async function lookupPlayer(playerName, showOnlineStatus = true) {
 	const playerAvatarURL = 'https://mc-heads.net/avatar/' + player.uuid.replaceAll('-', '')
 	document.querySelector('#player-lookup-avatar').setAttribute('src', playerAvatarURL)
 	lookup.innerHTML = lookup.innerHTML
-		.replace('{player}', player)
+		.replace('{player}', player.name || playerName)
 		.replace('{about}', about)
 		.replace('{show-online-status}', showOnlineStatus ? onlineStatus : '')
 		.replace('{online-color}', isOnline ? 'green' : 'red')
@@ -495,6 +503,7 @@ async function lookupPlayer(playerName, showOnlineStatus = true) {
 		.replace('{rank}', rank)
 		.replace('{balance}', balance)
 		.replace('{last-online}', !isOnline ? `Last online: <b>${lastOnline}</b><br>` : '')
+
 	lookup.querySelector('.close-container').addEventListener('click', event => { event.target.parentElement.remove() })
 }
 
