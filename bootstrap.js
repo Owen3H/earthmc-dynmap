@@ -33,8 +33,12 @@
         waitForElement('.leaflet-top.leaflet-left').then(el => {
             addMainMenu(el)
 
+            // Prevents panning the map when on this element by
+            // stopping the mouse event from propogating to Leaflet.
+            el.addEventListener('mousedown', e => e.stopPropagation())
+
             // blocks the map (Leaflet) from zooming when 
-            // double clicking in the extension menu
+            // double clicking in the sidebar main menu
             el.addEventListener('dblclick', e => {
                 e.stopPropagation()
                 e.preventDefault()
