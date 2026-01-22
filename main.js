@@ -446,16 +446,16 @@ async function addCountryLayer(data) {
 }
 
 /**
- * @param {string} player 
+ * @param {string} playerName
  * @param {boolean} showOnlineStatus 
  * @returns 
  */
-async function lookupPlayer(player, showOnlineStatus = true) {
+async function lookupPlayer(playerName, showOnlineStatus = true) {
 	if (document.querySelector('#player-lookup') != null) document.querySelector('#player-lookup').remove()
 	if (document.querySelector('#player-lookup-loading') != null) document.querySelector('#player-lookup-loading').remove()
 	const loading = addElement(document.querySelector('.leaflet-top.leaflet-left'), htmlCode.playerLookupLoading, '#player-lookup-loading')
 
-	const query = { query: [player] }
+	const query = { query: [playerName] }
 	const players = await fetchJSON(`${OAPI_BASE}/${CURRENT_MAP}/players`, { method: 'POST', body: JSON.stringify(query) })
 	if (players == false) return showAlert('Unexpected error occurred while looking the player up, please try later.')
 	if (players == null) return showAlert('Service is currently unavailable, please try later.')
