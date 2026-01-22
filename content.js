@@ -1,29 +1,14 @@
-const htmlCode = {
-	buttons: {
-		locate: '<button class="sidebar-button" id="locate-button">Locate</button>',
-		searchArchive: '<button class="sidebar-button" id="archive-button">Search archive</button>',
-		options: '<button class="sidebar-button" id="options-button">Options</button>',
-		switchMapMode: '<button class="sidebar-input" id="switch-map-mode">Switch map mode</button>'
-	},
-	options: {
-		menu: '<div id="options-menu"></div>',
-		option: '<div class="option"></div>',
-		label: '<label for="{option}">{optionName}</label>',
-		checkbox: '<input id="{option}" type="checkbox" name="{option}">',
-	},
-	sidebar: '<div class="leaflet-control-layers leaflet-control" id="sidebar"></div>',
-	sidebarOption: '<div class="sidebar-option"></div>',
-	locateInput: '<input class="sidebar-input" id="locate-input" placeholder="London">',
-	locateSelect: '<select class="sidebar-button" id="locate-select"><option>Town</option><option>Nation</option><option>Resident</option></select>',
-	archiveInput: `<input class="sidebar-input" id="archive-input" type="date" min="2022-05-01" max="${new Date().toLocaleDateString('en-ca')}">`,
-	currentMapModeLabel: '<div class="sidebar-option" id="current-map-mode-label">Current map mode: {currentMapMode}</div>',
-	alertBox: '<div id="alert"><p id="alert-message">{message}</p><br><button id="alert-close">OK</button></div>'
-}
-
 init()
 
 function init() {
-	injectMainScript()
+	// Even though the content scripts have already loaded, we still need to
+	// inject their contents into the page so web_accessible_resources can access them.
+	//
+	// Injection order matters: least-dependent first, same as in manifest.json.
+	injectScript('httputil.js')
+	injectScript('ui.js')
+	injectScript('main.js')
+
 	localStorage['emcdynmapplus-mapmode'] = localStorage['emcdynmapplus-mapmode'] ?? 'meganations'
 	localStorage['emcdynmapplus-darkened'] = localStorage['emcdynmapplus-darkened'] ?? true
 
@@ -39,12 +24,16 @@ function init() {
 	checkForUpdate()
 }
 
-/** Injects the main.js file into the page context, similar to adding <script src="main.js"></script> */
-function injectMainScript() {
-	const mainScript = document.createElement('script')
-	mainScript.src = chrome.runtime.getURL('main.js')
-	mainScript.onload = function () { this.remove() };
-	(document.head || document.documentElement).appendChild(mainScript)
+/** 
+ * Injects a file by its name into the page context, 
+ * similar to adding \<script src="main.js"></script> to an HTML file.
+ * @param {string} fileName
+ */
+function injectScript(fileName) {
+	const script = document.createElement('script')
+	script.src = chrome.runtime.getURL(fileName)
+	script.onload = () => script.remove()
+	(document.head || document.documentElement).appendChild(script)
 }
 
 function addMainMenu(parent) {

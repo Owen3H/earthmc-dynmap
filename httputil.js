@@ -18,7 +18,7 @@ const PROJECT_URL = "https://github.com/3meraldK/earthmc-dynmap"
  * @param {string} url 
  * @param {RequestInit} options 
  */
-const fetchJSON = async function fetchJSON(url, options = null) {
+async function fetchJSON(url, options = null) {
     const response = await window.originalFetch(url, options)
     if (response.status == 404) return null
     if (response.ok) return response.json()

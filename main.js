@@ -1,14 +1,3 @@
-const htmlCode = {
-	playerLookup: '<div class="leaflet-control-layers leaflet-control left-container" id="player-lookup"></div>',
-	partOfLabel: '<span id="part-of-label">Part of <b>{allianceList}</b></span>',
-	residentClickable: '<span class="resident-clickable" onclick="lookupPlayer(\'{player}\')">{player}</span>',
-	residentList: '<span class="resident-list">\t{list}</span>',
-	scrollableResidentList: '<div class="resident-list" id="scrollable-list">\t{list}</div>',
-	playerLookupLoading: '<div class="leaflet-control-layers leaflet-control left-container" id="player-lookup-loading">Loading...</button>',
-	alertBox: '<div id="alert"><p id="alert-message">{message}</p><br><button id="alert-close">OK</button></div>',
-	alertMsg: '<div class="message" id="alert"><p id="alert-message">{message}</p></div>'
-}
-
 const archiveDate = () => parseInt(localStorage['emcdynmapplus-archive-date'])
 
 let alliances = null
