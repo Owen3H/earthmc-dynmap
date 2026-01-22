@@ -836,8 +836,8 @@ unsafeWindow.fetch = async (...args) => {
 			// settings.json
 			if (response.url.includes('minecraft_overworld/settings.json')) return modifySettings(data)
 		})
+	
 		return new Response(JSON.stringify(modifiedJson))
-
 	}
 
 	return response

@@ -1,8 +1,7 @@
-const { 
-	fetch: originalFetch,
+const {
 	fetchJSON, PROXY_URL,
-	CAPI_BASE, OAPI_BASE,
-	CURRENT_MAP,
+	CAPI_BASE, OAPI_BASE, 
+	CURRENT_MAP
 } = window
 
 const htmlCode = {
@@ -548,11 +547,10 @@ async function getArchive(data) {
 	}
 	markersURL = archiveWebsite + markersURL
 
-	let archive = await fetchJSON(PROXY_URL + markersURL)
+	const archive = await fetchJSON(PROXY_URL + markersURL)
 	if (!archive) return showAlert('Archive service is currently unavailable, please try later.')
-	let actualArchiveDate
 
-	// Structure of markers.json changed
+	let actualArchiveDate // Structure of markers.json changed at some point
 	if (archiveDate() < 20240701) {
 		data[0].markers = convertOldMarkersStructure(archive.sets['townyPlugin.markerset'])
 		actualArchiveDate = archive.timestamp
@@ -569,34 +567,4 @@ async function getArchive(data) {
 	}
 
 	return data
-}
-
-// Replace the default fetch() with ours to intercept responses
-let preventMapUpdate = false
-window.fetch = async (...args) => {
-	let [resource, config] = args
-	let response = await originalFetch(resource, config)
-
-	if (response.url.includes('web.archive.org')) return response
-	
-	const isMarkers = response.url.includes('markers.json')
-	const isSettings = response.url.includes('minecraft_overworld/settings.json')
-	if (!isMarkers && !isSettings) return response
-
-	// Modify contents of markers.json and settings.json
-	if (isMarkers) {
-		if (preventMapUpdate) return null
-		preventMapUpdate = true
-	}
-
-	const data = await response.clone().json()
-	if (data.length < 1) return null // prevent a map update from bad data
-
-	// TODO: Check that the data is valid
-
-	const modified =
-		isMarkers ? main(data) : 
-		isSettings ? modifySettings(data) : data;
-
-	return new Response(JSON.stringify(modified))
 }
