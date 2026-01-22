@@ -1,10 +1,3 @@
-import { 
-	MAPI_BASE, OAPI_BASE,
-	CURRENT_MAP,
-	fetchJSON,
-	PROJECT_URL
-} from "./httputil"
-
 const htmlCode = {
 	buttons: {
 		locate: '<button class="sidebar-button" id="locate-button">Locate</button>',

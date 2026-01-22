@@ -1,11 +1,10 @@
-import { 
-	PROXY_URL,
+const { 
+	fetch: originalFetch,
+	fetchJSON, PROXY_URL,
 	CAPI_BASE, OAPI_BASE,
 	CURRENT_MAP,
-	fetchJSON
-} from "./httputil"
+} = window
 
-const { fetch: originalFetch } = window
 const htmlCode = {
 	playerLookup: '<div class="leaflet-control-layers leaflet-control left-container" id="player-lookup"></div>',
 	partOfLabel: '<span id="part-of-label">Part of <b>{allianceList}</b></span>',
