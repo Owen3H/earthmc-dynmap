@@ -235,7 +235,8 @@ function getNationAlliances(nation) {
 
 	const nationAlliances = []
 	for (const alliance of alliances) {
-		if (!alliance.ownNations.includes(nation)) continue
+		if (!alliance.nations.includes(nation)) continue
+		if (alliance.modeType != currentMapMode()) continue
 		nationAlliances.push({name: alliance.name, colours: alliance.colours})
 	}
 
@@ -486,6 +487,22 @@ async function lookupPlayer(playerName, showOnlineStatus = true) {
 	lookup.querySelector('.close-container').addEventListener('click', event => { event.target.parentElement.remove() })
 }
 
+// Black
+const DEFAULT_ALLIANCE_COLOURS = { fill: '#000000', outline: '#000000' }
+
+/**
+ * @param {{fill: string, outline: string}} colours  
+ */
+function parseColours(colours) {
+	if (!colours) return DEFAULT_ALLIANCE_COLOURS
+	colours.fill = "#" + colours.fill.replaceAll("#", "")
+	colours.outline = "#" + colours.outline.replaceAll("#", "")
+	return colours
+}
+
+/**
+ * @returns {Array<{name: string, modeType: string, nations: Array<string>, colours: {fill: string, outline: string}}>}
+ */
 async function getAlliances() {
 	const alliances = await fetchJSON(`${CAPI_BASE}/${CURRENT_MAP}/alliances`)
 	if (!alliances) {
@@ -494,6 +511,7 @@ async function getAlliances() {
 			showAlert('Service responsible for loading alliances will be available later.')
 			return []
 		}
+
 		showAlert('Service responsible for loading alliances is currently unavailable, but locally-cached data will be used.')
 		return cache
 	}
@@ -501,12 +519,13 @@ async function getAlliances() {
 	const finalArray = []
 	for (const alliance of alliances) {
 		const allianceType = alliance.type.toLowerCase() || 'mega'
-		if (allianceType == 'sub') continue
+		if (allianceType == 'sub') continue // TODO: This doesn't exist anymore. Remove or replace with 'org' ?
+
 		finalArray.push({
-			name: alliance.fullName || alliance.allianceName,
-			type: allianceType == 'mega' ? 'meganations' : 'alliances',
-			nations: alliance.nations,
-			colours: alliance.colours || { fill: '#000000', outline: '#000000' } // Black
+			name: alliance.label || alliance.identifier,
+			modeType: allianceType == 'mega' ? 'meganations' : 'alliances',
+			nations: alliance.ownNations,
+			colours: parseColours(alliance.optional.colours)
 		})
 	}
 

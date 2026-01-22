@@ -45,7 +45,7 @@ window.fetch = async (...args) => {
 	const data = await response.clone().json()
 	if (data.length < 1) return null // prevent a map update from bad data
 
-	const modified = isSettings ? modifySettings(data) : data;
+	let modified = isSettings ? modifySettings(data) : data;
     if (isMarkers) {
         console.log(`intercepted: ${response.url}\n\tinjecting custom html into markers body`)
         modified = await main(data)
