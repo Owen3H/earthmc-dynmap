@@ -1,20 +1,18 @@
-(async function injectScripts() {
-	// Attach to global window since we cannot get runtime from web_accessible_resources
-	window.CURRENT_VERSION = chrome.runtime.getManifest().version
-
+(async function() {
+	const manifest = chrome.runtime.getManifest()
+	
+	// Attach to global window for use later inside non-content scripts 
+	// since we cannot access the chrome runtime in those.
+	window.CURRENT_VERSION = manifest.version
+	
 	// Even though the scripts have already loaded, we still need to
 	// inject their contents into the page so can access them and use them.
 	//
-	// Injection order matters: least-dependent first, same as in manifest.json.
-	await injectScript('httputil.js')
-	await injectScript('dom.js')
-	await injectScript('main.js')
-
-	// This has to be last to ensure all funcs/objs from previous injections are defined. 
-	// For example, waitForElement from ui.js can be referred to after bootstrap finishes.
-	// 
-	// This is also where init is called from after the DOM becomes ready.
-    await injectScript('bootstrap.js')
+	// manifest.json must specify resources in least-dependent order first.
+	const files = manifest.web_accessible_resources[0].resources
+	for (const file of files) {
+		await injectScript(file)
+	}
 })()
 
 /** 

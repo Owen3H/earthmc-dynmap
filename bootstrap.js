@@ -1,15 +1,8 @@
+// Bootstrap must always be injected last to ensure all funcs/objs from previous injections are defined. 
+// For example, waitForElement from ui.js can be referred to after bootstrap finishes.
+// 
+// This is also where init is called from after the DOM becomes ready.
 (async function bootstrap() {
-    function switchMapMode() {
-        const nextMapMode = {
-            default: 'meganations',
-            meganations: 'alliances',
-            alliances: 'default',
-        }
-
-        localStorage['emcdynmapplus-mapmode'] = nextMapMode[currentMapMode()] ?? 'meganations'
-        location.reload()
-    }
-
     /** @returns {string} */
     function checkForUpdate() {
         const cachedVer = localStorage['emcdynmapplus-version']
@@ -37,7 +30,16 @@
             if (localStorage['emcdynmapplus-darkened'] === 'true') decreaseBrightness(true)
         })
 
-        waitForElement('.leaflet-top.leaflet-left').then(el => addMainMenu(el))
+        waitForElement('.leaflet-top.leaflet-left').then(el => {
+            addMainMenu(el)
+
+            // blocks the map (Leaflet) from zooming when 
+            // double clicking in the extension menu
+            el.addEventListener('dblclick', e => {
+                e.stopPropagation()
+                e.preventDefault()
+            })
+        })
 
         if (localStorage['emcdynmapplus-darkmode'] === 'true') loadDarkMode()
 
