@@ -748,7 +748,7 @@ async function lookupPlayer(player, showOnlineStatus = true) {
 }
 
 async function getAlliances() {
-	const alliances = await fetchJSON('https://emctoolkit.vercel.app/api/aurora/alliances')
+	const alliances = await fetchJSON('https://emcstats.bot.nu/aurora/alliances')
 	if (!alliances) {
 		const cache = JSON.parse(localStorage['emcdynmapplus-alliances'])
 		if (cache == null) {

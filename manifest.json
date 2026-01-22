@@ -1,10 +1,9 @@
 {
 	"manifest_version": 3,
 	"name": "EarthMC Dynmap+",
-	"version": "1.16",
+	"version": "1.17",
 	"author": "3meraldK",
 	"description": "Extension to enrich the EarthMC map experience",
-
 	"icons": {
 		"48": "icon.png"
 	},
