@@ -1,7 +1,5 @@
-// save the normal fetch (just once) before we later override it
-if (!window.originalFetch) {
-    window.originalFetch = window.fetch
-}
+// save the normal fetch before main.js overrides it
+window.originalFetch = window.originalFetch || window.fetch 
 
 const EMC_DOMAIN = "earthmc.net"
 const CURRENT_MAP = "aurora"
@@ -29,11 +27,11 @@ async function fetchJSON(url, options = null) {
 // Replace the default fetch() with ours to intercept responses
 let preventMapUpdate = false
 window.fetch = async (...args) => {
-	let [resource, config] = args
-	let response = await window.originalFetch(resource, config)
+	const [url, opts] = args
+	const response = await window.originalFetch(url, opts)
 
 	if (response.url.includes('web.archive.org')) return response
-	
+
 	const isMarkers = response.url.includes('markers.json')
 	const isSettings = response.url.includes('minecraft_overworld/settings.json')
 	if (!isMarkers && !isSettings) return response
@@ -47,9 +45,11 @@ window.fetch = async (...args) => {
 	const data = await response.clone().json()
 	if (data.length < 1) return null // prevent a map update from bad data
 
-	const modified =
-		isMarkers ? main(data) : 
-		isSettings ? modifySettings(data) : data;
+	const modified = isSettings ? modifySettings(data) : data;
+    if (isMarkers) {
+        console.log(`intercepted: ${response.url}\n\tinjecting custom html into markers body`)
+        modified = await main(data)
+    }
 
 	return new Response(JSON.stringify(modified))
 }

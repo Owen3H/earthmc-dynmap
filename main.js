@@ -1,10 +1,9 @@
-const archiveDate = () => parseInt(localStorage['emcdynmapplus-archive-date'])
+//console.log('emcdynmapplus: injected main.js')
 
 let alliances = null
+
 const currentMapMode = () => localStorage['emcdynmapplus-mapmode'] ?? 'meganations'
-if (currentMapMode() != 'default' && currentMapMode() != 'archive') {
-	getAlliances().then(result => alliances = result)
-}
+const archiveDate = () => parseInt(localStorage['emcdynmapplus-archive-date'])
 
 // Add clickable player nameplates
 waitForElement('.leaflet-nameplate-pane').then(element => {
@@ -14,40 +13,29 @@ waitForElement('.leaflet-nameplate-pane').then(element => {
 	})
 })
 
-/**
- * @param {object} data - The settings response JSON data.
- */
-function modifySettings(data) {
-	data['player_tracker'].nameplates['show_heads'] = true
-	data['player_tracker'].nameplates['heads_url'] = 'https://mc-heads.net/avatar/{uuid}/16'
-	
-	// Set camera on Europe
-	data.spawn.x = 2000
-	data.spawn.z = -10000
-	
-	data.zoom.def = 0
-	return data
-}
-
 /** @param {string} str */
 const isNumeric = (str) => Number.isFinite(+str)
 
 /** @param {number} num */
 const roundTo16 = (num) => Math.round(num / 16) * 16
 
-// Fowler-Noll-Vo hash function
-function hashCode(string) {
+/** 
+ * Fowler-Noll-Vo hash function
+ * @param {string} str
+ */
+function hashCode(str) {
 	let hexValue = 0x811c9dc5
-	for (let i = 0; i < string.length; i++) {
-		hexValue ^= string.charCodeAt(i)
+	for (let i = 0; i < str.length; i++) {
+		hexValue ^= str.charCodeAt(i)
 		hexValue += (hexValue << 1) + (hexValue << 4) + (hexValue << 7) + (hexValue << 8) + (hexValue << 24)
 	}
+
 	return '#' + ((hexValue >>> 0) % 16777216).toString(16).padStart(6, '0')
 }
 
 /**
  * Shoelace formula
- * @param {{x: number, z: number}[]} vertices 
+ * @param {Array<{x: number, z: number}>} vertices 
  */
 function getArea(vertices) {
 	const amtVerts = vertices.length
@@ -63,7 +51,7 @@ function getArea(vertices) {
 	return (Math.abs(area) / 2) / (16 * 16)
 }
 
-// By James Halliday (substack)
+// Credit: James Halliday (substack)
 function pointInPolygon(vertex, polygon) {
 	let { x, z } = vertex
 	let n = polygon.length
@@ -81,9 +69,12 @@ function pointInPolygon(vertex, polygon) {
 	return inside
 }
 
-// Modify town descriptions for Dynmap archives
+
+/**
+ * Modifies town descriptions for Dynmap archives
+ * @param {{tooltip: string, popup: string}} marker 
+ */
 function modifyOldDescription(marker) {
-	// Gather some information
 	const residents = marker.popup.match(/Members <span style="font-weight:bold">(.*)<\/span><br \/>Flags/)?.[1]
 	const residentNum = residents?.split(', ')?.length || 0
 	const isCapital = marker.popup.match(/capital: true/) != null
@@ -121,8 +112,10 @@ function modifyOldDescription(marker) {
 	return marker
 }
 
+/**
+ * @param {{tooltip: string, popup: string}} marker 
+ */
 function modifyDescription(marker) {
-	// Gather some information
 	const town = marker.tooltip.match(/<b>(.*)<\/b>/)[1]
 	const isCapital = marker.tooltip.match(/\(Capital of (.*)\)/) != null
 	const nation = marker.tooltip.match(/\(\b(?:Member|Capital)\b of (.*)\)\n/)?.[1]
@@ -233,21 +226,25 @@ function convertOldMarkersStructure(markers) {
 }
 
 /**
+ * Gets all alliances the input nation exists within / is related to.
  * @param {string} nation 
- * @returns 
+ * @returns {Array<{name: string, colours: any}>}
  */
 function getNationAlliances(nation) {
+	if (alliances == null) return []
+
 	const nationAlliances = []
-	if (alliances == null) return nationAlliances
 	for (const alliance of alliances) {
-		if (!alliance.nations.includes(nation)) continue
-		if (alliance.type != currentMapMode()) continue
+		if (!alliance.ownNations.includes(nation)) continue
 		nationAlliances.push({name: alliance.name, colours: alliance.colours})
 	}
 
 	return nationAlliances
 }
 
+/**
+ * @param {{tooltip: string, popup: string}} marker 
+ */
 function colorTowns(marker) {
 	const nation = marker.tooltip.match(/\(\b(?:Member|Capital)\b of (.*)\)\n/)?.[1]
 	const mayor = marker.popup.match(/Mayor: <b>(.*)<\/b>/)?.[1]
@@ -281,6 +278,55 @@ function colorTowns(marker) {
 	return marker
 }
 
+/**
+ * @param {Array<any>} data - The markers response JSON data.
+ */
+// TODO: Should probably split main into modifyMarkers() to match modifySettings().
+// 		 It also makes more sense during fetch intercept to call modifyMarkers instead of main.
+async function main(data) {
+	const mapMode = currentMapMode()
+	const isAllianceMode = mapMode != 'default' && mapMode != 'archive'
+    if (alliances == null && isAllianceMode) {
+        alliances = await getAlliances()
+    }
+
+	if (mapMode == 'archive') {
+		data = await getArchive(data)
+	}
+
+	data = addChunksLayer(data)
+	data = await addCountryLayer(data)
+
+	if (!data?.[0]?.markers?.length) {
+		showAlert('Unexpected error occurred while loading the map, maybe EarthMC is down? Try again later.')
+		return data
+	}
+
+	for (let marker of data[0].markers) {
+		if (marker.type != 'polygon' && marker.type != 'icon') continue
+		marker = (mapMode != 'archive' || archiveDate() >= 20240701)
+			? modifyDescription(marker) 
+			: modifyOldDescription(marker)
+
+		if (marker.type != 'polygon') continue
+
+		// Universal properties
+		marker.opacity = 1
+		marker.fillOpacity = 0.33
+		marker.weight = 1.5
+
+		// Alliance only properties
+		if (isAllianceMode) {
+			marker = colorTowns(marker)
+		}
+	}
+	
+	return data
+}
+
+/**
+ * @param {Array<any>} data - The markers response JSON data.
+ */
 function addChunksLayer(data) {
 	const chunkLines = []
 	for (let x = -33280; x <= 33088; x += 16) {
@@ -310,46 +356,13 @@ function addChunksLayer(data) {
 			'points': chunkLines
 		}]
 	}
+
 	return data
 }
 
 /**
  * @param {Array<any>} data - The markers response JSON data.
  */
-async function main(data) {
-	if (currentMapMode() == 'archive') {
-		data = await getArchive(data)
-	}
-
-	data = addChunksLayer(data)
-	data = await addCountryLayer(data)
-
-	if (!data?.[0]?.markers?.length) {
-		showAlert('Unexpected error occurred while loading the map, maybe EarthMC is down? Try again later.')
-		return data
-	}
-
-	for (let marker of data[0].markers) {
-		if (marker.type != 'polygon' && marker.type != 'icon') continue
-
-		marker = (currentMapMode() != 'archive' || archiveDate() >= 20240701)
-		? modifyDescription(marker) : modifyOldDescription(marker)
-
-		if (marker.type != 'polygon') continue
-
-		// Universal properties
-		marker.opacity = 1
-		marker.fillOpacity = 0.33
-		marker.weight = 1.5
-
-		if (currentMapMode() == 'default' || currentMapMode() == 'archive') continue
-
-		marker = colorTowns(marker)
-	}
-	
-	return data
-}
-
 async function addCountryLayer(data) {
 	if (!localStorage['emcdynmapplus-borders']) {
 		const loadingMessage = addElement(document.body, htmlCode.alertMsg.replace('{message}', 'Downloading country borders...'), '.message')
@@ -393,6 +406,21 @@ async function addCountryLayer(data) {
 		showAlert(`Could not set up a layer of country borders. You may need to clear this website's data. If problem persists, contact the developer.`)
 	}
 
+	return data
+}
+
+/**
+ * @param {object} data - The settings response JSON data.
+ */
+function modifySettings(data) {
+	data['player_tracker'].nameplates['show_heads'] = true
+	data['player_tracker'].nameplates['heads_url'] = 'https://mc-heads.net/avatar/{uuid}/16'
+	
+	// Set camera on Europe
+	data.spawn.x = 2000
+	data.spawn.z = -10000
+	
+	data.zoom.def = 0
 	return data
 }
 

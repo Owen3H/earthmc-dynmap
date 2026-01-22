@@ -1,14 +1,22 @@
-init()
-
-function init() {
-	// Even though the content scripts have already loaded, we still need to
-	// inject their contents into the page so web_accessible_resources can access them.
+(async function injectScripts() {
+	// Even though the scripts have already loaded, we still need to
+	// inject their contents into the page so can access them and use them.
 	//
 	// Injection order matters: least-dependent first, same as in manifest.json.
-	injectScript('httputil.js')
-	injectScript('ui.js')
-	injectScript('main.js')
+	await injectScript('httputil.js')
+	await injectScript('ui.js')
+	await injectScript('main.js')
 
+	if (document.readyState === 'complete') {
+		init()
+	}
+	if (document.readyState === 'loading') {
+		document.addEventListener('DOMContentLoaded', init)
+	}
+})()
+
+// Only fired after DOM is loaded as we need it to be ready for selecting elements.
+function init() {
 	localStorage['emcdynmapplus-mapmode'] = localStorage['emcdynmapplus-mapmode'] ?? 'meganations'
 	localStorage['emcdynmapplus-darkened'] = localStorage['emcdynmapplus-darkened'] ?? true
 
@@ -25,17 +33,24 @@ function init() {
 }
 
 /** 
- * Injects a file by its name into the page context, 
- * similar to adding \<script src="main.js"></script> to an HTML file.
- * @param {string} fileName
+ * Injects a file into the page context given the path to it. 
+ * This is similar to adding \<script src="main.js"></script> to an HTML file.
+ * @param {string} path
+ * @returns {Promise<void>}
  */
-function injectScript(fileName) {
-	const script = document.createElement('script')
-	script.src = chrome.runtime.getURL(fileName)
-	script.onload = () => script.remove()
-	(document.head || document.documentElement).appendChild(script)
+// TODO: This is an unsafe workaround and we should migrate to ES6 modules with dynamic import.
+function injectScript(path) {
+	return new Promise(resolve => {
+		const script = document.createElement('script')
+		script.src = chrome.runtime.getURL(path)
+		script.onload = () => { script.remove(); resolve() }
+		(document.head || document.documentElement).appendChild(script)
+	})
 }
 
+/**
+ * @param {HTMLElement} parent 
+ */
 function addMainMenu(parent) {
 	const sidebar = addElement(parent, htmlCode.sidebar, '#sidebar')
 
@@ -65,16 +80,16 @@ const currentMapMode = () => localStorage['emcdynmapplus-mapmode'] ?? 'meganatio
 
 function switchMapMode() {
 	const nextMapMode = {
+		default: 'meganations',
 		meganations: 'alliances',
 		alliances: 'default',
-		default: 'meganations'
 	}
+
 	localStorage['emcdynmapplus-mapmode'] = nextMapMode[currentMapMode()] ?? 'meganations'
 	location.reload()
 }
 
 /**
- * 
  * @param {boolean} boxTicked 
  */
 function decreaseBrightness(boxTicked) {

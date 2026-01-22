@@ -9,13 +9,13 @@
 	},
 
     "web_accessible_resources": [{
-        "resources": ["main.js"],
+        "resources": ["httputil.js", "ui.js", "main.js"],
         "matches": ["https://map.earthmc.net/*"]
     }],
 
 	"content_scripts": [{
 		"matches": ["https://map.earthmc.net/*"],
-		"js": ["httputil.js", "ui.js", "content.js"],
+		"js": ["content.js"],
 		"css": ["style.css"]
 	}]
 }

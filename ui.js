@@ -43,7 +43,7 @@ function showAlert(message) {
 /**
  * @param {HTMLElement} parent
  * @param {HTMLElement} element
- * @param {any} selector
+ * @param {string} selector
  * @param {boolean} all
  */
 function addElement(parent, element, selector, all = false) {
@@ -51,6 +51,9 @@ function addElement(parent, element, selector, all = false) {
 	return (!all) ? parent.querySelector(selector) : parent.querySelectorAll(selector)
 }
 
+/**
+ * @param {string} selector
+ */
 function waitForElement(selector) {
 	return new Promise(resolve => {
 		const selected = document.querySelector(selector)
