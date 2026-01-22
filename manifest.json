@@ -9,7 +9,7 @@
 	},
 
     "web_accessible_resources": [{
-        "resources": ["httputil.js", "ui.js", "main.js"],
+        "resources": ["httputil.js", "dom.js", "main.js", "bootstrap.js"],
         "matches": ["https://map.earthmc.net/*"]
     }],
 

@@ -1,9 +1,20 @@
-//console.log('emcdynmapplus: injected main.js')
+console.log('emcdynmapplus: Injected main.js')
 
 let alliances = null
 
-const currentMapMode = () => localStorage['emcdynmapplus-mapmode'] ?? 'meganations'
 const archiveDate = () => parseInt(localStorage['emcdynmapplus-archive-date'])
+const currentMapMode = () => localStorage['emcdynmapplus-mapmode'] ?? 'meganations'
+
+function switchMapMode() {
+	const nextMapMode = {
+		default: 'meganations',
+		meganations: 'alliances',
+		alliances: 'default',
+	}
+
+	localStorage['emcdynmapplus-mapmode'] = nextMapMode[currentMapMode()] ?? 'meganations'
+	location.reload()
+}
 
 // Add clickable player nameplates
 waitForElement('.leaflet-nameplate-pane').then(element => {
