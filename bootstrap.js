@@ -29,6 +29,34 @@
         waitForElement('.leaflet-tile-pane').then(() => {
             if (localStorage['emcdynmapplus-darkened'] === 'true') decreaseBrightness(true)
         })
+        
+        // move the +- zoom control buttons to the bottom instead of top
+        // and make sure the link and coordinates buttons align with it
+        waitForElement('.leaflet-bottom.leaflet-left').then(async el => {
+            const link = await waitForElement('.leaflet-control-layers.link')
+            const coordinates = await waitForElement('.leaflet-control-layers.coordinates')
+            if (link || coordinates) {
+                // Create a wrapper div
+                const wrapper = document.createElement('div')
+                wrapper.style.alignSelf = 'end'
+
+                // Move elements into wrapper
+                if (link) wrapper.appendChild(link)
+                if (coordinates) wrapper.appendChild(coordinates)
+
+                el.appendChild(wrapper)
+            }
+
+            const zoomControl = await waitForElement('.leaflet-control-zoom')
+            if (zoomControl) el.insertBefore(zoomControl, el.firstChild)
+        })
+
+        // Keep the layer toggle on the right of the main menu
+        waitForElement('.leaflet-control-layers-toggle').then(el => {
+            if (el?.parentElement) {
+                el.parentElement.style.clear = 'none'
+            }
+        })
 
         waitForElement('.leaflet-top.leaflet-left').then(el => {
             addMainMenu(el)

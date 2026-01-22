@@ -1,5 +1,5 @@
 const htmlCode = {
-    // Used in content.js
+    // Used in this file
     buttons: {
         locate: '<button class="sidebar-button" id="locate-button">Locate</button>',
         searchArchive: '<button class="sidebar-button" id="archive-button">Search archive</button>',
@@ -22,11 +22,11 @@ const htmlCode = {
 
     // Used in main.js
     playerLookup: '<div class="leaflet-control-layers leaflet-control left-container" id="player-lookup"></div>',
-    partOfLabel: '<span id="part-of-label">Part of <b>{allianceList}</b></span>',
+    playerLookupLoading: '<div class="leaflet-control-layers leaflet-control left-container" id="player-lookup-loading">Loading...</button>',
     residentClickable: '<span class="resident-clickable" onclick="lookupPlayer(\'{player}\')">{player}</span>',
     residentList: '<span class="resident-list">\t{list}</span>',
     scrollableResidentList: '<div class="resident-list" id="scrollable-list">\t{list}</div>',
-    playerLookupLoading: '<div class="leaflet-control-layers leaflet-control left-container" id="player-lookup-loading">Loading...</button>',
+    partOfLabel: '<span id="part-of-label">Part of <b>{allianceList}</b></span>',
     alertMsg: '<div class="message" id="alert"><p id="alert-message">{message}</p></div>'
 }
 
@@ -53,6 +53,7 @@ function addElement(parent, element, selector, all = false) {
 
 /**
  * @param {string} selector
+ * @returns {Promise<Element | null>}
  */
 const waitForElement = (selector) => new Promise(resolve => {
     const selected = document.querySelector(selector)
@@ -69,7 +70,7 @@ const waitForElement = (selector) => new Promise(resolve => {
 })
 
 /**
- * @param {HTMLElement} parent 
+ * @param {HTMLElement} parent - The "leaflet-top leaflet-left" element.
  */
 function addMainMenu(parent) {
 	console.log("emcdynmapplus: adding main menu overlay")

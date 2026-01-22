@@ -144,6 +144,19 @@
 	cursor: pointer;
 }
 
+.leaflet-control {
+	clear: none;
+}
+
+.leaflet-control-layers {
+	float: right;
+}
+
+.leaflet-bottom.leaflet-left {
+	display: flex;
+	flex-direction: row;
+}
+
 #player-lookup-loading {
 	width: auto;
 }
