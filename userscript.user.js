@@ -333,7 +333,7 @@ async function getTownSpawn(town) {
 const { fetch: originalFetch } = unsafeWindow
 // Make this function work in userscript
 unsafeWindow.lookupPlayerFunc = lookupPlayer
-const proxyURL = 'https://api.codetabs.com/v1/proxy/?quest='
+const PROXY_URL = 'https://api.codetabs.com/v1/proxy/?quest='
 
 let alliances = null
 if (currentMapMode() != 'default' && currentMapMode() != 'archive') {
@@ -690,19 +690,23 @@ async function main(data) {
 	return data
 }
 
+/**
+ * @param {Array<any>} data - The markers response JSON data.
+ */
 async function addCountryLayer(data) {
 	if (!localStorage['emcdynmapplus-borders']) {
-		const loadingMessage = addElement(document.body, htmlCode.message.replace('{message}', 'Downloading country borders...'), '.message')
+		const loadingMessage = addElement(document.body, htmlCode.alertMsg.replace('{message}', 'Downloading country borders...'), '.message')
 		const markersURL = 'https://web.archive.org/web/2024id_/https://earthmc.net/map/aurora/standalone/MySQL_markers.php?marker=_markers_/marker_earth.json'
-		const fetch = await fetchJSON(proxyURL + markersURL)
-		loadingMessage.remove()
-		if (!fetch) {
+		const markersJson = await fetchJSON(PROXY_URL + markersURL)
+			.catch(e => { console.error(e); return null } )	
+			.finally(loadingMessage.remove())
+
+		if (!markersJson) {
 			showAlert('Could not download optional country borders layer, you could try again later.')
 			return data
 		}
-		localStorage['emcdynmapplus-borders'] = JSON.stringify(fetch.sets['borders.Country Borders'].lines)
+		localStorage['emcdynmapplus-borders'] = JSON.stringify(markersJson.sets['borders.Country Borders'].lines)
 	}
-
 
 	try {
 		const points = []
@@ -718,23 +722,23 @@ async function addCountryLayer(data) {
 		}
 
 		data[3] = {
-			"hide": true,
-			"name": "Country Borders",
-			"control": true,
-			"id": "borders",
-			"order": 999,
-			"markers": [{
-				"weight": 1,
-				"color": "#ffffff",
-				"type": "polyline",
-				"points": points
+			'hide': true,
+			'name': 'Country Borders',
+			'control': true,
+			'id': 'borders',
+			'order': 999,
+			'markers': [{
+				'weight': 1,
+				'color': '#ffffff',
+				'type': 'polyline',
+				'points': points
 			}]
 		}
-		return data
-	} catch (error) {
+	} catch (_) {
 		showAlert(`Could not set up a layer of country borders. You may need to clear this website's data. If problem persists, contact the developer.`)
-		return data
 	}
+
+	return data
 }
 
 async function lookupPlayer(playerName, showOnlineStatus = true) {
@@ -853,7 +857,7 @@ async function getArchive(data) {
 	}
 	markersURL = archiveWebsite + markersURL
 
-	let archive = await fetchJSON(proxyURL + markersURL)
+	const archive = await fetchJSON(PROXY_URL + markersURL)
 	if (!archive) return showAlert('Archive service is currently unavailable, please try later.')
 	let actualArchiveDate
 

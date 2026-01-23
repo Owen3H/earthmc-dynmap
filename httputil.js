@@ -1,5 +1,5 @@
 // save the normal fetch before main.js overrides it
-window.originalFetch = window.originalFetch || window.fetch 
+const { fetch: originalFetch } = window
 
 const EMC_DOMAIN = "earthmc.net"
 const CURRENT_MAP = "aurora"
@@ -17,18 +17,17 @@ const PROJECT_URL = "https://github.com/3meraldK/earthmc-dynmap"
  * @param {RequestInit} options 
  */
 async function fetchJSON(url, options = null) {
-    const response = await window.originalFetch(url, options)
-    if (response.status == 404) return null
-    if (response.ok) return response.json()
+    const response = await originalFetch(url, options)
+    if (!response.ok && response.status != 304) return null
 
-    return null
+    return response.json()
 }
 
 // Replace the default fetch() with ours to intercept responses
 let preventMapUpdate = false
 window.fetch = async (...args) => {
 	const [url, opts] = args
-	const response = await window.originalFetch(url, opts)
+	const response = await originalFetch(url, opts)
 
 	if (response.url.includes('web.archive.org')) return response
 

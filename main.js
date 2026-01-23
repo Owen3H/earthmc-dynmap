@@ -387,13 +387,15 @@ async function addCountryLayer(data) {
 	if (!localStorage['emcdynmapplus-borders']) {
 		const loadingMessage = addElement(document.body, htmlCode.alertMsg.replace('{message}', 'Downloading country borders...'), '.message')
 		const markersURL = 'https://web.archive.org/web/2024id_/https://earthmc.net/map/aurora/standalone/MySQL_markers.php?marker=_markers_/marker_earth.json'
-		const fetch = await fetchJSON(PROXY_URL + markersURL)
-		loadingMessage.remove()
-		if (!fetch) {
+		const markersJson = await fetchJSON(PROXY_URL + markersURL)
+			.catch(e => { console.error(e); return null } )	
+			.finally(loadingMessage.remove())
+
+		if (!markersJson) {
 			showAlert('Could not download optional country borders layer, you could try again later.')
 			return data
 		}
-		localStorage['emcdynmapplus-borders'] = JSON.stringify(fetch.sets['borders.Country Borders'].lines)
+		localStorage['emcdynmapplus-borders'] = JSON.stringify(markersJson.sets['borders.Country Borders'].lines)
 	}
 
 	try {
