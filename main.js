@@ -49,17 +49,48 @@ function hashCode(str) {
  * @param {Array<{x: number, z: number}>} vertices 
  */
 function getArea(vertices) {
+	let area = 0
+	
 	const amtVerts = vertices.length
-	let area, i = 0
-
-	// Vertices need rounding to 16 because data has imprecise coordinates
-	for (; i < amtVerts; i++) {
+	for (let i = 0; i < amtVerts; i++) {
 		const j = (i + 1) % amtVerts
+
+		// Vertices need rounding to 16 because data has imprecise coordinates
 		area += roundTo16(vertices[i].x) * roundTo16(vertices[j].z)
 		area -= roundTo16(vertices[j].x) * roundTo16(vertices[i].z)
 	}
 
 	return (Math.abs(area) / 2) / (16 * 16)
+}
+
+/**
+ * Computes total area of a marker, accounting for holes.
+ * @param {{type: string, points: Array<Array<Array<{x:number,z:number}>>>}} marker
+ * @returns {number}
+ */
+function calcMarkerArea(marker) {
+    if (marker.type !== 'polygon') return 0
+
+    let area = 0
+    const processed = []
+    for (const multiPolygon of marker.points || []) {
+        for (const polygon of multiPolygon) {
+            if (!polygon || polygon.length < 3) continue
+
+			const verts = polygon
+				.map(v => ({ x: Number(v.x), z: Number(v.z) }))
+				.filter(v => Number.isFinite(v.x) && Number.isFinite(v.z))
+            
+            if (verts.length < 3) continue
+
+            // check if polygon is fully inside any previous polygon
+            const isHole = processed.some(prev => verts.every(v => pointInPolygon(v, prev)))
+            area += isHole ? -getArea(verts) : getArea(verts)
+            processed.push(verts)
+        }
+    }
+
+    return area
 }
 
 /**
@@ -87,7 +118,7 @@ function pointInPolygon(vertex, polygon) {
 
 /**
  * Modifies town descriptions for Dynmap archives
- * @param {{tooltip: string, popup: string}} marker 
+ * @param {{tooltip: string, popup: string, points: Array<{x: number, z: number}>}} marker 
  */
 function modifyOldDescription(marker) {
 	const residents = marker.popup.match(/Members <span style="font-weight:bold">(.*)<\/span><br \/>Flags/)?.[1]
@@ -128,7 +159,7 @@ function modifyOldDescription(marker) {
 }
 
 /**
- * @param {{tooltip: string, popup: string}} marker 
+ * @param {{tooltip: string, popup: string, points: Array<Array<Array<{x:number,z:number}>>>}} marker 
  */
 function modifyDescription(marker) {
 	const town = marker.tooltip.match(/<b>(.*)<\/b>/)[1]
@@ -148,28 +179,7 @@ function modifyDescription(marker) {
 		nation: nation?.replaceAll('<', '&lt;').replaceAll('>', '&gt;') ?? nation
 	}
 
-	// Calculate town's area
-	let area = 0
-	if (marker.type == 'polygon') {
-		const iteratedRegions = []
-		for (const regionVertices of marker.points[0]) {
-
-			// Exclude non-affiliated regions entirely inside town
-			if (iteratedRegions.length > 0) {
-				let isInsidePolygon = false
-				for (const vertex of regionVertices) {
-					for (const lastPolygon of iteratedRegions) {
-						if (pointInPolygon(vertex, lastPolygon)) isInsidePolygon = true
-					}
-				}
-				if (isInsidePolygon) area -= getArea(regionVertices)
-				else area += getArea(regionVertices)
-			}
-			else area += getArea(regionVertices)
-			iteratedRegions.push(regionVertices)
-
-		}
-	}
+	const area = calcMarkerArea(marker)
 
 	// Create clickable resident lists
 	const isArchiveMode = currentMapMode() == 'archive'
