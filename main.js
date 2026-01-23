@@ -315,8 +315,17 @@ async function main(data) {
 	}
 
 	data = addChunksLayer(data)
-	data = addCountryLayer(data)
 
+	const storedBorders = localStorage['emcdynmapplus-borders']
+	if (storedBorders) {
+		data = addCountryLayer(data, storedBorders)
+	} else {
+		// TODO: Somehow fetch without blocking map from loading other stuff in the meantime
+		// const fetchedBorders = await fetchBorders()
+		// data = addCountryLayer(data, fetchedBorders)
+		// localStorage['emcdynmapplus-borders'] = fetchedBorders
+	}
+	
 	if (!data?.[0]?.markers?.length) {
 		showAlert('Unexpected error occurred while loading the map, maybe EarthMC is down? Try again later.')
 		return data
@@ -383,28 +392,14 @@ function addChunksLayer(data) {
 /**
  * @param {Array<any>} data - The markers response JSON data.
  */
-async function addCountryLayer(data) {
-	if (!localStorage['emcdynmapplus-borders']) {
-		const loadingMessage = addElement(document.body, htmlCode.alertMsg.replace('{message}', 'Downloading country borders...'), '.message')
-		const markersURL = 'https://web.archive.org/web/2024id_/https://earthmc.net/map/aurora/standalone/MySQL_markers.php?marker=_markers_/marker_earth.json'
-		const markersJson = await fetchJSON(PROXY_URL + markersURL)
-			.catch(e => { console.error(e); return null } )	
-			.finally(loadingMessage.remove())
-
-		if (!markersJson) {
-			showAlert('Could not download optional country borders layer, you could try again later.')
-			return data
-		}
-		localStorage['emcdynmapplus-borders'] = JSON.stringify(markersJson.sets['borders.Country Borders'].lines)
-	}
-
+async function addCountryLayer(data, borders) {
 	try {
 		const points = []
-		const countries = JSON.parse(localStorage['emcdynmapplus-borders'])
+		const countries = JSON.parse(borders)
 		for (const k of countries) {
 			const line = countries[k]
 			const linePoints = []
-			for (let i = 0; i < x.length; i++) {
+			for (let i = 0; i < line.x.length; i++) {
 				if (!isNumeric(line.x[i])) continue
 				linePoints.push({ x: line.x[i], z: line.z[i] })
 			}
@@ -429,6 +424,21 @@ async function addCountryLayer(data) {
 	}
 
 	return data
+}
+
+async function fetchBorders() {
+	const loadingMessage = addElement(document.body, htmlCode.alertMsg.replace('{message}', 'Downloading country borders...'), '.message')
+	const markersURL = 'https://web.archive.org/web/2024id_/https://earthmc.net/map/aurora/standalone/MySQL_markers.php?marker=_markers_/marker_earth.json'
+	const markersJson = await fetchJSON(PROXY_URL + markersURL)
+		.catch(e => { console.error(e); return null } )	
+		.finally(loadingMessage.remove())
+
+	if (!markersJson) {
+		showAlert('Could not download optional country borders layer, you could try again later.')
+		return
+	}
+
+	return JSON.stringify(markersJson.sets['borders.Country Borders'].lines)
 }
 
 /**
