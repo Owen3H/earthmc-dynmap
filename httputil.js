@@ -4,7 +4,7 @@ const { fetch: originalFetch } = window
 const EMC_DOMAIN = "earthmc.net"
 const CURRENT_MAP = "aurora"
 
-const OAPI_BASE = `https://api.${EMC_DOMAIN}/v3` // bump version here after updating code to new api ver
+const OAPI_BASE = `https://api.${EMC_DOMAIN}/v3` // bump number here after migrating to a new OAPI ver
 const MAPI_BASE = `https://map.${EMC_DOMAIN}`
 const CAPI_BASE = `https://emcstats.bot.nu`
 
