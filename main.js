@@ -315,7 +315,7 @@ async function main(data) {
 	}
 
 	data = addChunksLayer(data)
-	data = await addCountryLayer(data)
+	data = addCountryLayer(data)
 
 	if (!data?.[0]?.markers?.length) {
 		showAlert('Unexpected error occurred while loading the map, maybe EarthMC is down? Try again later.')
