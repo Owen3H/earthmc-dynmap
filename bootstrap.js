@@ -3,6 +3,8 @@
 //
 // For example, we can be certain that waitForElement from dom.js can be referred to we get to init.
 (async function bootstrap() {
+    document.addEventListener('EMCDYNMAPPLUS_READY', checkForUpdate)
+
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', _ => init())
     } else {
@@ -67,23 +69,4 @@ function init() {
 
     // Fix nameplates appearing over popups
     waitForElement('.leaflet-nameplate-pane').then(el => el.style = '')
-
-    checkForUpdate()
-}
-
-/** @returns {string} */
-function checkForUpdate() {
-    const cachedVer = localStorage['emcdynmapplus-version']
-    const latestVer = window.CURRENT_VERSION
-
-    if (!cachedVer) return localStorage['emcdynmapplus-version'] = latestVer
-    if (cachedVer != latestVer) {
-        const changelogURL = `${PROJECT_URL}/releases/v${latestVer}`
-        showAlert(`
-            Extension has been automatically updated from ${cachedVer} to ${latestVer}. 
-            Read what has been changed <a href="${changelogURL}" target="_blank">here</a>.
-        `)
-    }
-
-    return localStorage['emcdynmapplus-version'] = latestVer
 }

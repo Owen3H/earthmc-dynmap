@@ -1,10 +1,6 @@
 (async function() {
 	const manifest = chrome.runtime.getManifest()
-	
-	// Attach to global window for use later inside non-content scripts 
-	// since we cannot access the chrome runtime in those.
-	window.CURRENT_VERSION = manifest.version
-	
+
 	// Even though the scripts have already loaded, we still need to
 	// inject their contents into the page so can access them and use them.
 	//
@@ -13,6 +9,10 @@
 	for (const file of files) {
 		await injectScript(file)
 	}
+
+	// Signal to the page context (non-content scripts) that init is done.
+	const vars = { MANIFEST_VERSION: manifest.version }
+	document.dispatchEvent(new CustomEvent('EMCDYNMAPPLUS_READY', { detail: vars }))
 })()
 
 /** 

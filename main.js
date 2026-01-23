@@ -227,7 +227,7 @@ function modifyDescription(marker) {
 }
 
 /**
- * @param {object} markers - The old markers response JSON data
+ * @param {Object} markers - The old markers response JSON data
  */
 function convertOldMarkersStructure(markers) {
 	return Object.entries(markers.areas).flatMap(([key, v]) => {
@@ -430,7 +430,7 @@ async function addCountryLayer(data) {
 }
 
 /**
- * @param {object} data - The settings response JSON data.
+ * @param {Object} data - The settings response JSON data.
  */
 function modifySettings(data) {
 	data['player_tracker'].nameplates['show_heads'] = true

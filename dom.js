@@ -30,6 +30,26 @@ const htmlCode = {
     alertMsg: '<div class="message" id="alert"><p id="alert-message">{message}</p></div>'
 }
 
+/** 
+ * @param {CustomEvent<{MANIFEST_VERSION: string}>} event - The custom EMCDYNMAPPLUS_READY event.
+ * @returns {string} */
+function checkForUpdate(event) {
+    const cachedVer = localStorage['emcdynmapplus-version']
+    const latestVer = event.detail.MANIFEST_VERSION
+    console.log("emcdynmapplus: current version is: " + latestVer)
+
+    if (!cachedVer) return localStorage['emcdynmapplus-version'] = latestVer
+    if (cachedVer != latestVer) {
+        const changelogURL = `${PROJECT_URL}/releases/v${latestVer}`
+        showAlert(`
+            Extension has been automatically updated from ${cachedVer} to ${latestVer}. 
+            Read what has been changed <a href="${changelogURL}" target="_blank">here</a>.
+        `)
+    }
+
+    return localStorage['emcdynmapplus-version'] = latestVer
+}
+
 /**
  * Shows an alert message in a box at the center of the screen.
  * @param {string} message 
