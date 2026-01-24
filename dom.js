@@ -169,9 +169,7 @@ function locate(selectValue, inputValue) {
 	}
 }
 
-/**
- * @param {string} date 
- */
+/** @param {string} date */
 function searchArchive(date) {
 	if (date == '') return
 	const URLDate = date.replaceAll('-', '')
@@ -180,9 +178,7 @@ function searchArchive(date) {
 	location.reload()
 }
 
-/**
- * @param {HTMLElement} sidebar 
- */
+/** @param {HTMLElement} sidebar */
 function addOptions(sidebar) {
 	const optionsButton = addElement(sidebar, htmlCode.buttons.options, '#options-button')
 	const optionsMenu = addElement(sidebar, htmlCode.options.menu, '#options-menu')
@@ -192,28 +188,35 @@ function addOptions(sidebar) {
 	})
 
 	const checkbox = {
-		decreaseBrightness: addOption(0, 'decrease-brightness', 'Decrease brightness', 'darkened'),
-		darkMode: addOption(1, 'toggle-darkmode', 'Toggle dark mode', 'darkmode')
+		decreaseBrightness: addCheckboxOption(0, 'decrease-brightness', 'Decrease brightness', 'darkened'),
+		darkMode: addCheckboxOption(1, 'toggle-darkmode', 'Toggle dark mode', 'darkmode')
 	}
 
 	checkbox.decreaseBrightness.addEventListener('change', event => decreaseBrightness(event.target.checked))
 	checkbox.darkMode.addEventListener('change', event => toggleDarkMode(event.target.checked))
 }
 
-function addOption(index, optionId, optionName, variable) {
+/**
+ * 
+ * @param {number} index 
+ * @param {string} optionId 
+ * @param {string} optionName 
+ * @param {string} variable 
+ * @returns 
+ */
+function addCheckboxOption(index, optionId, optionName, variable) {
 	const optionsMenu = document.querySelector('#options-menu')
 	const option = addElement(optionsMenu, htmlCode.options.option, '.option', true)[index]
 	option.insertAdjacentHTML('beforeend', htmlCode.options.label
 		.replace('{option}', optionId)
 		.replace('{optionName}', optionName))
+	
 	const checkbox = addElement(option, htmlCode.options.checkbox.replace('{option}', optionId), '#' + optionId)
 	checkbox.checked = (localStorage['emcdynmapplus-' + variable] == 'true')
 	return checkbox
 }
 
-/**
- * @param {HTMLElement} sidebar 
- */
+/** @param {HTMLElement} sidebar */
 function addLocateMenu(sidebar) {
 	const locateMenu = addElement(sidebar, htmlCode.sidebarOption, '.sidebar-option', true)[0]
 	locateMenu.id = 'locate-menu'

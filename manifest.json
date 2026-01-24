@@ -7,12 +7,10 @@
 	"icons": {
 		"48": "icon.png"
 	},
-
-    "web_accessible_resources": [{
-        "resources": ["httputil.js", "dom.js", "main.js", "bootstrap.js"],
-        "matches": ["https://map.earthmc.net/*"]
-    }],
-
+	"web_accessible_resources": [{
+		"matches": ["https://map.earthmc.net/*"],
+		"resources": ["httputil.js", "dom.js", "main.js", "bootstrap.js"]
+	}],
 	"content_scripts": [{
 		"matches": ["https://map.earthmc.net/*"],
 		"js": ["content.js"],

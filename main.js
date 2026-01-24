@@ -255,24 +255,6 @@ function convertOldMarkersStructure(markers) {
 }
 
 /**
- * Gets all alliances the input nation exists within / is related to.
- * @param {string} nation 
- * @returns {Array<{name: string, colours: any}>}
- */
-function getNationAlliances(nation) {
-	if (alliances == null) return []
-
-	const nationAlliances = []
-	for (const alliance of alliances) {
-		if (!alliance.nations.includes(nation)) continue
-		if (alliance.modeType != currentMapMode()) continue
-		nationAlliances.push({name: alliance.name, colours: alliance.colours})
-	}
-
-	return nationAlliances
-}
-
-/**
  * @param {{tooltip: string, popup: string}} marker 
  */
 function colorTowns(marker) {
@@ -558,21 +540,53 @@ async function getAlliances() {
 		return cache
 	}
 
-	const finalArray = []
-	for (const alliance of alliances) {
-		const allianceType = alliance.type.toLowerCase() || 'mega'
-		if (allianceType == 'sub') continue // TODO: This doesn't exist anymore. Remove or replace with 'org' ?
+	// Build map of parentAlliance (identifier) -> child alliances for O(1) lookup
+	const childrenByParent = new Map()
+	for (const a of alliances) {
+		if (!a.parentAlliance) continue
 
-		finalArray.push({
+		const arr = childrenByParent.get(a.parentAlliance) || []
+		arr.push(a)
+		childrenByParent.set(a.parentAlliance, arr)
+	}
+
+	const allianceData = []
+	for (const alliance of alliances) {
+		const allianceType = alliance.type?.toLowerCase() || 'mega'
+		//if (alliance.parentAlliance) continue // this is a child alliance, skip it
+
+		const children = childrenByParent.get(alliance.identifier) || []
+		allianceData.push({
 			name: alliance.label || alliance.identifier,
 			modeType: allianceType == 'mega' ? 'meganations' : 'alliances',
-			nations: alliance.ownNations,
+			ownNations: alliance.ownNations || [],
+			puppetNations: children.flatMap(a => a.ownNations || []),
 			colours: parseColours(alliance.optional.colours)
 		})
 	}
 
-	localStorage['emcdynmapplus-alliances'] = JSON.stringify(finalArray)
-	return finalArray
+	localStorage['emcdynmapplus-alliances'] = JSON.stringify(allianceData)
+	return allianceData
+}
+
+/**
+ * Gets all alliances the input nation exists within / is related to.
+ * @param {string} nation 
+ * @returns {Array<{name: string, colours: any}>}
+ */
+function getNationAlliances(nation) {
+	if (alliances == null) return []
+
+	const nationAlliances = []
+	for (const alliance of alliances) {
+		const nations = [...alliance.ownNations, ...alliance.puppetNations]
+		if (!nations.includes(nation)) continue
+		if (alliance.modeType != currentMapMode()) continue
+
+		nationAlliances.push({name: alliance.name, colours: alliance.colours})
+	}
+
+	return nationAlliances
 }
 
 async function getArchive(data) {

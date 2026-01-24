@@ -121,12 +121,6 @@ function addMainMenu(parent) {
 	currentMapModeLabel.textContent = currentMapModeLabel.textContent.replace('{currentMapMode}', currentMapMode())
 }
 
-function decreaseBrightness(isChecked) {
-	const element = document.querySelector('.leaflet-tile-pane')
-	localStorage['emcdynmapplus-darkened'] = isChecked
-	element.style.filter = (isChecked) ? 'brightness(50%)' : ''
-}
-
 function switchMapMode() {
 	const nextMapMode = {
 		meganations: 'alliances',
@@ -138,12 +132,41 @@ function switchMapMode() {
 }
 
 function init() {
-	localStorage['emcdynmapplus-mapmode'] = localStorage['emcdynmapplus-mapmode'] ?? 'meganations'
-	localStorage['emcdynmapplus-darkened'] = localStorage['emcdynmapplus-darkened'] ?? true
+	localStorage['emcdynmapplus-mapmode'] ??= 'meganations'
+	localStorage['emcdynmapplus-darkened'] ??= true
 
 	waitForElement('.leaflet-tile-pane').then(() => {
 		if (localStorage['emcdynmapplus-darkened'] == 'true') decreaseBrightness(true)
 	})
+
+    // move the +- zoom control buttons to the bottom instead of top
+    // and make sure the link and coordinates buttons align with it
+    waitForElement('.leaflet-bottom.leaflet-left').then(async el => {
+        const link = await waitForElement('.leaflet-control-layers.link')
+        const coordinates = await waitForElement('.leaflet-control-layers.coordinates')
+        if (link || coordinates) {
+            // Create a wrapper div
+            const wrapper = document.createElement('div')
+            wrapper.style.alignSelf = 'end'
+
+            // Move elements into wrapper
+            if (link) wrapper.appendChild(link)
+            if (coordinates) wrapper.appendChild(coordinates)
+
+            el.appendChild(wrapper)
+        }
+
+        const zoomControl = await waitForElement('.leaflet-control-zoom')
+        if (zoomControl) el.insertBefore(zoomControl, el.firstChild)
+    })
+
+    // Keep the layer toggle on the right of the main menu
+    waitForElement('.leaflet-control-layers-toggle').then(el => {
+        if (el?.parentElement) {
+            el.parentElement.style.clear = 'none'
+        }
+    })
+
 	waitForElement('.leaflet-top.leaflet-left').then(element => {
 		addMainMenu(element)
 		checkForUpdate(element) // For userscript
@@ -162,8 +185,28 @@ function init() {
 
 	if (localStorage['emcdynmapplus-darkmode'] == 'true') loadDarkMode()
 	
-	// Fix nameplates appearing over popups
-	waitForElement('.leaflet-nameplate-pane').then(element => element.style = '')
+    // Fix nameplates appearing over popups
+    waitForElement('.leaflet-nameplate-pane').then(el => el.style = '')
+}
+
+/**
+ * @param {boolean} boxTicked 
+ */
+function decreaseBrightness(boxTicked) {
+	const element = document.querySelector('.leaflet-tile-pane')
+	localStorage['emcdynmapplus-darkened'] = boxTicked
+	element.style.filter = boxTicked ? 'brightness(50%)' : ''
+}
+
+/**
+ * @param {boolean} boxTicked 
+ */
+function toggleDarkMode(boxTicked) {
+	localStorage['emcdynmapplus-darkmode'] = boxTicked
+	if (boxTicked) return loadDarkMode()
+
+	document.querySelector('#dark-mode').remove()
+	waitForElement('.leaflet-map-pane').then(element => element.style.filter = '')
 }
 
 function loadDarkMode() {
@@ -181,18 +224,6 @@ function loadDarkMode() {
 			filter: invert(1);
 		}</style>`
 	)
-}
-
-function toggleDarkMode(isChecked) {
-	if (isChecked) {
-		localStorage['emcdynmapplus-darkmode'] = true
-		loadDarkMode()
-	}
-	else {
-		localStorage['emcdynmapplus-darkmode'] = false
-		document.querySelector('#dark-mode').remove()
-		waitForElement('.leaflet-map-pane').then(element => element.style.filter = '')
-	}
 }
 
 function locate(selectValue, inputValue) {
@@ -226,8 +257,8 @@ function addOptions(sidebar) {
 	})
 
 	const checkbox = {
-		decreaseBrightness: addOption(0, 'decrease-brightness', 'Decrease brightness', 'darkened'),
-		darkMode: addOption(1, 'toggle-darkmode', 'Toggle dark mode', 'darkmode')
+		decreaseBrightness: addCheckboxOption(0, 'decrease-brightness', 'Decrease brightness', 'darkened'),
+		darkMode: addCheckboxOption(1, 'toggle-darkmode', 'Toggle dark mode', 'darkmode')
 	}
 
 	checkbox.decreaseBrightness.addEventListener('change', event => decreaseBrightness(event.target.checked))
@@ -265,12 +296,13 @@ function addLocateMenu(sidebar) {
 	})
 }
 
-function addOption(index, optionId, optionName, variable) {
+function addCheckboxOption(index, optionId, optionName, variable) {
 	const optionsMenu = document.querySelector('#options-menu')
 	const option = addElement(optionsMenu, htmlCode.options.option, '.option', true)[index]
 	option.insertAdjacentHTML('beforeend', htmlCode.options.label
 		.replace('{option}', optionId)
 		.replace('{optionName}', optionName))
+	
 	const checkbox = addElement(option, htmlCode.options.checkbox.replace('{option}', optionId), '#' + optionId)
 	checkbox.checked = (localStorage['emcdynmapplus-' + variable] == 'true')
 	return checkbox
@@ -336,9 +368,6 @@ unsafeWindow.lookupPlayerFunc = lookupPlayer
 const PROXY_URL = 'https://api.codetabs.com/v1/proxy/?quest='
 
 let alliances = null
-if (currentMapMode() != 'default' && currentMapMode() != 'archive') {
-	getAlliances().then(result => alliances = result)
-}
 
 const archiveDate = parseInt(localStorage['emcdynmapplus-archive-date'])
 
@@ -572,24 +601,6 @@ function convertOldMarkersStructure(markers) {
 	})
 }
 
-/**
- * Gets all alliances the input nation exists within / is related to.
- * @param {string} nation 
- * @returns {Array<{name: string, colours: { fill: string, outline: string }}>}
- */
-function getNationAlliances(nation) {
-	if (alliances == null) return []
-
-	const nationAlliances = []
-	for (const alliance of alliances) {
-		if (!alliance.nations.includes(nation)) continue
-		if (alliance.modeType != currentMapMode()) continue
-		nationAlliances.push({name: alliance.name, colours: alliance.colours})
-	}
-
-	return nationAlliances
-}
-
 function colorTowns(marker) {
 	const nation = marker.tooltip.match(/\(\b(?:Member|Capital)\b of (.*)\)\n/)?.[1]
 	const nationHasDefaultColor = (marker.color == '#3fb4ff' && marker.fillColor == '#3fb4ff') // Default blue
@@ -657,12 +668,26 @@ function addChunksLayer(data) {
 
 async function main(data) {
 	const mapMode = currentMapMode()
+	const isAllianceMode = mapMode != 'default' && mapMode != 'archive'
+    if (alliances == null && isAllianceMode) {
+        alliances = await getAlliances()
+    }
+
 	if (mapMode == 'archive') {
 		data = await getArchive(data)
 	}
 
 	data = addChunksLayer(data)
-	data = await addCountryLayer(data)
+
+	const storedBorders = localStorage['emcdynmapplus-borders']
+	if (storedBorders) {
+		data = addCountryLayer(data, storedBorders)
+	} else {
+		// TODO: Somehow fetch without blocking map from loading other stuff in the meantime
+		// const fetchedBorders = await fetchBorders()
+		// data = addCountryLayer(data, fetchedBorders)
+		// localStorage['emcdynmapplus-borders'] = fetchedBorders
+	}
 
 	if (!data?.[0]?.markers?.length) {
 		showAlert('Unexpected error occurred while loading the map, maybe EarthMC is down? Try again later.')
@@ -671,7 +696,6 @@ async function main(data) {
 
 	for (let marker of data[0].markers) {
 		if (marker.type != 'polygon' && marker.type != 'icon') continue
-
 		marker = (mapMode != 'archive' || archiveDate >= 20240701)
 			? modifyDescription(marker) 
 			: modifyOldDescription(marker)
@@ -683,10 +707,12 @@ async function main(data) {
 		marker.fillOpacity = 0.33
 		marker.weight = 1.5
 
-		if (mapMode == 'default' || mapMode == 'archive') continue
-
-		marker = colorTowns(marker)
+		// Alliance only properties
+		if (isAllianceMode) {
+			marker = colorTowns(marker)
+		}
 	}
+
 	return data
 }
 
@@ -827,21 +853,53 @@ async function getAlliances() {
 		return cache
 	}
 
-	const finalArray = []
-	for (const alliance of alliances) {
-		const allianceType = alliance.type.toLowerCase() || 'mega'
-		if (allianceType == 'sub') continue // TODO: This doesn't exist anymore. Remove or replace with 'org' ?
+	// Build map of parentAlliance (identifier) -> child alliances for O(1) lookup
+	const childrenByParent = new Map()
+	for (const a of alliances) {
+		if (!a.parentAlliance) continue
 
-		finalArray.push({
+		const arr = childrenByParent.get(a.parentAlliance) || []
+		arr.push(a)
+		childrenByParent.set(a.parentAlliance, arr)
+	}
+
+	const allianceData = []
+	for (const alliance of alliances) {
+		const allianceType = alliance.type?.toLowerCase() || 'mega'
+		//if (alliance.parentAlliance) continue // this is a child alliance, skip it
+
+		const children = childrenByParent.get(alliance.identifier) || []
+		allianceData.push({
 			name: alliance.label || alliance.identifier,
 			modeType: allianceType == 'mega' ? 'meganations' : 'alliances',
-			nations: alliance.ownNations,
+			ownNations: alliance.ownNations || [],
+			puppetNations: children.flatMap(a => a.ownNations || []),
 			colours: parseColours(alliance.optional.colours)
 		})
 	}
 
-	localStorage['emcdynmapplus-alliances'] = JSON.stringify(finalArray)
-	return finalArray
+	localStorage['emcdynmapplus-alliances'] = JSON.stringify(allianceData)
+	return allianceData
+}
+
+/**
+ * Gets all alliances the input nation exists within / is related to.
+ * @param {string} nation 
+ * @returns {Array<{name: string, colours: any}>}
+ */
+function getNationAlliances(nation) {
+	if (alliances == null) return []
+
+	const nationAlliances = []
+	for (const alliance of alliances) {
+		const nations = [...alliance.ownNations, ...alliance.puppetNations]
+		if (!nations.includes(nation)) continue
+		if (alliance.modeType != currentMapMode()) continue
+
+		nationAlliances.push({name: alliance.name, colours: alliance.colours})
+	}
+
+	return nationAlliances
 }
 
 async function getArchive(data) {
@@ -883,34 +941,33 @@ async function getArchive(data) {
 // Replace the default fetch() with ours to intercept responses
 let preventMapUpdate = false
 unsafeWindow.fetch = async (...args) => {
-	let [url, opts] = args
-	let response = await originalFetch(url, opts)
+	const [url, opts] = args
+	const response = await originalFetch(url, opts)
 
 	if (response.url.includes('web.archive.org')) return response
+
 	const isMarkers = response.url.includes('markers.json')
 	const isSettings = response.url.includes('minecraft_overworld/settings.json')
-
-	// Modify contents of markers.json and settings.json
-	if (isMarkers || isSettings) {
-		const modifiedJson = await response.clone().json().then(data => {
-			// settings.json
-			if (isSettings) return modifySettings(data)
-
-			// markers.json
-			if (isMarkers) {
-				if (preventMapUpdate == false) {
-					preventMapUpdate = true
-					return main(data)
-				}
-				
-				return null
-			}
-		})
-	
-		return new Response(JSON.stringify(modifiedJson))
+	if (!isMarkers && !isSettings) return response
+	if (isMarkers) {
+		if (preventMapUpdate) return null
+		preventMapUpdate = true
 	}
 
-	return response
+	// Modify contents of markers.json and settings.json
+	let data = await response.clone().json().catch(() => { 
+		console.error(e)
+		return null
+	})
+	if (!data) return null // prevent a map update from bad data
+
+	if (isSettings) data = modifySettings(data)
+	if (isMarkers) {
+		console.log(`intercepted: ${response.url}\n\tinjecting custom html into markers body`)
+		data = await main(data)
+	}
+
+	return new Response(JSON.stringify(data))
 }
 
 // style.css

@@ -34,21 +34,23 @@ window.fetch = async (...args) => {
 	const isMarkers = response.url.includes('markers.json')
 	const isSettings = response.url.includes('minecraft_overworld/settings.json')
 	if (!isMarkers && !isSettings) return response
-
-	// Modify contents of markers.json and settings.json
 	if (isMarkers) {
 		if (preventMapUpdate) return null
 		preventMapUpdate = true
 	}
 
-	const data = await response.clone().json()
-	if (data.length < 1) return null // prevent a map update from bad data
+	// Modify contents of markers.json and settings.json
+	let data = await response.clone().json().catch(() => { 
+		console.error(e)
+		return null
+	})
+	if (!data) return null // prevent a map update from bad data
 
-	let modified = isSettings ? modifySettings(data) : data;
-    if (isMarkers) {
-        console.log(`intercepted: ${response.url}\n\tinjecting custom html into markers body`)
-        modified = await main(data)
-    }
+	if (isSettings) data = modifySettings(data)
+	if (isMarkers) {
+		console.log(`intercepted: ${response.url}\n\tinjecting custom html into markers body`)
+		data = await main(data)
+	}
 
-	return new Response(JSON.stringify(modified))
+	return new Response(JSON.stringify(data))
 }

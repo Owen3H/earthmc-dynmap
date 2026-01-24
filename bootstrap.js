@@ -1,4 +1,4 @@
-// Bootstrap must always be injected last into the same context as main.js 
+// Bootstrap must always be injected last into the same context 
 // to ensure all funcs/objs from previous injections are defined. 
 //
 // For example, we can be certain that waitForElement from dom.js can be referred to we get to init.
