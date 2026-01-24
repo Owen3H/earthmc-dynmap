@@ -467,6 +467,7 @@ async function lookupPlayer(playerName, showOnlineStatus = true) {
 	const lookup = addElement(document.querySelector('.leaflet-top.leaflet-left'), htmlCode.playerLookup, '#player-lookup')
 
 	// Populate with placeholders
+	lookup.insertAdjacentHTML('beforeend', '<span class="close-container">X</span>')
 	lookup.insertAdjacentHTML('beforeend', '{show-online-status}<br>')
 	lookup.insertAdjacentHTML('beforeend', '<img id="player-lookup-avatar"/>')
 	lookup.insertAdjacentHTML('beforeend', '<center><b id="player-lookup-name">{player}</b>{about}</center>')
@@ -474,7 +475,6 @@ async function lookupPlayer(playerName, showOnlineStatus = true) {
 	lookup.insertAdjacentHTML('beforeend', 'Rank: <b>{rank}</b><br>')
 	lookup.insertAdjacentHTML('beforeend', 'Balance: <b>{balance} gold</b><br>')
 	lookup.insertAdjacentHTML('beforeend', '{last-online}')
-	lookup.insertAdjacentHTML('beforeend', '<span class="close-container">X</span>')
 
 	const player = players[0]
 

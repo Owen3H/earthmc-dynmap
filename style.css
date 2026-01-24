@@ -1,27 +1,36 @@
-/* For the old map? */
+/* Player popup */
 
-.left-container {
+#player-lookup-loading {
+	text-align: unset;
+	font-size: larger;
+	font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+	padding: 5px;
+	/* ensure it stays on the left below the menu */
+	clear: both !important;
+	display: block !important;
+}
+
+#player-lookup {
 	width: 150px;
 	text-align: justify;
 	font-size: larger;
-	padding: 5px;
+	font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+	padding: 8px;
 	box-sizing: border-box;
+	/* ensure it stays on the left below the menu */
+	clear: both !important;
+	display: block !important;
 }
 
-.close-container {
+#player-lookup > .close-container {
 	position: relative;
-	left: 120px;
 	cursor: pointer;
+	padding: 2px;
+	font-size: medium;
 }
 
-.close-container:hover {
+#player-lookup > .close-container:hover {
 	background-color: rgba(127, 127, 125, 0.5);
-}
-
-/* Player lookup */
-
-#player-lookup {
-	text-align: unset;
 }
 
 #player-lookup-online {
@@ -31,23 +40,31 @@
 }
 
 #player-lookup-avatar {
-	margin: 10px auto auto auto;
+	margin: 5px auto auto auto;
 	display: block;
 	width: 32px;
 	box-shadow: 0 0 10px 1px #131313;
 }
 
 #player-lookup-name {
-	line-height: 40px;
+	line-height: 30px;
 }
 
+/* Main sidebar */
 #sidebar {
 	width: auto;
 	max-width: 200px;
 	padding: 5px;
 }
 
-/* Main sidebar */
+.option {
+	display: flex;
+	justify-content: space-between;
+	padding-top: 2px;
+	padding-left: 5px;
+	padding-right: 5px;
+}
+
 .sidebar-option {
 	width: inherit;
 	height: fit-content;
@@ -70,14 +87,8 @@
     border-radius: 3px;
 }
 
-#current-map-mode-label {
-	display: block;
-	box-sizing: border-box;
-	margin: 5px 5px 5px 5px;
-	font-size: 16px;
-	font-weight: bold;
-	font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-	text-align: center;
+#archive-input {
+	width: inherit;
 }
 
 #locate-menu {
@@ -93,8 +104,12 @@
 	width: inherit;
 }
 
+#switch-map-mode {
+	width: 130px;
+}
+
 #options-button {
-	width: inherit;
+	width: 70px;
 }
 
 #options-menu {
@@ -102,16 +117,14 @@
 	margin-top: 3px;
 }
 
-.option {
-	display: flex;
-	justify-content: space-between;
-	padding-top: 2px;
-	padding-left: 5px;
-	padding-right: 5px;
-}
-
-#archive-input {
-	width: inherit;
+#current-map-mode-label {
+	display: block;
+	box-sizing: border-box;
+	margin: 5px 5px 5px 5px;
+	font-size: 16px;
+	font-weight: bold;
+	font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+	text-align: center;
 }
 
 /* Town popup */
@@ -180,10 +193,8 @@
 }
 
 .leaflet-control-layers {
-	display: flex;
-	flex-direction: column;
 	float: right;
-	border: none !important
+	border: none !important;
 }
 
 .leaflet-bottom.leaflet-left {
