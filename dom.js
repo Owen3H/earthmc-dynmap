@@ -2,9 +2,9 @@ const htmlCode = {
 	// Used in this file
     buttons: {
         locate: '<button class="sidebar-button" id="locate-button">Locate</button>',
-        searchArchive: '<button class="sidebar-button" id="archive-button">Search archive</button>',
+        searchArchive: '<button class="sidebar-button" id="archive-button">Search Archive</button>',
         options: '<button class="sidebar-button" id="options-button">Options</button>',
-        switchMapMode: '<button class="sidebar-input" id="switch-map-mode">Switch map mode</button>'
+        switchMapMode: '<button class="sidebar-button" id="switch-map-mode">Switch Map Mode</button>'
     },
     options: {
         menu: '<div id="options-menu"></div>',
@@ -17,8 +17,8 @@ const htmlCode = {
     locateInput: '<input class="sidebar-input" id="locate-input" placeholder="London">',
     locateSelect: '<select class="sidebar-button" id="locate-select"><option>Town</option><option>Nation</option><option>Resident</option></select>',
     archiveInput: `<input class="sidebar-input" id="archive-input" type="date" min="2022-05-01" max="${new Date().toLocaleDateString('en-ca')}">`,
-    currentMapModeLabel: '<div class="sidebar-option" id="current-map-mode-label">Current map mode: {currentMapMode}</div>',
-    alertBox: '<div id="alert"><p id="alert-message">{message}</p><br><button id="alert-close">OK</button></div>',
+    currentMapModeLabel: '<div class="sidebar-option" id="current-map-mode-label">Map Mode: {currentMapMode}</div>',
+    alertBox: '<div id="alert"><p id="alert-message">{message}</p><br><button id="alert-close">Dismiss</button></div>',
 	darkMode: `<style id="dark-mode">
 		.leaflet-control, #alert, .sidebar-input,
 		.sidebar-button, .leaflet-bar > a, .leaflet-tooltip-top,
@@ -40,26 +40,6 @@ const htmlCode = {
     scrollableResidentList: '<div class="resident-list" id="scrollable-list">\t{list}</div>',
     partOfLabel: '<span id="part-of-label">Part of <b>{allianceList}</b></span>',
     alertMsg: '<div class="message" id="alert"><p id="alert-message">{message}</p></div>'
-}
-
-/** 
- * @param {CustomEvent<{MANIFEST_VERSION: string}>} event - The custom EMCDYNMAPPLUS_READY event.
- * @returns {string} */
-function checkForUpdate(event) {
-    const cachedVer = localStorage['emcdynmapplus-version']
-    const latestVer = event.detail.MANIFEST_VERSION
-    console.log("emcdynmapplus: current version is: " + latestVer)
-
-    if (!cachedVer) return localStorage['emcdynmapplus-version'] = latestVer
-    if (cachedVer != latestVer) {
-        const changelogURL = `${PROJECT_URL}/releases/v${latestVer}`
-        showAlert(`
-            Extension has been automatically updated from ${cachedVer} to ${latestVer}. 
-            Read what has been changed <a href="${changelogURL}" target="_blank">here</a>.
-        `)
-    }
-
-    return localStorage['emcdynmapplus-version'] = latestVer
 }
 
 /**
@@ -101,12 +81,73 @@ const waitForElement = (selector) => new Promise(resolve => {
     observer.observe(document.body, { childList: true, subtree: true })
 })
 
+function initToggleOptions() {
+    waitForElement('.leaflet-tile-pane').then(() => {
+        if (localStorage['emcdynmapplus-darkened'] === 'true') decreaseBrightness(true)
+    })
+
+    const darkPref = localStorage['emcdynmapplus-darkmode']
+    const systemDark = window.matchMedia?.('(prefers-color-scheme: dark)')?.matches
+    if (darkPref === 'true' || (!darkPref && systemDark)) {
+        localStorage['emcdynmapplus-darkmode'] = 'true'
+        loadDarkMode()
+    }
+}
+
+function editUILayout() {
+    // move the +- zoom control buttons to the bottom instead of top
+    // and make sure the link and coordinates buttons align with it
+    waitForElement('.leaflet-bottom.leaflet-left').then(async el => {
+        const link = await waitForElement('.leaflet-control-layers.link')
+        const coordinates = await waitForElement('.leaflet-control-layers.coordinates')
+        if (link || coordinates) {
+            // Create a wrapper div
+            const wrapper = document.createElement('div')
+            wrapper.style.alignSelf = 'end'
+
+            // Move elements into wrapper
+            if (link) wrapper.appendChild(link)
+            if (coordinates) wrapper.appendChild(coordinates)
+
+            el.appendChild(wrapper)
+        }
+
+        const zoomControl = await waitForElement('.leaflet-control-zoom')
+        if (zoomControl) el.insertBefore(zoomControl, el.firstChild)
+    })
+
+    // Keep the layer toggle on the right of the main menu
+    waitForElement('.leaflet-control-layers-toggle').then(el => {
+        if (el?.parentElement) {
+            el.parentElement.style.clear = 'none'
+        }
+    })
+
+    // Fix nameplates appearing over popups
+    waitForElement('.leaflet-nameplate-pane').then(el => el.style = '')
+}
+
+function insertSidebarMenu() {
+    waitForElement('.leaflet-top.leaflet-left').then(el => {
+        addMainMenu(el)
+
+        // Prevents panning the map when on this element by
+        // stopping the mouse event from propogating to Leaflet.
+        el.addEventListener('mousedown', e => e.stopPropagation())
+
+        // blocks the map (Leaflet) from zooming when 
+        // double clicking in the sidebar main menu
+        el.addEventListener('dblclick', e => {
+            e.stopPropagation()
+            e.preventDefault()
+        })
+    })
+}
+
 /**
  * @param {HTMLElement} parent - The "leaflet-top leaflet-left" element.
  */
 function addMainMenu(parent) {
-	console.log("emcdynmapplus: adding main menu overlay")
-
 	const sidebar = addElement(parent, htmlCode.sidebar, '#sidebar')
 
 	addLocateMenu(sidebar)
@@ -121,7 +162,7 @@ function addMainMenu(parent) {
 	})
 
 	// Switch map mode button
-	const switchMapModeButton = addElement(sidebar, htmlCode.buttons.switchMapMode + '<br>', '#switch-map-mode')
+	const switchMapModeButton = addElement(sidebar, htmlCode.buttons.switchMapMode, '#switch-map-mode')
 	switchMapModeButton.addEventListener('click', () => switchMapMode())
 
 	addOptions(sidebar)
