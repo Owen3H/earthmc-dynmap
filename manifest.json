@@ -5,7 +5,8 @@
 	"author": "3meraldK",
 	"description": "Extension to enrich the EarthMC map experience",
 	"icons": {
-		"48": "icon.png"
+		"48": "icon48.png",
+		"128": "icon128.png"
 	},
 	"web_accessible_resources": [{
 		"matches": ["https://map.earthmc.net/*"],
