@@ -1,5 +1,5 @@
 const htmlCode = {
-    // Used in this file
+	// Used in this file
     buttons: {
         locate: '<button class="sidebar-button" id="locate-button">Locate</button>',
         searchArchive: '<button class="sidebar-button" id="archive-button">Search archive</button>',
@@ -19,6 +19,18 @@ const htmlCode = {
     archiveInput: `<input class="sidebar-input" id="archive-input" type="date" min="2022-05-01" max="${new Date().toLocaleDateString('en-ca')}">`,
     currentMapModeLabel: '<div class="sidebar-option" id="current-map-mode-label">Current map mode: {currentMapMode}</div>',
     alertBox: '<div id="alert"><p id="alert-message">{message}</p><br><button id="alert-close">OK</button></div>',
+	darkMode: `<style id="dark-mode">
+		.leaflet-control, #alert, .sidebar-input,
+		.sidebar-button, .leaflet-bar > a, .leaflet-tooltip-top,
+		.leaflet-popup-content-wrapper, .leaflet-popup-tip,
+		.leaflet-bar > a.leaflet-disabled {
+			background: #131313;
+			color: #dedede;
+		}
+		div.leaflet-control-layers.link img {
+			filter: invert(1);
+		}</style>
+	`,
 
     // Used in main.js
     playerLookup: '<div class="leaflet-control-layers leaflet-control left-container" id="player-lookup"></div>',
@@ -128,32 +140,25 @@ function decreaseBrightness(boxTicked) {
 	element.style.filter = boxTicked ? 'brightness(50%)' : ''
 }
 
-/**
- * @param {boolean} boxTicked 
- */
+/** @param {boolean} boxTicked */
 function toggleDarkMode(boxTicked) {
 	localStorage['emcdynmapplus-darkmode'] = boxTicked
-	if (boxTicked) return loadDarkMode()
-
-	document.querySelector('#dark-mode').remove()
-	waitForElement('.leaflet-map-pane').then(element => element.style.filter = '')
+	return boxTicked ? loadDarkMode() : unloadDarkMode()
 }
 
 function loadDarkMode() {
-	document.head.insertAdjacentHTML('beforeend',
-		`<style id="dark-mode">
-		.leaflet-control, #alert, .sidebar-input,
-		.sidebar-button, .leaflet-bar > a, .leaflet-tooltip-top,
-		.leaflet-popup-content-wrapper, .leaflet-popup-tip,
-		.leaflet-bar > a.leaflet-disabled {
-			background: #111;
-			color: #bbb;
-			box-shadow: 0 0 2px 1px #bbb;
-		}
-		div.leaflet-control-layers.link img {
-			filter: invert(1);
-		}</style>`
-	)
+	// tell browser not to apply its auto dark mode.
+	// this fixes some inverted elements when both are enabled.
+	document.documentElement.style.colorScheme = 'dark'
+	document.head.insertAdjacentHTML('beforeend', htmlCode.darkMode)
+}
+
+function unloadDarkMode() {
+	document.documentElement.style.removeProperty('color-scheme')
+
+	const darkModeEl = document.querySelector('#dark-mode')
+	if (darkModeEl) darkModeEl.remove()
+	waitForElement('.leaflet-map-pane').then(el => el.style.filter = '')
 }
 
 /**

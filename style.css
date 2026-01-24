@@ -32,7 +32,7 @@
 	margin: 10px auto auto auto;
 	display: block;
 	width: 32px;
-	box-shadow: 0 0 10px 1px black;
+	box-shadow: 0 0 10px 1px #131313;
 }
 
 #player-lookup-name {
@@ -121,7 +121,7 @@
 	transform: translate(-50%, -50%);
 	z-index: 1000;
 	background-color: white;
-	color: black;
+	color: #131313;
 	font-size: large;
 	box-sizing: border-box;
 	padding: 8px;
