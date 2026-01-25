@@ -20,7 +20,10 @@ function switchMapMode() {
 waitForElement('.leaflet-nameplate-pane').then(element => {
 	element.addEventListener('click', event => {
 		const username = event.target.textContent || event.target.parentElement.parentElement.textContent
-		if (username.length > 0) lookupPlayer(username, false)
+		if (username.length > 0) {
+			 // TODO: We don't need to send a request every click. Use a ~10s expiring cache.
+			lookupPlayer(username, false)
+		}
 	})
 })
 
