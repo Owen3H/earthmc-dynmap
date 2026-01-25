@@ -13,7 +13,7 @@ window.fetch = async (...args) => {
 	if (isMarkers && markersModified) return null // null prevents modified markers being overwritten
 
 	const data = await response.clone().json().catch(console.error)
-	if (!data) return response // prevent modifying response if we had bad data to begin with
+	if (!data) return null // prevent modifying response if we had bad data to begin with
 
     if (isSettings) {
         return new Response(JSON.stringify(modifySettings(data)))
@@ -37,7 +37,7 @@ window.fetch = async (...args) => {
     })
     
     // fallback if modification failed
-    if (!eventDetail.wasModified) return response
+    if (!eventDetail.wasModified) return null
 	
 	console.log(`intercepted: ${response.url}\n\tinjected custom html into response body`)
     return new Response(JSON.stringify(eventDetail.data), {
