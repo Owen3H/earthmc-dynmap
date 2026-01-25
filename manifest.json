@@ -9,13 +9,18 @@
 		"128": "icon128.png"
 	},
 	"web_accessible_resources": [{
+		"run_at": "document_start",
 		"matches": ["https://map.earthmc.net/*"],
-		"resources": ["interceptor.js"],
-		"run_at": "document_start"
+		"resources": ["src/interceptor.js"]
 	}],
 	"content_scripts": [{
 		"matches": ["https://map.earthmc.net/*"],
-		"js": ["httputil.js", "dom.js", "main.js", "content.js"],
-		"css": ["style.css"]
+		"css": ["style.css"],
+		"js": [
+			"src/httputil.js",
+			"src/dom.js",
+			"src/main.js",
+			"src/content.js"
+		]
 	}]
 }
