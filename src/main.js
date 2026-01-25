@@ -443,10 +443,13 @@ async function lookupPlayer(playerName, showOnlineStatus = true) {
 	if (document.querySelector('#player-lookup-loading') != null) document.querySelector('#player-lookup-loading').remove()
 	const loading = addElement(document.querySelector('.leaflet-top.leaflet-left'), htmlCode.playerLookupLoading, '#player-lookup-loading')
 
-	const query = { query: [playerName] }
-	const players = await fetchJSON(`${OAPI_BASE}/${CURRENT_MAP}/players`, { method: 'POST', body: JSON.stringify(query) })
-	if (players == false) return showAlert('Unexpected error occurred while looking the player up, please try later.')
+	const players = await fetchJSON(`${OAPI_BASE}/${CURRENT_MAP}/players`, { 
+		body: JSON.stringify({query: [playerName]}),
+		method: 'POST',
+	})
+	
 	if (players == null) return showAlert('Service is currently unavailable, please try later.')
+	if (players.length < 1) return showAlert('Error looking up this player. They have possibly opted-out.')
 
 	loading.remove()
 	const lookup = addElement(document.querySelector('.leaflet-top.leaflet-left'), htmlCode.playerLookup, '#player-lookup')

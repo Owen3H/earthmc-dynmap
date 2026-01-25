@@ -16,10 +16,8 @@
 
 	const manifest = chrome.runtime.getManifest()
 
-	// Even though the scripts have already loaded, we still need to
-	// inject their contents into the page so can access them and use them.
-	//
-	// manifest.json must specify resources in least-dependent order first.
+	// Any scripts that need to be injected into the page context should be specified in manifest.json 
+	// under web_accessible_resources in order of least-dependent first.
 	const files = manifest.web_accessible_resources[0].resources
 	for (const file of files) {
 		await injectScript(file)
