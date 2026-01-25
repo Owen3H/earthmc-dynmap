@@ -10,7 +10,7 @@ window.fetch = async (...args) => {
 	const isMarkers = response.url.includes('markers.json')
 	const isSettings = response.url.includes('minecraft_overworld/settings.json')
     if (!isMarkers && !isSettings) return response // Continue as normal. We only care about modifying markers and settings.
-	if (isMarkers && markersModified) return response // prevent modifying markers more than once
+	if (isMarkers && markersModified) return null // null prevents modified markers being overwritten
 
 	const data = await response.clone().json().catch(console.error)
 	if (!data) return response // prevent modifying response if we had bad data to begin with
@@ -67,8 +67,7 @@ function modifySettings(data) {
 
 /**
  * @param {string} playerName
- * @param {boolean} showOnlineStatus 
- * @returns 
+ * @param {boolean} showOnlineStatus
  */
 async function lookupPlayer(playerName, showOnlineStatus = true) {
     const detail = { player: playerName, showOnlineStatus }
