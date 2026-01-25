@@ -47,17 +47,20 @@ window.fetch = async (...args) => {
     })
 }
 
-/**
- * @param {Object} data - The settings response JSON data.
- */
+/** @param {Object} data - The settings response JSON data. */
 function modifySettings(data) {
-	data['player_tracker'].nameplates['show_heads'] = true
-	data['player_tracker'].nameplates['heads_url'] = 'https://mc-heads.net/avatar/{uuid}/16'
-	
-	// Set camera on Europe
-	data.spawn.x = 2000
-	data.spawn.z = -10000
-	
+	// Set camera on Europe and zoom all the way out
+    data.spawn = { x: 3400, z: -8800 }
 	data.zoom.def = 0
+
+	data['player_tracker'].nameplates['heads_url'] = 'https://mc-heads.net/avatar/{uuid}/16'
+	data['player_tracker'].nameplates['show_heads'] = true
+
+    // I think these are all disabled server side but may as well ;)
+    data['player_tracker'].update_interval = 1
+	data['player_tracker'].nameplates['show_health'] = true
+    data['player_tracker'].nameplates['show_armor'] = true
+    data['player_tracker'].nameplates['show_effects'] = true
+
 	return data
 }
