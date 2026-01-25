@@ -10,11 +10,12 @@
 	},
 	"web_accessible_resources": [{
 		"matches": ["https://map.earthmc.net/*"],
-		"resources": ["httputil.js", "dom.js", "main.js", "bootstrap.js"]
+		"resources": ["interceptor.js"],
+		"run_at": "document_start"
 	}],
 	"content_scripts": [{
 		"matches": ["https://map.earthmc.net/*"],
-		"js": ["content.js"],
+		"js": ["httputil.js", "dom.js", "main.js", "content.js"],
 		"css": ["style.css"]
 	}]
 }

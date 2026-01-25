@@ -1,4 +1,19 @@
-(async function() {
+(async function entrypoint() {
+	document.addEventListener('EMCDYNMAPPLUS_INTERCEPT', async e => {
+		const { url, data, isMarkers } = e.detail
+		try {
+			const modifiedData = isMarkers ? await main(data) : modifySettings(data)
+			document.dispatchEvent(new CustomEvent('EMCDYNMAPPLUS_MODIFIED', {
+				detail: { url, data: modifiedData, wasModified: true }
+			}))
+		} catch (err) {
+			console.error('Error modifying data:', err)
+			document.dispatchEvent(new CustomEvent('EMCDYNMAPPLUS_MODIFIED', {
+				detail: { url, data, wasModified: false }
+			}))
+		}
+	})
+
 	const manifest = chrome.runtime.getManifest()
 
 	// Even though the scripts have already loaded, we still need to
@@ -10,9 +25,9 @@
 		await injectScript(file)
 	}
 
-	// Signal to the page context (non-content scripts) that init is done.
-	const vars = { MANIFEST_VERSION: manifest.version }
-	document.dispatchEvent(new CustomEvent('EMCDYNMAPPLUS_READY', { detail: vars }))
+	// If not 'complete' or 'interactive', defer init until DOM is ready.
+    if (document.readyState !== 'loading') init(manifest)
+    else document.addEventListener('DOMContentLoaded', _ => init(manifest))
 })()
 
 /** 
@@ -29,4 +44,35 @@ function injectScript(path) {
 		script.onload = () => { script.remove(); resolve() }
 		(document.head || document.documentElement).appendChild(script)
 	})
+}
+
+function init(manifest) {
+    console.log("emcdynmapplus: Initializing UI elements..")
+
+    localStorage['emcdynmapplus-mapmode'] ??= 'meganations'
+    localStorage['emcdynmapplus-darkened'] ??= true
+    
+    insertSidebarMenu()
+    editUILayout()
+    initToggleOptions() // brightness and dark mode
+
+	checkForUpdate(manifest)
+}
+
+/** @returns {string} */
+function checkForUpdate(manifest) {
+    const cachedVer = localStorage['emcdynmapplus-version']
+    const latestVer = manifest.version
+    console.log("emcdynmapplus: current version is: " + latestVer)
+
+    if (!cachedVer) return localStorage['emcdynmapplus-version'] = latestVer
+    if (cachedVer != latestVer) {
+        const changelogURL = `${PROJECT_URL}/releases/v${latestVer}`
+        showAlert(`
+            Extension has been automatically updated from ${cachedVer} to ${latestVer}. 
+            Read what has been changed <a href="${changelogURL}" target="_blank">here</a>.
+        `)
+    }
+
+    return localStorage['emcdynmapplus-version'] = latestVer
 }

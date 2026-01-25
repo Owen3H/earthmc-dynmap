@@ -117,180 +117,6 @@ function pointInPolygon(vertex, polygon) {
 }
 
 /**
- * Modifies town descriptions for Dynmap archives
- * @param {{tooltip: string, popup: string, points: Array<{x: number, z: number}>}} marker 
- */
-function modifyOldDescription(marker) {
-	const residents = marker.popup.match(/Members <span style="font-weight:bold">(.*)<\/span><br \/>Flags/)?.[1]
-	const residentNum = residents?.split(', ')?.length || 0
-	const isCapital = marker.popup.match(/capital: true/) != null
-	const area = getArea(marker.points)
-
-	// Modify description
-	if (isCapital) marker.popup = marker.popup.replace('120%">', '120%">★ ')
-	if (archiveDate() < 20220906) {
-		marker.popup = marker.popup.replace(/">hasUpkeep:.+?(?<=<br \/>)/, '; white-space:pre">')
-	}
-	else marker.popup = marker.popup.replace('">pvp:', '; white-space:pre">pvp:')
-
-	marker.popup = marker.popup.replace('Flags<br />', '<br>Flags<br>')
-		.replace('>pvp:', '>PVP allowed:')
-		.replace('>mobs:', '>Mob spawning:')
-		.replace('>public:', '>Public status:')
-		.replace('>explosion:', '>Explosions:&#9;')
-		.replace('>fire:', '>Fire spread:&#9;')
-		.replace(/<br \/>capital:.*<\/span>/, '</span>')
-		.replaceAll('true<', '&#9;<span style="color:green">Yes</span><')
-		.replaceAll('false<', '&#9;<span style="color:red">No</span><')
-		.replace(`Members <span`, `Members <b>[${residentNum}]</b> <span`)
-	if (area > 0) {
-		marker.popup = marker.popup
-		.replace(`</span><br /> Members`, `</span><br>Size<span style="font-weight:bold"> ${area} </span><br> Members`)
-	}
-	// Scrollable resident list
-	if (residentNum > 50) {
-		marker.popup = marker.popup
-			.replace(`<b>[${residentNum}]</b> <span style="font-weight:bold">`,
-				`<b>[${residentNum}]</b> <div id="scrollable-list"><span style="font-weight:bold">`)
-			.replace('<br>Flags', '</div><br>Flags')
-	}
-
-	return marker
-}
-
-/**
- * @param {{tooltip: string, popup: string, points: Array<Array<Array<{x:number,z:number}>>>}} marker 
- */
-function modifyDescription(marker) {
-	const town = marker.tooltip.match(/<b>(.*)<\/b>/)[1]
-	const isCapital = marker.tooltip.match(/\(Capital of (.*)\)/) != null
-	const nation = marker.tooltip.match(/\(\b(?:Member|Capital)\b of (.*)\)\n/)?.[1]
-	const mayor = marker.popup.match(/Mayor: <b>(.*)<\/b>/)?.[1]
-	
-	const residents = marker.popup.match(/<\/summary>\n    \t(.*)\n   \t<\/details>/)?.[1]
-	const residentNum = residents.split(', ').length
-
-	const councillors = marker.popup.match(/Councillors: <b>(.*)<\/b>/)?.[1]
-		.split(', ').filter(councillor => councillor != 'None')
-
-	// Fixes a bug with names that are wrapped in angle brackets
-	const names = {
-		town: town.replaceAll('<', '&lt;').replaceAll('>', '&gt;'),
-		nation: nation?.replaceAll('<', '&lt;').replaceAll('>', '&gt;') ?? nation
-	}
-
-	const area = calcMarkerArea(marker)
-
-	// Create clickable resident lists
-	const isArchiveMode = currentMapMode() == 'archive'
-	const residentList = isArchiveMode ? residents :
-		residents.split(', ').map(resident => htmlCode.residentClickable.replaceAll('{player}', resident)).join(', ')
-	const councillorList = isArchiveMode ? councillors :
-		councillors.map(councillor => htmlCode.residentClickable.replaceAll('{player}', councillor)).join(', ')
-
-	// Modify description
-	if (residentNum > 50) {
-		marker.popup = marker.popup.replace(residents, htmlCode.scrollableResidentList.replace('{list}', residentList))
-	} else {
-		marker.popup = marker.popup.replace(residents + '\n', htmlCode.residentList.replace('{list}', residentList) + '\n')
-	}
-
-	marker.popup = marker.popup
-		.replace('</details>\n   \t<br>', '</details>') // Remove line break
-		.replace('Councillors:', `Size: <b>${area} chunks</b><br/>Councillors:`) // Add size info
-		.replace('<i>/town set board [msg]</i>', '<i></i>') // Remove default town board
-		.replace('<i></i> \n    <br>\n', '') // Remove empty town board
-		.replace('\n    <i>', '\n    <i style="overflow-wrap: break-word">') // Wrap long town board
-		.replace('Councillors: <b>None</b>\n\t<br>', '') // Remove none councillors info
-		.replace('Size: <b>0 chunks</b><br/>', '') // Remove 0 chunks town size info
-		.replace(town, names.town)
-		.replace(nation, names.nation)
-		.replaceAll('<b>false</b>', '<b><span style="color: red">No</span></b>') // 'False' flag
-		.replaceAll('<b>true</b>', '<b><span style="color: green">Yes</span></b>') // 'True' flag
-	if (currentMapMode() != 'archive') {
-		marker.popup = marker.popup
-		.replace(/Mayor: <b>(.*)<\/b>/, `Mayor: <b>${htmlCode.residentClickable.replaceAll('{player}', mayor)}</b>`) // Lookup mayor
-		.replace(/Councillors: <b>(.*)<\/b>/, `Councillors: <b>${councillorList}</b>`) // Lookup councillors
-	}
-	if (isCapital) marker.popup = marker.popup
-		.replace('<span style="font-size:120%;">', '<span style="font-size: 120%">★ ') // Add capital star
-
-	// Modify tooltip
-	marker.tooltip = marker.tooltip
-		.replace('<i>/town set board [msg]</i>', '<i></i>')
-		.replace('<br>\n    <i></i>', '')
-		// Clamp long town board
-		.replace('\n    <i>', '\n    <i id="clamped-board">')
-		.replace(town, names.town)
-		.replace(nation, names.nation)
-
-	// Add 'Part of' label
-	if (currentMapMode() == 'archive' || currentMapMode() == 'default') return marker
-	const nationAlliances = getNationAlliances(nation)
-	if (nationAlliances.length > 0) {
-		const allianceList = nationAlliances.map(alliance => alliance.name).join(', ')
-		const partOfLabel = htmlCode.partOfLabel.replace('{allianceList}', allianceList)
-		marker.popup = marker.popup.replace('</span>\n', '</span></br>' + partOfLabel)
-	}
-
-	return marker
-}
-
-/**
- * @param {Object} markers - The old markers response JSON data
- */
-function convertOldMarkersStructure(markers) {
-	return Object.entries(markers.areas).flatMap(([key, v]) => {
-		if (key.includes('_Shop')) return []
-		return {
-			fillColor: v.fillcolor,
-			color: v.color,
-			popup: v.desc ?? `<div><b>${v.label}</b></div>`,
-			weight: v.weight,
-			opacity: v.opacity,
-			type: 'polygon',
-			points: v.x.map((x, i) => ({ x, z: v.z[i] }))
-		}
-	})
-}
-
-/**
- * @param {{tooltip: string, popup: string}} marker 
- */
-function colorTowns(marker) {
-	const nation = marker.tooltip.match(/\(\b(?:Member|Capital)\b of (.*)\)\n/)?.[1]
-	const mayor = marker.popup.match(/Mayor: <b>(.*)<\/b>/)?.[1]
-	const isRuin = (mayor.match(/NPC[0-9]+/) != null)
-	//const isNationless = (nation == null)
-	
-	// Universal properties for the map modes
-	if (currentMapMode() == 'alliances') {
-		marker.color = '#000000' // Black
-		marker.fillColor = '#000000'
-		marker.weight = 0.5
-	} else {
-		const nationHasDefaultColor = (marker.color == '#3fb4ff' && marker.fillColor == '#3fb4ff') // Default blue
-		if (nationHasDefaultColor) {
-			marker.color = '#363636' // Dark gray
-			marker.fillColor = hashCode(nation)
-		}
-		else marker.color = '#89c500' // Default green
-	}
-	if (isRuin) return marker.fillColor = marker.color = '#000000' // Black
-
-	// Properties for alliances
-	const nationAlliances = getNationAlliances(nation)
-	if (nationAlliances.length == 0) return marker
-	marker.weight = 1.5
-	marker.fillColor = nationAlliances[0].colours.fill
-	marker.color = nationAlliances[0].colours.outline
-	if (nationAlliances.length < 2) return marker
-	marker.weight = 0.5
-
-	return marker
-}
-
-/**
  * @param {Array<any>} data - The markers response JSON data.
  */
 // TODO: Should probably split main into modifyMarkers() to match modifySettings().
@@ -434,18 +260,177 @@ async function fetchBorders() {
 }
 
 /**
- * @param {Object} data - The settings response JSON data.
+ * @param {{tooltip: string, popup: string, points: Array<Array<Array<{x:number,z:number}>>>}} marker 
  */
-function modifySettings(data) {
-	data['player_tracker'].nameplates['show_heads'] = true
-	data['player_tracker'].nameplates['heads_url'] = 'https://mc-heads.net/avatar/{uuid}/16'
+function modifyDescription(marker) {
+	const town = marker.tooltip.match(/<b>(.*)<\/b>/)[1]
+	const isCapital = marker.tooltip.match(/\(Capital of (.*)\)/) != null
+	const nation = marker.tooltip.match(/\(\b(?:Member|Capital)\b of (.*)\)\n/)?.[1]
+	const mayor = marker.popup.match(/Mayor: <b>(.*)<\/b>/)?.[1]
 	
-	// Set camera on Europe
-	data.spawn.x = 2000
-	data.spawn.z = -10000
+	const residents = marker.popup.match(/<\/summary>\n    \t(.*)\n   \t<\/details>/)?.[1]
+	const residentNum = residents.split(', ').length
+
+	const councillors = marker.popup.match(/Councillors: <b>(.*)<\/b>/)?.[1]
+		.split(', ').filter(councillor => councillor != 'None')
+
+	// Fixes a bug with names that are wrapped in angle brackets
+	const names = {
+		town: town.replaceAll('<', '&lt;').replaceAll('>', '&gt;'),
+		nation: nation?.replaceAll('<', '&lt;').replaceAll('>', '&gt;') ?? nation
+	}
+
+	const area = calcMarkerArea(marker)
+
+	// Create clickable resident lists
+	const isArchiveMode = currentMapMode() == 'archive'
+	const residentList = isArchiveMode ? residents :
+		residents.split(', ').map(resident => htmlCode.residentClickable.replaceAll('{player}', resident)).join(', ')
+	const councillorList = isArchiveMode ? councillors :
+		councillors.map(councillor => htmlCode.residentClickable.replaceAll('{player}', councillor)).join(', ')
+
+	// Modify description
+	if (residentNum > 50) {
+		marker.popup = marker.popup.replace(residents, htmlCode.scrollableResidentList.replace('{list}', residentList))
+	} else {
+		marker.popup = marker.popup.replace(residents + '\n', htmlCode.residentList.replace('{list}', residentList) + '\n')
+	}
+
+	marker.popup = marker.popup
+		.replace('</details>\n   \t<br>', '</details>') // Remove line break
+		.replace('Councillors:', `Size: <b>${area} chunks</b><br/>Councillors:`) // Add size info
+		.replace('<i>/town set board [msg]</i>', '<i></i>') // Remove default town board
+		.replace('<i></i> \n    <br>\n', '') // Remove empty town board
+		.replace('\n    <i>', '\n    <i style="overflow-wrap: break-word">') // Wrap long town board
+		.replace('Councillors: <b>None</b>\n\t<br>', '') // Remove none councillors info
+		.replace('Size: <b>0 chunks</b><br/>', '') // Remove 0 chunks town size info
+		.replace(town, names.town)
+		.replace(nation, names.nation)
+		.replaceAll('<b>false</b>', '<b><span style="color: red">No</span></b>') // 'False' flag
+		.replaceAll('<b>true</b>', '<b><span style="color: green">Yes</span></b>') // 'True' flag
+	if (currentMapMode() != 'archive') {
+		marker.popup = marker.popup
+		.replace(/Mayor: <b>(.*)<\/b>/, `Mayor: <b>${htmlCode.residentClickable.replaceAll('{player}', mayor)}</b>`) // Lookup mayor
+		.replace(/Councillors: <b>(.*)<\/b>/, `Councillors: <b>${councillorList}</b>`) // Lookup councillors
+	}
+	if (isCapital) marker.popup = marker.popup
+		.replace('<span style="font-size:120%;">', '<span style="font-size: 120%">★ ') // Add capital star
+
+	// Modify tooltip
+	marker.tooltip = marker.tooltip
+		.replace('<i>/town set board [msg]</i>', '<i></i>')
+		.replace('<br>\n    <i></i>', '')
+		// Clamp long town board
+		.replace('\n    <i>', '\n    <i id="clamped-board">')
+		.replace(town, names.town)
+		.replace(nation, names.nation)
+
+	// Add 'Part of' label
+	if (currentMapMode() == 'archive' || currentMapMode() == 'default') return marker
+	const nationAlliances = getNationAlliances(nation)
+	if (nationAlliances.length > 0) {
+		const allianceList = nationAlliances.map(alliance => alliance.name).join(', ')
+		const partOfLabel = htmlCode.partOfLabel.replace('{allianceList}', allianceList)
+		marker.popup = marker.popup.replace('</span>\n', '</span></br>' + partOfLabel)
+	}
+
+	return marker
+}
+
+/**
+ * Modifies town descriptions for Dynmap archives
+ * @param {{tooltip: string, popup: string, points: Array<{x: number, z: number}>}} marker 
+ */
+function modifyOldDescription(marker) {
+	const residents = marker.popup.match(/Members <span style="font-weight:bold">(.*)<\/span><br \/>Flags/)?.[1]
+	const residentNum = residents?.split(', ')?.length || 0
+	const isCapital = marker.popup.match(/capital: true/) != null
+	const area = getArea(marker.points)
+
+	// Modify description
+	if (isCapital) marker.popup = marker.popup.replace('120%">', '120%">★ ')
+	if (archiveDate() < 20220906) {
+		marker.popup = marker.popup.replace(/">hasUpkeep:.+?(?<=<br \/>)/, '; white-space:pre">')
+	}
+	else marker.popup = marker.popup.replace('">pvp:', '; white-space:pre">pvp:')
+
+	marker.popup = marker.popup.replace('Flags<br />', '<br>Flags<br>')
+		.replace('>pvp:', '>PVP allowed:')
+		.replace('>mobs:', '>Mob spawning:')
+		.replace('>public:', '>Public status:')
+		.replace('>explosion:', '>Explosions:&#9;')
+		.replace('>fire:', '>Fire spread:&#9;')
+		.replace(/<br \/>capital:.*<\/span>/, '</span>')
+		.replaceAll('true<', '&#9;<span style="color:green">Yes</span><')
+		.replaceAll('false<', '&#9;<span style="color:red">No</span><')
+		.replace(`Members <span`, `Members <b>[${residentNum}]</b> <span`)
+	if (area > 0) {
+		marker.popup = marker.popup
+		.replace(`</span><br /> Members`, `</span><br>Size<span style="font-weight:bold"> ${area} </span><br> Members`)
+	}
+	// Scrollable resident list
+	if (residentNum > 50) {
+		marker.popup = marker.popup
+			.replace(`<b>[${residentNum}]</b> <span style="font-weight:bold">`,
+				`<b>[${residentNum}]</b> <div id="scrollable-list"><span style="font-weight:bold">`)
+			.replace('<br>Flags', '</div><br>Flags')
+	}
+
+	return marker
+}
+
+/**
+ * @param {Object} markers - The old markers response JSON data
+ */
+function convertOldMarkersStructure(markers) {
+	return Object.entries(markers.areas).flatMap(([key, v]) => {
+		if (key.includes('_Shop')) return []
+		return {
+			fillColor: v.fillcolor,
+			color: v.color,
+			popup: v.desc ?? `<div><b>${v.label}</b></div>`,
+			weight: v.weight,
+			opacity: v.opacity,
+			type: 'polygon',
+			points: v.x.map((x, i) => ({ x, z: v.z[i] }))
+		}
+	})
+}
+
+/**
+ * @param {{tooltip: string, popup: string}} marker 
+ */
+function colorTowns(marker) {
+	const nation = marker.tooltip.match(/\(\b(?:Member|Capital)\b of (.*)\)\n/)?.[1]
+	const mayor = marker.popup.match(/Mayor: <b>(.*)<\/b>/)?.[1]
+	const isRuin = (mayor.match(/NPC[0-9]+/) != null)
+	//const isNationless = (nation == null)
 	
-	data.zoom.def = 0
-	return data
+	// Universal properties for the map modes
+	if (currentMapMode() == 'alliances') {
+		marker.color = '#000000' // Black
+		marker.fillColor = '#000000'
+		marker.weight = 0.5
+	} else {
+		const nationHasDefaultColor = (marker.color == '#3fb4ff' && marker.fillColor == '#3fb4ff') // Default blue
+		if (nationHasDefaultColor) {
+			marker.color = '#363636' // Dark gray
+			marker.fillColor = hashCode(nation)
+		}
+		else marker.color = '#89c500' // Default green
+	}
+	if (isRuin) return marker.fillColor = marker.color = '#000000' // Black
+
+	// Properties for alliances
+	const nationAlliances = getNationAlliances(nation)
+	if (nationAlliances.length == 0) return marker
+	marker.weight = 1.5
+	marker.fillColor = nationAlliances[0].colours.fill
+	marker.color = nationAlliances[0].colours.outline
+	if (nationAlliances.length < 2) return marker
+	marker.weight = 0.5
+
+	return marker
 }
 
 /**
