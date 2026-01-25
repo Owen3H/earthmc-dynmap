@@ -14,6 +14,10 @@
 		}
 	})
 
+	document.addEventListener('EMCDYNMAPPLUS_PLAYER_LOOKUP', e => {
+		lookupPlayer(e.detail.player, e.detail.showOnlineStatus)
+	})
+
 	const manifest = chrome.runtime.getManifest()
 
 	// Any scripts that need to be injected into the page context should be specified in manifest.json 
