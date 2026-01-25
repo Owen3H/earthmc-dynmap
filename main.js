@@ -297,14 +297,19 @@ function colorTowns(marker) {
 // 		 It also makes more sense during fetch intercept to call modifyMarkers instead of main.
 async function main(data) {
 	const mapMode = currentMapMode()
+	if (mapMode == 'archive') {
+		data = await getArchive(data)
+	}
+
+	if (!data?.[0]?.markers?.length) {
+		showAlert('Unexpected error occurred while loading the map, maybe EarthMC is down? Try again later.')
+		return data
+	}
+
 	const isAllianceMode = mapMode != 'default' && mapMode != 'archive'
     if (alliances == null && isAllianceMode) {
         alliances = await getAlliances()
     }
-
-	if (mapMode == 'archive') {
-		data = await getArchive(data)
-	}
 
 	data = addChunksLayer(data)
 
@@ -316,11 +321,6 @@ async function main(data) {
 		// const fetchedBorders = await fetchBorders()
 		// data = addCountryLayer(data, fetchedBorders)
 		// localStorage['emcdynmapplus-borders'] = fetchedBorders
-	}
-	
-	if (!data?.[0]?.markers?.length) {
-		showAlert('Unexpected error occurred while loading the map, maybe EarthMC is down? Try again later.')
-		return data
 	}
 
 	for (let marker of data[0].markers) {
