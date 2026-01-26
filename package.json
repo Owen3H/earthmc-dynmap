@@ -3,10 +3,12 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "node build-userscript.js",
-    "userscript": "node build-userscript.js"
+    "userscript": "bunx build-userscript.js",
+    "extension": "bunx build-extension.js",
+    "build": "bun run userscript && bun run extension"
   },
   "devDependencies": {
+    "archiver": "^7.0.1",
     "esbuild": "^0.27.2"
   }
 }
