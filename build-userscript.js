@@ -10,13 +10,13 @@ const HEADER = `// ==UserScript==
 // @version     ${manifest.version}
 // @description ${manifest.description}
 // @author      ${manifest.author}
-// @include     https://map.earthmc.net/*
-// @iconURL     https://raw.githubusercontent.com/Owen3H/earthmc-dynmap/main/icon128.png
+// @include     ${manifest.content_scripts[0].matches[0]}
+// @iconURL     https://raw.githubusercontent.com/3meraldK/earthmc-dynmap/main/icon.png
 // @grant       GM_addStyle
 // ==/UserScript==
 `
 
-const contentFiles = manifest['content_scripts'][0].js
+const contentFiles = manifest.content_scripts[0].js
 const buildOpts = {
     entryPoints: ['src/interceptor.js', ...contentFiles],
     outdir: 'dist',
@@ -25,6 +25,7 @@ const buildOpts = {
     format: 'cjs',
     target: ['es2020'],
     treeShaking: false,
+    //loader: { '.css': 'text' }
     define: {
       IS_USERSCRIPT: 'true',
       STYLE_CSS: JSON.stringify(STYLE_CSS),
@@ -32,9 +33,6 @@ const buildOpts = {
       window: 'unsafeWindow',
       'chrome.runtime.getURL': 'GM_getResourceURL',
     },
-    loader: {
-      '.css': 'text'
-    }
 }
 
 esbuild.build(buildOpts).then(res => {

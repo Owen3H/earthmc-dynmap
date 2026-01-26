@@ -49,9 +49,9 @@ const htmlCode = {
  * @param {string} message 
  */
 function showAlert(message) {
-	if (document.querySelector('#alert') != null) document.querySelector('#alert').remove()
-	document.body.insertAdjacentHTML('beforeend', htmlCode.alertBox.replace('{message}', message))
-	document.querySelector('#alert-close').addEventListener('click', event => { event.target.parentElement.remove() })
+	if (window.document.querySelector('#alert') != null) window.document.querySelector('#alert').remove()
+	window.document.body.insertAdjacentHTML('beforeend', htmlCode.alertBox.replace('{message}', message))
+	window.document.querySelector('#alert-close').addEventListener('click', event => { event.target.parentElement.remove() })
 }
 
 /**
