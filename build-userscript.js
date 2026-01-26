@@ -18,8 +18,9 @@ const HEADER = `// ==UserScript==
 // ==/UserScript==
 `
 
+const contentFiles = manifest['content_scripts'][0].js
 const buildOpts = {
-    entryPoints: manifest['content_scripts'][0].js,
+    entryPoints: contentFiles,
     outdir: 'dist',
     bundle: true,
     write: false,
@@ -29,10 +30,9 @@ const buildOpts = {
     define: {
       IS_USERSCRIPT: 'true',
       STYLE_CSS: JSON.stringify(STYLE_CSS),
-      //INTERCEPTOR_SRC: JSON.stringify(interceptorSrc),
       MANIFEST: JSON.stringify(manifest),
+      window: 'unsafeWindow',
       'chrome.runtime.getURL': 'GM_getResourceURL',
-      window: 'unsafeWindow'
     },
     loader: {
       '.css': 'text'
