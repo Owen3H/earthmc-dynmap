@@ -14,7 +14,7 @@ const HEADER = `// ==UserScript==
 // @iconURL     https://raw.githubusercontent.com/Owen3H/earthmc-dynmap/main/icon128.png
 // @grant       GM_addStyle
 // @grant       GM_getResourceURL
-// @resource    src-interceptor https://raw.githubusercontent.com/Owen3H/earthmc-dynmap/autogen-userscript/src/interceptor.js
+// @resource    src-interceptor https://raw.githubusercontent.com/Owen3H/earthmc-dynmap/main/src/interceptor.js
 // ==/UserScript==
 `
 

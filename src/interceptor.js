@@ -23,8 +23,6 @@ window.fetch = async (...args) => {
     const eventDetail = { url: response.url, data, isMarkers, wasModified: false }
     document.dispatchEvent(new CustomEvent('EMCDYNMAPPLUS_INTERCEPT', { detail: eventDetail }))
 
-	console.log('dispatching EMCDYNMAPPLUS_INTERCEPT with detail: ' + eventDetail)
-
     // Wait for content script to modify the data
     await new Promise(resolve => {
         document.addEventListener('EMCDYNMAPPLUS_MODIFIED', e => {
