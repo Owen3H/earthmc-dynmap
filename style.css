@@ -60,6 +60,7 @@
 	width: auto;
 	max-width: 200px;
 	padding: 5px;
+	float: left;
 }
 
 .option {

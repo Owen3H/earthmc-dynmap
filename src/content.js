@@ -11,7 +11,7 @@
 	}
 
 	document.addEventListener('EMCDYNMAPPLUS_INTERCEPT', async e => {
-		console.log('received intercept event with detail: ' + JSON.stringify(e.detail))
+		//console.log('received intercept event with detail: ' + JSON.stringify(e.detail))
 
 		const { url, data } = e.detail
 		try {
@@ -47,8 +47,6 @@
 function injectScript(resource) {
 	return new Promise(resolve => {
 		const script = document.createElement('script')
-		//if (local) resource = resource.replace('.js', "").replace('/', '-')
-
 		script.src = chrome.runtime.getURL(resource) // replaced at build time for userscript
 		script.onload = () => { script.remove(); resolve() }
 		(document.head || document.documentElement).appendChild(script)
