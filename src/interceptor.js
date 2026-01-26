@@ -20,7 +20,7 @@ window.fetch = async (...args) => {
         return new Response(JSON.stringify(modifySettings(data)))
     }
 
-    const eventDetail = { url: response.url, data, isMarkers, wasModified: false }
+    const eventDetail = { url: response.url, data, wasModified: false }
     document.dispatchEvent(new CustomEvent('EMCDYNMAPPLUS_INTERCEPT', { detail: eventDetail }))
 
     // Wait for content script to modify the data
@@ -70,7 +70,7 @@ function modifySettings(data) {
  * @param {string} playerName
  * @param {boolean} showOnlineStatus
  */
-async function lookupPlayer(playerName, showOnlineStatus = true) {
+async function _lookupPlayer(playerName, showOnlineStatus = true) {
     const detail = { player: playerName, showOnlineStatus }
 	document.dispatchEvent(new CustomEvent('EMCDYNMAPPLUS_PLAYER_LOOKUP', { detail }))
 }

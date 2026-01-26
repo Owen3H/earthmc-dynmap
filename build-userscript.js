@@ -13,14 +13,12 @@ const HEADER = `// ==UserScript==
 // @include     https://map.earthmc.net/*
 // @iconURL     https://raw.githubusercontent.com/Owen3H/earthmc-dynmap/main/icon128.png
 // @grant       GM_addStyle
-// @grant       GM_getResourceURL
-// @resource    src-interceptor https://raw.githubusercontent.com/Owen3H/earthmc-dynmap/main/src/interceptor.js
 // ==/UserScript==
 `
 
 const contentFiles = manifest['content_scripts'][0].js
 const buildOpts = {
-    entryPoints: contentFiles,
+    entryPoints: ['src/interceptor.js', ...contentFiles],
     outdir: 'dist',
     bundle: true,
     write: false,

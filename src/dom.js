@@ -37,7 +37,7 @@ const htmlCode = {
     // Used in main.js
     playerLookup: '<div class="leaflet-control-layers leaflet-control" id="player-lookup"></div>',
     playerLookupLoading: '<div class="leaflet-control-layers leaflet-control" id="player-lookup-loading">Loading...</button>',
-    residentClickable: '<span class="resident-clickable" onclick="lookupPlayer(\'{player}\')">{player}</span>',
+    residentClickable: '<span class="resident-clickable" onclick="_lookupPlayer(\'{player}\')">{player}</span>',
     residentList: '<span class="resident-list">\t{list}</span>',
     scrollableResidentList: '<div class="resident-list" id="scrollable-list">\t{list}</div>',
     partOfLabel: '<span id="part-of-label">Part of <b>{allianceList}</b></span>',

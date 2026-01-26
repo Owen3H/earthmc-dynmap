@@ -1,12 +1,13 @@
 (async function entrypoint() {
 	const isUserscript = typeof IS_USERSCRIPT !== 'undefined' && IS_USERSCRIPT
 	const manifest = isUserscript ? MANIFEST : chrome.runtime.getManifest()
-
-	// Any scripts that need to be injected into the page context should be specified in manifest.json 
-	// under web_accessible_resources in order of least-dependent first.
-	const files = manifest.web_accessible_resources[0].resources
-	for (const file of files) {
-		await injectScript(file, isUserscript)
+	if (!isUserscript) {
+		// Any scripts that need to be injected into the page context should be specified in manifest.json 
+		// under web_accessible_resources in order of least-dependent first.
+		const files = manifest.web_accessible_resources[0].resources
+		for (const file of files) {
+			await injectScript(file)
+		}
 	}
 
 	document.addEventListener('EMCDYNMAPPLUS_INTERCEPT', async e => {
@@ -43,10 +44,10 @@
  * @returns {Promise<void>}
  */
 // TODO: This is an unsafe workaround and we should migrate to ES6 modules with dynamic import.
-function injectScript(resource, local) {
+function injectScript(resource) {
 	return new Promise(resolve => {
 		const script = document.createElement('script')
-		if (local) resource = resource.replace('.js', "").replace('/', '-')
+		//if (local) resource = resource.replace('.js', "").replace('/', '-')
 
 		script.src = chrome.runtime.getURL(resource) // replaced at build time for userscript
 		script.onload = () => { script.remove(); resolve() }
