@@ -1,3 +1,5 @@
+console.log('emcdynmapplus: loaded dom')
+
 const htmlCode = {
 	// Used in this file
     buttons: {

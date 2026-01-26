@@ -1,0 +1,12 @@
+{
+  "name": "earthmc-dynmap-plus",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build-userscript.js",
+    "userscript": "node build-userscript.js"
+  },
+  "devDependencies": {
+    "esbuild": "^0.27.2"
+  }
+}

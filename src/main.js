@@ -1,4 +1,4 @@
-console.log('emcdynmapplus: Injected main.js')
+console.log('emcdynmapplus: loaded main')
 
 let alliances = null
 

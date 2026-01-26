@@ -16,11 +16,14 @@ window.fetch = async (...args) => {
 	if (!data) return null // prevent modifying response if we had bad data to begin with
 
     if (isSettings) {
+        console.log('intercepted settings.json and modified data')
         return new Response(JSON.stringify(modifySettings(data)))
     }
 
     const eventDetail = { url: response.url, data, isMarkers, wasModified: false }
     document.dispatchEvent(new CustomEvent('EMCDYNMAPPLUS_INTERCEPT', { detail: eventDetail }))
+
+	console.log('dispatching EMCDYNMAPPLUS_INTERCEPT with detail: ' + eventDetail)
 
     // Wait for content script to modify the data
     await new Promise(resolve => {

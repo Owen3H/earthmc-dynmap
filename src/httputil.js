@@ -1,3 +1,5 @@
+console.log('emcdynmapplus: loaded httputil')
+
 const EMC_DOMAIN = "earthmc.net"
 const CURRENT_MAP = "aurora"
 

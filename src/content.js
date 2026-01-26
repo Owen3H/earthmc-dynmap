@@ -1,8 +1,20 @@
 (async function entrypoint() {
+	const isUserscript = typeof IS_USERSCRIPT !== 'undefined' && IS_USERSCRIPT
+	const manifest = isUserscript ? MANIFEST : chrome.runtime.getManifest()
+
+	// Any scripts that need to be injected into the page context should be specified in manifest.json 
+	// under web_accessible_resources in order of least-dependent first.
+	const files = manifest.web_accessible_resources[0].resources
+	for (const file of files) {
+		await injectScript(file, isUserscript)
+	}
+
 	document.addEventListener('EMCDYNMAPPLUS_INTERCEPT', async e => {
-		const { url, data, isMarkers } = e.detail
+		console.log('received intercept event with detail: ' + e.detail)
+
+		const { url, data } = e.detail
 		try {
-			const modifiedData = isMarkers ? await main(data) : modifySettings(data)
+			const modifiedData = await main(data)
 			document.dispatchEvent(new CustomEvent('EMCDYNMAPPLUS_MODIFIED', {
 				detail: { url, data: modifiedData, wasModified: true }
 			}))
@@ -18,15 +30,6 @@
 		lookupPlayer(e.detail.player, e.detail.showOnlineStatus)
 	})
 
-	const manifest = chrome.runtime.getManifest()
-
-	// Any scripts that need to be injected into the page context should be specified in manifest.json 
-	// under web_accessible_resources in order of least-dependent first.
-	const files = manifest.web_accessible_resources[0].resources
-	for (const file of files) {
-		await injectScript(file)
-	}
-
 	// If not 'complete' or 'interactive', defer init until DOM is ready.
     if (document.readyState !== 'loading') init(manifest)
     else document.addEventListener('DOMContentLoaded', _ => init(manifest))
@@ -35,20 +38,28 @@
 /** 
  * Injects a file into the page context given the path to it. 
  * This is similar to adding \<script src="main.js"></script> to an HTML file.
- * @param {string} path
+ * @param {string} resource - The path/filename to/of the file to inject.
+ * @param {string} local - Whether the file should be injected locally (text) or external (src).
  * @returns {Promise<void>}
  */
 // TODO: This is an unsafe workaround and we should migrate to ES6 modules with dynamic import.
-function injectScript(path) {
+function injectScript(resource, local) {
 	return new Promise(resolve => {
 		const script = document.createElement('script')
-		script.src = chrome.runtime.getURL(path)
+		if (local) resource = resource.replace('.js', "").replace('/', '-')
+
+		script.src = chrome.runtime.getURL(resource) // replaced at build time for userscript
 		script.onload = () => { script.remove(); resolve() }
 		(document.head || document.documentElement).appendChild(script)
 	})
 }
 
 function init(manifest) {
+	const isUserscript = typeof IS_USERSCRIPT !== 'undefined' && IS_USERSCRIPT
+	if (isUserscript) {
+		GM_addStyle(STYLE_CSS)
+	}
+
     console.log("emcdynmapplus: Initializing UI elements..")
 
     localStorage['emcdynmapplus-mapmode'] ??= 'meganations'
