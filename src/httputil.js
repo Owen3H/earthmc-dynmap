@@ -8,7 +8,8 @@ const MAPI_BASE = `https://map.${EMC_DOMAIN}`
 const CAPI_BASE = `https://emcstats.bot.nu`
 
 const PROXY_URL = `https://api.codetabs.com/v1/proxy/?quest=`
-const PROJECT_URL = "https://github.com/3meraldK/earthmc-dynmap"
+const PROJECT_URL = `https://github.com/3meraldK/earthmc-dynmap`
+// const MARKERS_URL = `https://web.archive.org/web/2024id_/https://earthmc.net/map/aurora/standalone/MySQL_markers.php?marker=_markers_/marker_earth.json`
 
 /**
  * Fetches data at url, parsing it as JSON unless we received 404.
@@ -21,6 +22,19 @@ async function fetchJSON(url, options = null) {
 
     return response.json()
 }
+
+// async function fetchBorders() {
+// 	const markersJson = await fetchJSON(PROXY_URL + markersURL)
+// 		.catch(e => { console.error(e); return null } )	
+// 		.finally(loadingMessage.remove())
+
+// 	if (!markersJson) {
+//         showAlert('Could not download optional country borders layer, you could try again later.')
+//         return null
+//     }
+
+// 	return JSON.stringify(markersJson.sets['borders.Country Borders'].lines)
+// }
 
 /**
  * Fetches an info object from the Official API base endpoint.

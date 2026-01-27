@@ -145,12 +145,19 @@ async function main(data) {
 	const storedBorders = localStorage['emcdynmapplus-borders']
 	if (storedBorders) {
 		data = addCountryBordersLayer(data, storedBorders)
-	} else {
-		// TODO: Somehow fetch without blocking map from loading other stuff in the meantime
-		// const fetchedBorders = await fetchBorders()
-		// data = addCountryLayer(data, fetchedBorders)
-		// localStorage['emcdynmapplus-borders'] = fetchedBorders
-	}
+	} 
+	// else {
+	// 	const loadingMessage = addElement(document.body, htmlCode.alertMsg.replace('{message}', 'Downloading country borders...'), '.message')
+
+	// 	// TODO: Somehow fetch without blocking map from loading other stuff in the meantime
+	// 	const fetchedBorders = await fetchBorders()
+	// 	if (fetchedBorders != null) {
+	// 		data = addCountryBordersLayer(data, fetchedBorders)
+	// 		localStorage['emcdynmapplus-borders'] = fetchedBorders
+	// 	}
+
+	// 	loadingMessage.remove()
+	// }
 
 	const date = archiveDate()
 	for (let marker of data[0].markers) {
@@ -213,6 +220,7 @@ function addChunksLayer(data) {
 
 /**
  * @param {Array<any>} data - The markers response JSON data.
+ * @param {any} borders - The borders JSON data.
  */
 async function addCountryBordersLayer(data, borders) {
 	try {
@@ -246,21 +254,6 @@ async function addCountryBordersLayer(data, borders) {
 	}
 
 	return data
-}
-
-async function fetchBorders() {
-	const loadingMessage = addElement(document.body, htmlCode.alertMsg.replace('{message}', 'Downloading country borders...'), '.message')
-	const markersURL = 'https://web.archive.org/web/2024id_/https://earthmc.net/map/aurora/standalone/MySQL_markers.php?marker=_markers_/marker_earth.json'
-	const markersJson = await fetchJSON(PROXY_URL + markersURL)
-		.catch(e => { console.error(e); return null } )	
-		.finally(loadingMessage.remove())
-
-	if (!markersJson) {
-		showAlert('Could not download optional country borders layer, you could try again later.')
-		return
-	}
-
-	return JSON.stringify(markersJson.sets['borders.Country Borders'].lines)
 }
 
 /**
