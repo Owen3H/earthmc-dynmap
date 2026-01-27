@@ -72,7 +72,7 @@ function modifySettings(data) {
  * @param {string} playerName
  * @param {boolean} showOnlineStatus
  */
-async function _lookupPlayer(playerName, showOnlineStatus = true) {
+function _lookupPlayer(playerName, showOnlineStatus = true) {
     const detail = { player: playerName, showOnlineStatus }
 	document.dispatchEvent(new CustomEvent('EMCDYNMAPPLUS_PLAYER_LOOKUP', { detail }))
 }
