@@ -23,7 +23,7 @@ async function fetchJSON(url, options = null) {
 }
 
 /**
- * Example 5: Array of objects with mixed types of properties
+ * Fetches an info object from the Official API base endpoint.
  * @returns {Promise<ServerInfo>}
  */
 async function fetchServerInfo() {

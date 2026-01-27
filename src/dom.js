@@ -130,17 +130,19 @@ function editUILayout() {
     waitForElement('.leaflet-nameplate-pane').then(el => el.style = '')
 }
 
+/** @returns {Promise<Element | null>} The "#server-info" element. */
 function insertServerInfoPanel() {
-	waitForElement('.leaflet-top.leaflet-right').then(el => {
-		addServerInfoPanel(el)
+	return waitForElement('.leaflet-top.leaflet-right').then(el => {
 		disablePanAndZoom(el)
+		return addServerInfoPanel(el)
 	})
 }
 
+/** @returns {Promise<Element | null>} The "#sidebar" element. */
 function insertSidebarMenu() {
-    waitForElement('.leaflet-top.leaflet-left').then(el => {
-        addMainMenu(el)
+    return waitForElement('.leaflet-top.leaflet-left').then(el => {
         disablePanAndZoom(el)
+        return addMainMenu(el)
     })
 }
 
@@ -165,13 +167,17 @@ function disablePanAndZoom(element) {
  */
 function addServerInfoPanel(parent) {
 	const panel = addElement(parent, htmlCode.serverInfo, '#server-info')
-	addElement(panel, '<div id="server-info-entry">Online Players: 98</div>', '#online-players-count')
-	addElement(panel, '<div id="server-info-entry">Online Nomads: 98</div>', '#online-nomads-count')
-	addElement(panel, '<div id="server-info-entry">VP Remaining: 166</div>', '#vote-party')
-	addElement(panel, '<div id="server-info-entry">New Day In: 1hr 5m</div>', '#new-day-at')
-	addElement(panel, '<div id="server-info-entry">Server Time: 12:45</div>', '#server-time')
-	addElement(panel, '<div id="server-info-entry">Storm: No</div>', '#storm')
-	addElement(panel, '<div id="server-info-entry">Thunder: No</div>', '#thunder')
+	addElement(panel, '<div class="server-info-entry" id="online-players-count">Online Players: Loading..</div>', '#online-players-count')
+	addElement(panel, '<div class="server-info-entry" id="online-nomads-count">Online Nomads: Loading..</div>', '#online-nomads-count')
+	addElement(panel, '<br>')
+	addElement(panel, '<div class="server-info-entry" id="vote-party">VP Remaining: Loading..</div>', '#vote-party')
+	//addElement(panel, '<div id="server-info-entry">New Day In: Loading..</div>', '#new-day-at')
+	//addElement(panel, '<div id="server-info-entry">Server Time: Loading..</div>', '#server-time')
+	addElement(panel, '<br>')
+	addElement(panel, '<div class="server-info-entry" id="storm">Storm: Loading..</div>', '#storm')
+	addElement(panel, '<div class="server-info-entry" id="thunder">Thunder: Loading..</div>', '#thunder')
+
+	return panel
 }
 
 /**
@@ -198,6 +204,8 @@ function addMainMenu(parent) {
 	// Current map mode label
 	const currentMapModeLabel = addElement(sidebar, htmlCode.currentMapModeLabel, '#current-map-mode-label')
 	currentMapModeLabel.textContent = currentMapModeLabel.textContent.replace('{currentMapMode}', currentMapMode())
+
+	return sidebar
 }
 
 /** @param {HTMLElement} sidebar */
@@ -278,6 +286,13 @@ function toggleServerInfo(boxTicked) {
 	localStorage['emcdynmapplus-serverinfo'] = boxTicked
 	const serverInfoPanel = document.querySelector('#server-info')
 	serverInfoPanel?.setAttribute('style', `visibility: ${boxTicked ? 'visible' : 'hidden'}`)
+
+	if (boxTicked) {
+		if (serverInfoScheduler == null) updateServerInfo() // immediate fetch without spam
+	} else {
+		if (serverInfoScheduler != null) clearTimeout(serverInfoScheduler) // stop future runs
+		serverInfoScheduler = null
+	}
 }
 
 /** @param {boolean} boxTicked */

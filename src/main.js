@@ -144,7 +144,7 @@ async function main(data) {
 
 	const storedBorders = localStorage['emcdynmapplus-borders']
 	if (storedBorders) {
-		data = addCountryLayer(data, storedBorders)
+		data = addCountryBordersLayer(data, storedBorders)
 	} else {
 		// TODO: Somehow fetch without blocking map from loading other stuff in the meantime
 		// const fetchedBorders = await fetchBorders()
@@ -214,7 +214,7 @@ function addChunksLayer(data) {
 /**
  * @param {Array<any>} data - The markers response JSON data.
  */
-async function addCountryLayer(data, borders) {
+async function addCountryBordersLayer(data, borders) {
 	try {
 		const points = []
 		const countries = JSON.parse(borders)
