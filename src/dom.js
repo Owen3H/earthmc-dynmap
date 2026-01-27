@@ -27,7 +27,7 @@ const htmlCode = {
 		.sidebar-button, .leaflet-bar > a, .leaflet-tooltip-top,
 		.leaflet-popup-content-wrapper, .leaflet-popup-tip,
 		.leaflet-bar > a.leaflet-disabled {
-			background: #131313;
+			background: #131313d4 !important;
 			color: #dedede;
 		}
 		div.leaflet-control-layers.link img {
@@ -263,11 +263,14 @@ function addLocateMenu(sidebar) {
 	})
 }
 
-/** @param {boolean} boxTicked */
-function decreaseBrightness(boxTicked) {
+/** 
+ * @param {boolean} boxTicked 
+ * @param {number} percentage - The amount to decrease brightness by.
+ */
+function decreaseBrightness(boxTicked, percentage = 45) {
 	const element = document.querySelector('.leaflet-tile-pane')
 	localStorage['emcdynmapplus-darkened'] = boxTicked
-	element.style.filter = boxTicked ? 'brightness(50%)' : ''
+	element.style.filter = boxTicked ? `brightness(${100-percentage}%)` : ''
 }
 
 /** @param {boolean} boxTicked */
