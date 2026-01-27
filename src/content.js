@@ -25,10 +25,6 @@
 		}
 	})
 
-	document.addEventListener('EMCDYNMAPPLUS_PLAYER_LOOKUP', e => {
-		lookupPlayer(e.detail.player, e.detail.showOnlineStatus)
-	})
-
 	// If not 'complete' or 'interactive', defer init until DOM is ready.
     if (document.readyState !== 'loading') init(manifest)
     else document.addEventListener('DOMContentLoaded', _ => init(manifest))

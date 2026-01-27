@@ -44,7 +44,7 @@ window.fetch = async (...args) => {
     return new Response(JSON.stringify(eventDetail.data), {
         status: response.status,
         statusText: response.statusText,
-        headers: response.headers
+        headers: response.headers,
     })
 }
 
@@ -64,15 +64,4 @@ function modifySettings(data) {
     data['player_tracker'].nameplates['show_effects'] = true
 
 	return data
-}
-
-/**
- * Shadows the real lookupPlayer so that if it isn't immediately available
- * in the current context, an event bridge will be used to call it.
- * @param {string} playerName
- * @param {boolean} showOnlineStatus
- */
-function _lookupPlayer(playerName, showOnlineStatus = true) {
-    const detail = { player: playerName, showOnlineStatus }
-	document.dispatchEvent(new CustomEvent('EMCDYNMAPPLUS_PLAYER_LOOKUP', { detail }))
 }

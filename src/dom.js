@@ -38,7 +38,7 @@ const htmlCode = {
     // Used in main.js
     playerLookup: '<div class="leaflet-control-layers leaflet-control" id="player-lookup"></div>',
     playerLookupLoading: '<div class="leaflet-control-layers leaflet-control" id="player-lookup-loading">Loading...</button>',
-    residentClickable: '<span class="resident-clickable" onclick="_lookupPlayer(\'{player}\')">{player}</span>',
+    residentClickable: '<span class="resident-clickable">{player}</span>',
     residentList: '<span class="resident-list">\t{list}</span>',
     scrollableResidentList: '<div class="resident-list" id="scrollable-list">\t{list}</div>',
     partOfLabel: '<span id="part-of-label">Part of <b>{allianceList}</b></span>',
@@ -128,6 +128,16 @@ function editUILayout() {
 
     // Fix nameplates appearing over popups
     waitForElement('.leaflet-nameplate-pane').then(el => el.style = '')
+
+	// Listen for click event on a resident clickable and call lookup func with the resident name.
+	// Has to be popup-pane because infowindow gets destroyed.
+	waitForElement('.leaflet-popup-pane').then(el => el.addEventListener('click', e => {
+		/** @type {HTMLElement} */ 
+		const target = e.target
+		if (target.classList.contains("resident-clickable")) {
+			lookupPlayer(target.textContent)
+		}
+	}))
 }
 
 /** @returns {Promise<Element | null>} The "#server-info" element. */

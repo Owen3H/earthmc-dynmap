@@ -144,21 +144,11 @@ async function main(data) {
 
 	const storedBorders = localStorage['emcdynmapplus-borders']
 	if (storedBorders) {
-		data = addCountryBordersLayer(data, storedBorders)
-	} 
-	// else {
-	// 	const loadingMessage = addElement(document.body, htmlCode.alertMsg.replace('{message}', 'Downloading country borders...'), '.message')
-
-	// 	// TODO: Somehow fetch without blocking map from loading other stuff in the meantime
-	// 	const fetchedBorders = await fetchBorders()
-	// 	if (fetchedBorders != null) {
-	// 		data = addCountryBordersLayer(data, fetchedBorders)
-	// 		localStorage['emcdynmapplus-borders'] = fetchedBorders
-	// 	}
-
-	// 	loadingMessage.remove()
-	// }
-
+		const dataWithBorders = addCountryBordersLayer(data, storedBorders).catch(console.error)
+		if (!dataWithBorders) console.error('emcdynmapplus: failed to add country borders layer')
+		else data = dataWithBorders
+	}
+	
 	const date = archiveDate()
 	for (let marker of data[0].markers) {
 		if (marker.type != 'polygon' && marker.type != 'icon') continue
@@ -222,12 +212,13 @@ function addChunksLayer(data) {
  * @param {Array<any>} data - The markers response JSON data.
  * @param {any} borders - The borders JSON data.
  */
-async function addCountryBordersLayer(data, borders) {
+function addCountryBordersLayer(data, borders) {
 	try {
-		const points = []
 		const countries = JSON.parse(borders)
-		for (const k of countries) {
-			const line = countries[k]
+		const keys = Object.keys(countries)
+		const points = []
+		for (const key of keys) {
+			const line = countries[key]
 			const linePoints = []
 			for (let i = 0; i < line.x.length; i++) {
 				if (!isNumeric(line.x[i])) continue
@@ -249,11 +240,12 @@ async function addCountryBordersLayer(data, borders) {
 				'points': points
 			}]
 		}
+		
+		return data
 	} catch (_) {
 		showAlert(`Could not set up a layer of country borders. You may need to clear this website's data. If problem persists, contact the developer.`)
+		return null
 	}
-
-	return data
 }
 
 /**
