@@ -24,7 +24,7 @@ async function fetchJSON(url, options = null) {
 }
 
 // async function fetchBorders() {
-// 	const markersJson = await fetchJSON(PROXY_URL + markersURL)
+// 	const markersJson = await fetchJSON(PROXY_URL + MARKERS_URL)
 // 		.catch(e => { console.error(e); return null } )	
 // 		.finally(loadingMessage.remove())
 
