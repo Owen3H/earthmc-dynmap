@@ -35,6 +35,7 @@
 	/* ensure it stays on the left below the menu */
 	clear: both !important;
 	display: block !important;
+	float: left;
 }
 
 #player-lookup > .close-container {
