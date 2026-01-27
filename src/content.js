@@ -11,8 +11,6 @@
 	}
 
 	document.addEventListener('EMCDYNMAPPLUS_INTERCEPT', async e => {
-		//console.log('received intercept event with detail: ' + JSON.stringify(e.detail))
-
 		const { url, data } = e.detail
 		try {
 			const modifiedData = await main(data)
