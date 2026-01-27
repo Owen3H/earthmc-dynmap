@@ -288,7 +288,7 @@ function toggleServerInfo(boxTicked) {
 	serverInfoPanel?.setAttribute('style', `visibility: ${boxTicked ? 'visible' : 'hidden'}`)
 
 	if (boxTicked) {
-		if (serverInfoScheduler == null) updateServerInfo() // immediate fetch without spam
+		if (serverInfoScheduler == null) updateServerInfo(serverInfoPanel) // immediate fetch without spam
 	} else {
 		if (serverInfoScheduler != null) clearTimeout(serverInfoScheduler) // stop future runs
 		serverInfoScheduler = null
