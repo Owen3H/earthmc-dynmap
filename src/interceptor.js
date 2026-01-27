@@ -67,6 +67,8 @@ function modifySettings(data) {
 }
 
 /**
+ * Shadows the real lookupPlayer so that if it isn't immediately available
+ * in the current context, an event bridge will be used to call it.
  * @param {string} playerName
  * @param {boolean} showOnlineStatus
  */
