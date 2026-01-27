@@ -21,3 +21,55 @@ async function fetchJSON(url, options = null) {
 
     return response.json()
 }
+
+/**
+ * Example 5: Array of objects with mixed types of properties
+ * @returns {Promise<ServerInfo>}
+ */
+async function fetchServerInfo() {
+    return fetchJSON(`${OAPI_BASE}/${CURRENT_MAP}`)
+}
+
+/**
+ * @typedef {Object} ServerInfo
+ * @property {string} version
+ * @property {string} moonPhase
+ * @property {ServerTimestamps} timestamps
+ * @property {ServerStatus} status
+ * @property {ServerStats} stats
+ * @property {ServerVoteParty} voteParty
+ */
+
+/**
+ * @typedef {Object} ServerTimestamps
+ * @property {number} newDayTime
+ * @property {number} serverTimeOfDay
+ */
+
+/**
+ * @typedef {Object} ServerStatus
+ * @property {boolean} hasStorm
+ * @property {boolean} isThundering
+ */
+
+/**
+ * @typedef {Object} ServerStats
+ * @property {number} time
+ * @property {number} fullTime
+ * @property {number} maxPlayers
+ * @property {number} numOnlinePlayers
+ * @property {number} numOnlineNomads
+ * @property {number} numResidents
+ * @property {number} numNomads
+ * @property {number} numTowns
+ * @property {number} numTownBlocks
+ * @property {number} numNations
+ * @property {number} numQuarters
+ * @property {number} numCuboids
+ */
+
+/**
+ * @typedef {Object} ServerVoteParty
+ * @property {number} target
+ * @property {number} numRemaining
+ */

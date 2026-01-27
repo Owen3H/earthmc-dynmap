@@ -136,7 +136,7 @@ async function main(data) {
 	}
 
 	const isAllianceMode = mapMode != 'default' && mapMode != 'archive'
-    if (alliances == null && isAllianceMode) {
+    if (isAllianceMode && alliances == null) {
         alliances = await getAlliances()
     }
 
@@ -152,9 +152,10 @@ async function main(data) {
 		// localStorage['emcdynmapplus-borders'] = fetchedBorders
 	}
 
+	const date = archiveDate()
 	for (let marker of data[0].markers) {
 		if (marker.type != 'polygon' && marker.type != 'icon') continue
-		marker = (mapMode != 'archive' || archiveDate() >= 20240701)
+		marker = (mapMode != 'archive' || date >= 20240701)
 			? modifyDescription(marker) 
 			: modifyOldDescription(marker)
 
