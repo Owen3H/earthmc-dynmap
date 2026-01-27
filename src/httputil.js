@@ -22,6 +22,20 @@ async function fetchJSON(url, options = null) {
     return response.json()
 }
 
+// async function fetchBorders() {
+// 	const markersURL = 'https://web.archive.org/web/2024id_/https://earthmc.net/map/aurora/standalone/MySQL_markers.php?marker=_markers_/marker_earth.json'
+// 	const markersJson = await fetchJSON(PROXY_URL + markersURL)
+// 		.catch(e => { console.error(e); return null } )	
+// 		.finally(loadingMessage.remove())
+
+// 	if (!markersJson) {
+//         showAlert('Could not download optional country borders layer, you could try again later.')
+//         return null
+//     }
+
+// 	return JSON.stringify(markersJson.sets['borders.Country Borders'].lines)
+// }
+
 /**
  * Fetches an info object from the Official API base endpoint.
  * @returns {Promise<ServerInfo>}
