@@ -178,15 +178,16 @@ function disablePanAndZoom(element) {
 function addServerInfoPanel(parent) {
 	const panel = addElement(parent, htmlCode.serverInfo, '#server-info')
 	addElement(panel, '<div id="server-info-title">Server Info</div>', '#server-info-title')
+	addElement(panel, '<div class="server-info-entry" id="vote-party">Votes until VP: Loading..</div>', '#vote-party')
+	addElement(panel, '<br>')
 	addElement(panel, '<div class="server-info-entry" id="online-players-count">Online Players: Loading..</div>', '#online-players-count')
 	addElement(panel, '<div class="server-info-entry" id="online-nomads-count">Online Nomads: Loading..</div>', '#online-nomads-count')
 	addElement(panel, '<br>')
-	addElement(panel, '<div class="server-info-entry" id="vote-party">VP Remaining: Loading..</div>', '#vote-party')
-	//addElement(panel, '<div id="server-info-entry">New Day In: Loading..</div>', '#new-day-at')
-	//addElement(panel, '<div id="server-info-entry">Server Time: Loading..</div>', '#server-time')
+	addElement(panel, '<div class="server-info-entry" id="new-day-at">New Day In: Loading..</div>', '#new-day-at')
+	addElement(panel, '<div class="server-info-entry" id="server-time">Server Time: Loading..</div>', '#server-time')
 	addElement(panel, '<br>')
-	addElement(panel, '<div class="server-info-entry" id="storm">Storm: Loading..</div>', '#storm')
-	addElement(panel, '<div class="server-info-entry" id="thunder">Thunder: Loading..</div>', '#thunder')
+	addElement(panel, '<div class="server-info-entry" id="storm">⚡ Storm: Loading..</div>', '#storm')
+	addElement(panel, '<div class="server-info-entry" id="thunder">⛈️ Thunder: Loading..</div>', '#thunder')
 
 	return panel
 }
@@ -202,17 +203,34 @@ const serverInfoEntry = (name, value) => {
 
 /**
  * @param {HTMLElement} element - The "#server-info" element.
+ * @param {ServerInfo} info - The object containing server info.
  */
 function renderServerInfo(element, info) {
 	const opCount = info.stats?.numOnlinePlayers || 0
 	const nomadOpCount = info.stats.numOnlineNomads || 0
 	const vpRemaining = info.voteParty.numRemaining
 
+	const newDayTime = info.timestamps.newDayTime
+	const now = new Date()
+	const localSec = now.getHours()*3600 + now.getMinutes()*60 + now.getSeconds()
+	let delta = newDayTime - localSec
+	if (delta < 0) delta += 86400 // 24hr
+	const newDayHr = Math.floor(delta/3600)
+	const newDayMin = Math.floor((delta%3600)/60)
+
+	const serverTod = info.timestamps.serverTimeOfDay
+	const hours = Math.floor(serverTod / 3600)
+	const minutes = Math.floor((serverTod % 3600) / 60)
+
+	const displayHour = hours % 12 || 12
+	const displayMin = minutes.toString().padStart(2, '0')
+	const timeStr = `${displayHour}:${displayMin} ${hours >= 12 ? 'PM' : 'AM'}`
+
 	element.querySelector("#online-players-count").innerHTML = serverInfoEntry(`Online Players`, opCount)
 	element.querySelector("#online-nomads-count").innerHTML = serverInfoEntry(`Online Nomads`, nomadOpCount)
-	element.querySelector("#vote-party").innerHTML = serverInfoEntry(`VP Remaining`, vpRemaining > 0 ? vpRemaining : 0)
-	//element.querySelector("#new-day-at")?.textContent = `New Day In: ${}`
-	//element.querySelector("#server-time")?.textContent = `Online Players: ${opCount}`
+	element.querySelector("#vote-party").innerHTML = serverInfoEntry(`Votes until VP`, vpRemaining > 0 ? vpRemaining : 0)
+	element.querySelector("#new-day-at").innerHTML = serverInfoEntry(`New Day In`, `${newDayHr}hrs ${newDayMin}m`)
+	element.querySelector("#server-time").innerHTML = serverInfoEntry(`Server Time`, timeStr)
 	element.querySelector("#storm").innerHTML = serverInfoEntry(`⚡ Storm`, info.status.hasStorm ? 'Yes' : 'No')
 	element.querySelector("#thunder").innerHTML = serverInfoEntry(`⛈️ Thunder`, info.status.isThundering ? 'Yes' : 'No')
 }
