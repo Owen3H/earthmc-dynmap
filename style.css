@@ -222,7 +222,7 @@
 	float: right;
 	border: none !important;
 	border-radius: 3px !important;
-	background: #ffffffa6; /** htmlCode.darkMode will override this if enabled */
+	background: #ffffffa6 !important; /** htmlCode.darkMode will override this if enabled */
 }
 
 .leaflet-bottom.leaflet-left {

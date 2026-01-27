@@ -444,17 +444,18 @@ function colorTowns(marker) {
 async function lookupPlayer(playerName, showOnlineStatus = true) {
 	if (document.querySelector('#player-lookup') != null) document.querySelector('#player-lookup').remove()
 	if (document.querySelector('#player-lookup-loading') != null) document.querySelector('#player-lookup-loading').remove()
+	
 	const loading = addElement(document.querySelector('.leaflet-top.leaflet-left'), htmlCode.playerLookupLoading, '#player-lookup-loading')
-
 	const players = await fetchJSON(`${OAPI_BASE}/${CURRENT_MAP}/players`, { 
 		body: JSON.stringify({query: [playerName]}),
 		method: 'POST',
 	})
-	
+
+	loading.remove()
+
 	if (players == null) return showAlert('Service is currently unavailable, please try later.')
 	if (players.length < 1) return showAlert('Error looking up this player. They have possibly opted-out.')
 
-	loading.remove()
 	const lookup = addElement(document.querySelector('.leaflet-top.leaflet-left'), htmlCode.playerLookup, '#player-lookup')
 
 	// Populate with placeholders
