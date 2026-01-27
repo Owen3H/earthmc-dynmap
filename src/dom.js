@@ -177,6 +177,7 @@ function disablePanAndZoom(element) {
  */
 function addServerInfoPanel(parent) {
 	const panel = addElement(parent, htmlCode.serverInfo, '#server-info')
+	addElement(panel, '<div id="server-info-title">Server Info</div>', '#server-info-title')
 	addElement(panel, '<div class="server-info-entry" id="online-players-count">Online Players: Loading..</div>', '#online-players-count')
 	addElement(panel, '<div class="server-info-entry" id="online-nomads-count">Online Nomads: Loading..</div>', '#online-nomads-count')
 	addElement(panel, '<br>')
@@ -188,6 +189,32 @@ function addServerInfoPanel(parent) {
 	addElement(panel, '<div class="server-info-entry" id="thunder">Thunder: Loading..</div>', '#thunder')
 
 	return panel
+}
+
+/**
+ * @param {string} name 
+ * @param {string} value 
+ */
+const serverInfoEntry = (name, value) => {
+	const colour = value == 'Yes' ? 'green' : value == 'No' ? 'red' : 'white'
+	return `<p style="margin: 0;">${name}: <b style="color: ${colour};">${value}</b></p>`
+}
+
+/**
+ * @param {HTMLElement} element - The "#server-info" element.
+ */
+function renderServerInfo(element, info) {
+	const opCount = info.stats?.numOnlinePlayers || 0
+	const nomadOpCount = info.stats.numOnlineNomads || 0
+	const vpRemaining = info.voteParty.numRemaining
+
+	element.querySelector("#online-players-count").innerHTML = serverInfoEntry(`Online Players`, opCount)
+	element.querySelector("#online-nomads-count").innerHTML = serverInfoEntry(`Online Nomads`, nomadOpCount)
+	element.querySelector("#vote-party").innerHTML = serverInfoEntry(`VP Remaining`, vpRemaining > 0 ? vpRemaining : 0)
+	//element.querySelector("#new-day-at")?.textContent = `New Day In: ${}`
+	//element.querySelector("#server-time")?.textContent = `Online Players: ${opCount}`
+	element.querySelector("#storm").innerHTML = serverInfoEntry(`⚡ Storm`, info.status.hasStorm ? 'Yes' : 'No')
+	element.querySelector("#thunder").innerHTML = serverInfoEntry(`⛈️ Thunder`, info.status.isThundering ? 'Yes' : 'No')
 }
 
 /**

@@ -92,7 +92,8 @@ let serverInfoScheduler = null
  * @param {HTMLElement} element - The "#server-info" element.
  */
 async function updateServerInfo(element) {
-	await renderServerInfo(element)
+	const info = await fetchServerInfo()
+	if (info) renderServerInfo(element, info)
 
 	// schedule next only if still enabled
 	if (localStorage['emcdynmapplus-serverinfo'] === 'true') {
@@ -100,23 +101,4 @@ async function updateServerInfo(element) {
 	} else {
 		serverInfoScheduler = null
 	}
-}
-
-/**
- * @param {HTMLElement} element - The "#server-info" element.
- */
-async function renderServerInfo(element) {
-	const info = await fetchServerInfo()
-
-	const opCount = info.stats?.numOnlinePlayers || 0
-	const nomadOpCount = info.stats.numOnlineNomads || 0
-	const vpRemaining = info.voteParty.numRemaining
-	
-	element.querySelector("#online-players-count").textContent = `Online Players: ${opCount}`
-	element.querySelector("#online-nomads-count").textContent = `Online Nomads: ${nomadOpCount}`
-	element.querySelector("#vote-party").textContent = `VP Remaining: ${vpRemaining > 0 ? vpRemaining : 0}`
-	//element.querySelector("#new-day-at")?.textContent = `New Day In: ${}`
-	//element.querySelector("#server-time")?.textContent = `Online Players: ${opCount}`
-	element.querySelector("#storm").textContent = `Storm: ${info.status.hasStorm ? 'Yes' : 'No'}`
-	element.querySelector("#thunder").textContent = `Thunder: ${info.status.isThundering ? 'Yes' : 'No'}`
 }
