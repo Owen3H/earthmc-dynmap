@@ -5,15 +5,16 @@ const htmlCode = {
     buttons: {
         locate: '<button class="sidebar-button" id="locate-button">Locate</button>',
         searchArchive: '<button class="sidebar-button" id="archive-button">Search Archive</button>',
+        switchMapMode: '<button class="sidebar-button" id="switch-map-mode">Switch Map Mode</button>',
         options: '<button class="sidebar-button" id="options-button">Options</button>',
-        switchMapMode: '<button class="sidebar-button" id="switch-map-mode">Switch Map Mode</button>'
     },
     options: {
         menu: '<div id="options-menu"></div>',
         option: '<div class="option"></div>',
-        label: '<label for="{option}">{optionName}</label>',
+        label: '<label for="{option}">{optionText}</label>',
         checkbox: '<input id="{option}" type="checkbox" name="{option}">'
     },
+	serverInfo: '<div class="leaflet-control-layers leaflet-control" id="server-info"></div>',
     sidebar: '<div class="leaflet-control-layers leaflet-control" id="sidebar"></div>',
     sidebarOption: '<div class="sidebar-option"></div>',
     locateInput: '<input class="sidebar-input" id="locate-input" placeholder="London">',
@@ -84,9 +85,10 @@ const waitForElement = (selector) => new Promise(resolve => {
 })
 
 function initToggleOptions() {
-    waitForElement('.leaflet-tile-pane').then(() => {
-        if (localStorage['emcdynmapplus-darkened'] === 'true') decreaseBrightness(true)
-    })
+	const darkened = localStorage['emcdynmapplus-darkened']
+	if (darkened == 'true') {
+		waitForElement('.leaflet-tile-pane').then(() => decreaseBrightness(true))
+	}
 
     const darkPref = localStorage['emcdynmapplus-darkmode']
     const systemDark = window.matchMedia?.('(prefers-color-scheme: dark)')?.matches
@@ -94,6 +96,9 @@ function initToggleOptions() {
         localStorage['emcdynmapplus-darkmode'] = 'true'
         loadDarkMode()
     }
+
+	const showServerInfo = localStorage['emcdynmapplus-serverinfo'] == 'true' ? true : false
+	waitForElement('#server-info').then(() => toggleServerInfo(showServerInfo))
 }
 
 function editUILayout() {
@@ -118,32 +123,52 @@ function editUILayout() {
         if (zoomControl) el.insertBefore(zoomControl, el.firstChild)
     })
 
-    // Keep the layer toggle on the right of the main menu
-    waitForElement('.leaflet-control-layers-toggle').then(el => {
-        if (el?.parentElement) {
-            el.parentElement.style.clear = 'none'
-        }
-    })
-
     // Fix nameplates appearing over popups
     waitForElement('.leaflet-nameplate-pane').then(el => el.style = '')
+}
+
+function insertServerInfoPanel() {
+	waitForElement('.leaflet-top.leaflet-right').then(el => {
+		addServerInfoPanel(el)
+		disablePanAndZoom(el)
+	})
 }
 
 function insertSidebarMenu() {
     waitForElement('.leaflet-top.leaflet-left').then(el => {
         addMainMenu(el)
-
-        // Prevents panning the map when on this element by
-        // stopping the mouse event from propogating to Leaflet.
-        el.addEventListener('mousedown', e => e.stopPropagation())
-
-        // blocks the map (Leaflet) from zooming when 
-        // double clicking in the sidebar main menu
-        el.addEventListener('dblclick', e => {
-            e.stopPropagation()
-            e.preventDefault()
-        })
+        disablePanAndZoom(el)
     })
+}
+
+/**
+ * @param {HTMLElement} element - The element to prevent dblckick and mousedown events on.
+ */
+function disablePanAndZoom(element) {
+	// Prevents panning the map when on this element by
+	// stopping the mouse event from propogating to Leaflet.
+	element.addEventListener('mousedown', e => e.stopPropagation())
+
+	// blocks the map (Leaflet) from zooming when 
+	// double clicking in the sidebar main menu.
+	element.addEventListener('dblclick', e => {
+		e.stopPropagation()
+		e.preventDefault()
+	})
+}
+
+/**
+ * @param {HTMLElement} parent - The "leaflet-top leaflet-right" element.
+ */
+function addServerInfoPanel(parent) {
+	const panel = addElement(parent, htmlCode.serverInfo, '#server-info')
+	addElement(panel, '<div id="server-info-entry">Online Players: 98</div>', '#online-players-count')
+	addElement(panel, '<div id="server-info-entry">Online Nomads: 98</div>', '#online-nomads-count')
+	addElement(panel, '<div id="server-info-entry">VP Remaining: 166</div>', '#vote-party')
+	addElement(panel, '<div id="server-info-entry">New Day In: 1hr 5m</div>', '#new-day-at')
+	addElement(panel, '<div id="server-info-entry">Server Time: 12:45</div>', '#server-time')
+	addElement(panel, '<div id="server-info-entry">Storm: No</div>', '#storm')
+	addElement(panel, '<div id="server-info-entry">Thunder: No</div>', '#thunder')
 }
 
 /**
@@ -159,9 +184,7 @@ function addMainMenu(parent) {
 	const archiveButton = addElement(archiveContainer, htmlCode.buttons.searchArchive, '#archive-button')
 	const archiveInput = addElement(archiveContainer, htmlCode.archiveInput, '#archive-input')
 	archiveButton.addEventListener('click', () => searchArchive(archiveInput.value))
-	archiveInput.addEventListener('keyup', event => {
-		if (event.key == 'Enter') searchArchive(archiveInput.value)
-	})
+	archiveInput.addEventListener('keyup', e => { if (e.key == 'Enter') searchArchive(archiveInput.value) })
 
 	// Switch map mode button
 	const switchMapModeButton = addElement(sidebar, htmlCode.buttons.switchMapMode, '#switch-map-mode')
@@ -174,13 +197,81 @@ function addMainMenu(parent) {
 	currentMapModeLabel.textContent = currentMapModeLabel.textContent.replace('{currentMapMode}', currentMapMode())
 }
 
+/** @param {HTMLElement} sidebar */
+function addOptions(sidebar) {
+	const optionsButton = addElement(sidebar, htmlCode.buttons.options, '#options-button')
+	const optionsMenu = addElement(sidebar, htmlCode.options.menu, '#options-menu')
+	optionsMenu.style.display = 'none'
+	optionsButton.addEventListener('click', () => {
+		optionsMenu.style.display = (optionsMenu.style.display == 'none') ? 'unset' : 'none'
+	})
+
+	const checkbox = {
+		decreaseBrightness: addCheckboxOption(0, 'toggle-darkened', 'Decrease brightness', 'darkened'),
+		darkMode: addCheckboxOption(1, 'toggle-darkmode', 'Toggle dark mode', 'darkmode'),
+		serverInfo: addCheckboxOption(2, 'toggle-serverinfo', 'Display server info', 'serverinfo')
+	}
+
+	checkbox.decreaseBrightness.addEventListener('change', event => decreaseBrightness(event.target.checked))
+	checkbox.darkMode.addEventListener('change', event => toggleDarkMode(event.target.checked))
+	checkbox.serverInfo.addEventListener('change', event => toggleServerInfo(event.target.checked))
+}
+
 /**
- * @param {boolean} boxTicked 
+ * Adds a option which displays a checkbox
+ * @param {number} index - The number determining the order of this option in the list 
+ * @param {string} optionId - The unique string used to query this option
+ * @param {string} optionText - The text to display next to the checkbox
+ * @param {string} variable - The variable name in storage used to keep the 'checked' state 
  */
+function addCheckboxOption(index, optionId, optionText, variable) {
+	const optionsMenu = document.querySelector('#options-menu')
+	const option = addElement(optionsMenu, htmlCode.options.option, '.option', true)[index]
+	option.insertAdjacentHTML('beforeend', htmlCode.options.label
+		.replace('{option}', optionId)
+		.replace('{optionText}', optionText))
+	
+	const checkbox = addElement(option, htmlCode.options.checkbox.replace('{option}', optionId), '#' + optionId)
+	checkbox.checked = (localStorage['emcdynmapplus-' + variable] == 'true')
+	return checkbox
+}
+
+/** @param {HTMLElement} sidebar */
+function addLocateMenu(sidebar) {
+	const locateMenu = addElement(sidebar, htmlCode.sidebarOption, '.sidebar-option', true)[0]
+	locateMenu.id = 'locate-menu'
+	const locateButton = addElement(locateMenu, htmlCode.buttons.locate, '#locate-button')
+	const locateSubmenu = addElement(locateMenu, htmlCode.sidebarOption, '.sidebar-option')
+	const locateSelect = addElement(locateSubmenu, htmlCode.locateSelect, '#locate-select')
+	const locateInput = addElement(locateSubmenu, htmlCode.locateInput, '#locate-input')
+	locateSelect.addEventListener('change', () => {
+		switch (locateSelect.value) {
+			case 'Town': locateInput.placeholder = 'London'; break
+			case 'Nation': locateInput.placeholder = 'Germany'; break
+			case 'Resident': locateInput.placeholder = 'Notch'; break
+		}
+	})
+	locateInput.addEventListener('keyup', event => {
+		if (event.key != 'Enter') return
+		locate(locateSelect.value, locateInput.value)
+	})
+	locateButton.addEventListener('click', () => {
+		locate(locateSelect.value, locateInput.value)
+	})
+}
+
+/** @param {boolean} boxTicked */
 function decreaseBrightness(boxTicked) {
 	const element = document.querySelector('.leaflet-tile-pane')
 	localStorage['emcdynmapplus-darkened'] = boxTicked
 	element.style.filter = boxTicked ? 'brightness(50%)' : ''
+}
+
+/** @param {boolean} boxTicked */
+function toggleServerInfo(boxTicked) {
+	localStorage['emcdynmapplus-serverinfo'] = boxTicked
+	const serverInfoPanel = document.querySelector('#server-info')
+	serverInfoPanel?.setAttribute('style', `visibility: ${boxTicked ? 'visible' : 'hidden'}`)
 }
 
 /** @param {boolean} boxTicked */
@@ -224,68 +315,6 @@ function searchArchive(date) {
 	localStorage['emcdynmapplus-archive-date'] = URLDate
 	localStorage['emcdynmapplus-mapmode'] = 'archive'
 	location.reload()
-}
-
-/** @param {HTMLElement} sidebar */
-function addOptions(sidebar) {
-	const optionsButton = addElement(sidebar, htmlCode.buttons.options, '#options-button')
-	const optionsMenu = addElement(sidebar, htmlCode.options.menu, '#options-menu')
-	optionsMenu.style.display = 'none'
-	optionsButton.addEventListener('click', () => {
-		optionsMenu.style.display = (optionsMenu.style.display == 'none') ? 'unset' : 'none'
-	})
-
-	const checkbox = {
-		decreaseBrightness: addCheckboxOption(0, 'decrease-brightness', 'Decrease brightness', 'darkened'),
-		darkMode: addCheckboxOption(1, 'toggle-darkmode', 'Toggle dark mode', 'darkmode')
-	}
-
-	checkbox.decreaseBrightness.addEventListener('change', event => decreaseBrightness(event.target.checked))
-	checkbox.darkMode.addEventListener('change', event => toggleDarkMode(event.target.checked))
-}
-
-/**
- * 
- * @param {number} index 
- * @param {string} optionId 
- * @param {string} optionName 
- * @param {string} variable 
- * @returns 
- */
-function addCheckboxOption(index, optionId, optionName, variable) {
-	const optionsMenu = document.querySelector('#options-menu')
-	const option = addElement(optionsMenu, htmlCode.options.option, '.option', true)[index]
-	option.insertAdjacentHTML('beforeend', htmlCode.options.label
-		.replace('{option}', optionId)
-		.replace('{optionName}', optionName))
-	
-	const checkbox = addElement(option, htmlCode.options.checkbox.replace('{option}', optionId), '#' + optionId)
-	checkbox.checked = (localStorage['emcdynmapplus-' + variable] == 'true')
-	return checkbox
-}
-
-/** @param {HTMLElement} sidebar */
-function addLocateMenu(sidebar) {
-	const locateMenu = addElement(sidebar, htmlCode.sidebarOption, '.sidebar-option', true)[0]
-	locateMenu.id = 'locate-menu'
-	const locateButton = addElement(locateMenu, htmlCode.buttons.locate, '#locate-button')
-	const locateSubmenu = addElement(locateMenu, htmlCode.sidebarOption, '.sidebar-option')
-	const locateSelect = addElement(locateSubmenu, htmlCode.locateSelect, '#locate-select')
-	const locateInput = addElement(locateSubmenu, htmlCode.locateInput, '#locate-input')
-	locateSelect.addEventListener('change', () => {
-		switch (locateSelect.value) {
-			case 'Town': locateInput.placeholder = 'London'; break
-			case 'Nation': locateInput.placeholder = 'Germany'; break
-			case 'Resident': locateInput.placeholder = 'Notch'; break
-		}
-	})
-	locateInput.addEventListener('keyup', event => {
-		if (event.key != 'Enter') return
-		locate(locateSelect.value, locateInput.value)
-	})
-	locateButton.addEventListener('click', () => {
-		locate(locateSelect.value, locateInput.value)
-	})
 }
 
 /** @param {string} town */

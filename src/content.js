@@ -62,9 +62,11 @@ function init(manifest) {
     console.log("emcdynmapplus: Initializing UI elements..")
 
     localStorage['emcdynmapplus-mapmode'] ??= 'meganations'
-    localStorage['emcdynmapplus-darkened'] ??= true
+    localStorage['emcdynmapplus-darkened'] ??= 'true'
+	localStorage['emcdynmapplus-serverinfo'] ??= 'true'
     
     insertSidebarMenu()
+	insertServerInfoPanel()
     editUILayout()
     initToggleOptions() // brightness and dark mode
 
