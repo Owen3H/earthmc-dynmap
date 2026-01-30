@@ -275,12 +275,14 @@ function addOptions(sidebar) {
 	const checkbox = {
 		decreaseBrightness: addCheckboxOption(0, 'toggle-darkened', 'Decrease brightness', 'darkened'),
 		darkMode: addCheckboxOption(1, 'toggle-darkmode', 'Toggle dark mode', 'darkmode'),
-		serverInfo: addCheckboxOption(2, 'toggle-serverinfo', 'Display server info', 'serverinfo')
+		serverInfo: addCheckboxOption(2, 'toggle-serverinfo', 'Display server info', 'serverinfo'),
+		showBorders: addCheckboxOption(3, 'show-borders', 'Show country borders', 'load-borders')
 	}
 
 	checkbox.decreaseBrightness.addEventListener('change', event => decreaseBrightness(event.target.checked))
 	checkbox.darkMode.addEventListener('change', event => toggleDarkMode(event.target.checked))
 	checkbox.serverInfo.addEventListener('change', event => toggleServerInfo(event.target.checked))
+	checkbox.showBorders.addEventListener('change', event => toggleBorders(event.target.checked))
 }
 
 /**
@@ -348,6 +350,12 @@ function toggleServerInfo(boxTicked) {
 		if (serverInfoScheduler != null) clearTimeout(serverInfoScheduler) // stop future runs
 		serverInfoScheduler = null
 	}
+}
+
+/** @param {boolean} boxTicked */
+function toggleBorders(boxTicked) {
+	localStorage['emcdynmapplus-load-borders'] = boxTicked
+	location.reload()
 }
 
 /** @param {boolean} boxTicked */

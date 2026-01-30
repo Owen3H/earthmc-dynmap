@@ -142,15 +142,17 @@ async function main(data) {
 
 	data = addChunksLayer(data)
 
-	const borders = typeof IS_USERSCRIPT === 'undefined' || !IS_USERSCRIPT 
-		? await fetch(chrome.runtime.getURL('src/borders.json')).then(r => r.json())
-		: JSON.parse(BORDERS_JSON)
+	if (localStorage['emcdynmapplus-load-borders'] == 'true') {
+		const borders = typeof IS_USERSCRIPT === 'undefined' || !IS_USERSCRIPT 
+			? await fetch(chrome.runtime.getURL('src/borders.json')).then(r => r.json())
+			: JSON.parse(BORDERS_JSON)
 
-	if (borders) {
-		const dataWithBorders = addCountryBordersLayer(data, borders)
-		if (dataWithBorders) {
-			data = dataWithBorders
-			console.info("emcdynmapplus: added country borders layer to marker data")
+		if (borders) {
+			const dataWithBorders = addCountryBordersLayer(data, borders)
+			if (dataWithBorders) {
+				data = dataWithBorders
+				console.info("emcdynmapplus: added country borders layer to marker data")
+			}
 		}
 	}
 	
@@ -230,7 +232,6 @@ function addCountryBordersLayer(data, borders) {
 			return linePoints
 		})
 
-		console.log(points)
 		data[3] = {
 			'hide': true,
 			'name': 'Country Borders',
