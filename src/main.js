@@ -142,11 +142,16 @@ async function main(data) {
 
 	data = addChunksLayer(data)
 
-	const storedBorders = localStorage['emcdynmapplus-borders']
-	if (storedBorders) {
-		const dataWithBorders = addCountryBordersLayer(data, storedBorders).catch(console.error)
-		if (!dataWithBorders) console.error('emcdynmapplus: failed to add country borders layer')
-		else data = dataWithBorders
+	const borders = typeof IS_USERSCRIPT === 'undefined' || !IS_USERSCRIPT 
+		? await fetch(chrome.runtime.getURL('src/borders.json')).then(r => r.json())
+		: JSON.parse(BORDERS_JSON)
+
+	if (borders) {
+		const dataWithBorders = addCountryBordersLayer(data, borders)
+		if (dataWithBorders) {
+			data = dataWithBorders
+			console.info("emcdynmapplus: added country borders layer to marker data")
+		}
 	}
 	
 	const date = archiveDate()
@@ -214,19 +219,18 @@ function addChunksLayer(data) {
  */
 function addCountryBordersLayer(data, borders) {
 	try {
-		const countries = JSON.parse(borders)
-		const keys = Object.keys(countries)
-		const points = []
-		for (const key of keys) {
-			const line = countries[key]
+		const points = Object.keys(borders).map(country => {
+			const line = borders[country]
 			const linePoints = []
 			for (let i = 0; i < line.x.length; i++) {
 				if (!isNumeric(line.x[i])) continue
 				linePoints.push({ x: line.x[i], z: line.z[i] })
 			}
-			points.push(linePoints)
-		}
 
+			return linePoints
+		})
+
+		console.log(points)
 		data[3] = {
 			'hide': true,
 			'name': 'Country Borders',
@@ -242,8 +246,9 @@ function addCountryBordersLayer(data, borders) {
 		}
 		
 		return data
-	} catch (_) {
+	} catch (e) {
 		showAlert(`Could not set up a layer of country borders. You may need to clear this website's data. If problem persists, contact the developer.`)
+		console.error(e)
 		return null
 	}
 }
@@ -372,18 +377,15 @@ function modifyOldDescription(marker) {
  * @param {Object} markers - The old markers response JSON data
  */
 function convertOldMarkersStructure(markers) {
-	return Object.entries(markers.areas).flatMap(([key, v]) => {
-		if (key.includes('_Shop')) return []
-		return {
-			fillColor: v.fillcolor,
-			color: v.color,
-			popup: v.desc ?? `<div><b>${v.label}</b></div>`,
-			weight: v.weight,
-			opacity: v.opacity,
-			type: 'polygon',
-			points: v.x.map((x, i) => ({ x, z: v.z[i] }))
-		}
-	})
+	return Object.entries(markers.areas).filter(([key]) => !key.includes('_Shop')).map(([_, v]) => ({
+		fillColor: v.fillcolor,
+		color: v.color,
+		popup: v.desc ?? `<div><b>${v.label}</b></div>`,
+		weight: v.weight,
+		opacity: v.opacity,
+		type: 'polygon',
+		points: v.x.map((x, i) => ({ x, z: v.z[i] }))
+	}))
 }
 
 /**
@@ -569,12 +571,13 @@ function getNationAlliances(nation) {
 async function getArchive(data) {
 	const loadingMessage = addElement(document.body, htmlCode.alertMsg.replace('{message}', 'Loading archive, please wait...'), '.message')
 
-	const archiveWebsite = `https://web.archive.org/web/${archiveDate()}id_/`
+	const date = archiveDate()
+	const archiveWebsite = `https://web.archive.org/web/${date}id_/`
 	// markers.json URL changed over time
 	let markersURL = 'https://map.earthmc.net/tiles/minecraft_overworld/markers.json'
-	if (archiveDate() < 20230212) {
+	if (date < 20230212) {
 		markersURL = 'https://earthmc.net/map/aurora/tiles/_markers_/marker_earth.json'
-	} else if (archiveDate() < 20240701) {
+	} else if (date < 20240701) {
 		markersURL = 'https://earthmc.net/map/aurora/standalone/MySQL_markers.php?marker=_markers_/marker_earth.json'
 	}
 	markersURL = archiveWebsite + markersURL
@@ -583,7 +586,7 @@ async function getArchive(data) {
 	if (!archive) return showAlert('Archive service is currently unavailable, please try later.')
 
 	let actualArchiveDate // Structure of markers.json changed at some point
-	if (archiveDate() < 20240701) {
+	if (date < 20240701) {
 		data[0].markers = convertOldMarkersStructure(archive.sets['townyPlugin.markerset'])
 		actualArchiveDate = archive.timestamp
 	} else {

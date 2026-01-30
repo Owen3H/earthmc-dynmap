@@ -1,51 +1,42 @@
 const { fetch: originalFetch } = window
 
 // Replace the default fetch() with ours to intercept responses
-let markersModified = false
+let markersResponsePromise = null
 window.fetch = async (...args) => {
 	const response = await originalFetch(...args)
-	if (!response.ok && response.status != 304) return response
-	if (response.url.includes('web.archive.org')) return response
 
-	const isMarkers = response.url.includes('markers.json')
-	const isSettings = response.url.includes('minecraft_overworld/settings.json')
-    if (!isMarkers && !isSettings) return response // Continue as normal. We only care about modifying markers and settings.
-	if (isMarkers && markersModified) return null // null prevents modified markers being overwritten
+	if (!response.ok && response.status !== 304) return response
+	if (!response.url.includes('markers.json')) return response
 
-	const data = await response.clone().json().catch(console.error)
-	if (!data) return null // prevent modifying response if we had bad data to begin with
+	// If a modification is already in progress or done, reuse it
+	if (markersResponsePromise) return markersResponsePromise.then(r => r.clone())
 
-    if (isSettings) {
-        console.log('intercepted settings.json and modified data')
-        return new Response(JSON.stringify(modifySettings(data)))
-    }
+	markersResponsePromise = (async () => {
+		const data = await response.clone().json()
+        if (!data) return response
 
-    const eventDetail = { url: response.url, data, wasModified: false }
-    document.dispatchEvent(new CustomEvent('EMCDYNMAPPLUS_INTERCEPT', { detail: eventDetail }))
+		const eventDetail = { url: response.url, data, wasModified: false }
+		document.dispatchEvent(new CustomEvent('EMCDYNMAPPLUS_INTERCEPT', { detail: eventDetail }))
 
-    // Wait for content script to modify the data
-    await new Promise(resolve => {
-        document.addEventListener('EMCDYNMAPPLUS_MODIFIED', e => {
-            if (e.detail.url === response.url) {
-                Object.assign(eventDetail, e.detail)
-                if (isMarkers && e.detail.wasModified) {
-                    markersModified = true
-                }
+		await new Promise(resolve => {
+			document.addEventListener('EMCDYNMAPPLUS_MODIFIED', e => {
+				if (e.detail.url === response.url) {
+					Object.assign(eventDetail, e.detail)
+					resolve()
+				}
+			}, { once: true })
+		})
 
-                resolve()
-            }
-        })
-    })
-    
-    // fallback if modification failed
-    if (!eventDetail.wasModified) return null
-	
-	console.log(`intercepted: ${response.url}\n\tinjected custom html into response body`)
-    return new Response(JSON.stringify(eventDetail.data), {
-        status: response.status,
-        statusText: response.statusText,
-        headers: response.headers,
-    })
+		if (!eventDetail.wasModified) return response
+		
+		return new Response(JSON.stringify(eventDetail.data), {
+			status: response.status,
+			statusText: response.statusText,
+			headers: response.headers,
+		})
+	})()
+
+	return markersResponsePromise.then(r => r.clone())
 }
 
 /** @param {Object} data - The settings response JSON data. */

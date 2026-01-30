@@ -4,8 +4,9 @@
 	if (!isUserscript) {
 		// Any scripts that need to be injected into the page context should be specified in manifest.json 
 		// under web_accessible_resources in order of least-dependent first.
-		const files = manifest.web_accessible_resources[0].resources
-		for (const file of files) {
+		const resources = manifest.web_accessible_resources[0].resources
+		const jsFiles = resources.filter(s => s.endsWith('.js'))
+		for (const file of jsFiles) {
 			await injectScript(file)
 		}
 	}
@@ -13,6 +14,8 @@
 	document.addEventListener('EMCDYNMAPPLUS_INTERCEPT', async e => {
 		const { url, data } = e.detail
 		try {
+			console.log('intercepted: ' + url + "\n\tmodifying markers..")
+
 			const modifiedData = await main(data)
 			document.dispatchEvent(new CustomEvent('EMCDYNMAPPLUS_MODIFIED', {
 				detail: { url, data: modifiedData, wasModified: true }

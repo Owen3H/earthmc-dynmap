@@ -11,7 +11,10 @@
 	"web_accessible_resources": [{
 		"run_at": "document_start",
 		"matches": ["https://map.earthmc.net/*"],
-		"resources": ["src/interceptor.js"]
+		"resources": [
+			"src/interceptor.js",
+			"src/borders.json"
+		]
 	}],
 	"content_scripts": [{
 		"matches": ["https://map.earthmc.net/*"],
