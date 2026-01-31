@@ -1,6 +1,16 @@
 console.log('emcdynmapplus: loaded main')
 
+/** @typedef {{x: number, z: number}} Vertex */
+/** @typedef {Array<{x: number, z: number}>} Polygon */
+/** @typedef {Array<Array<{x: number, z: number}>>} MarkerPoints */
+/** @typedef {Array<Array<Array<{x: number, z: number}>>>} MultiPolygonPoints */
+
 let alliances = null
+
+const BORDER_CHUNK_COORDS = { 
+	L: -33280, R: 33088,
+	U: -16640, D: 16512
+}
 
 const archiveDate = () => parseInt(localStorage['emcdynmapplus-archive-date'])
 const currentMapMode = () => localStorage['emcdynmapplus-mapmode'] ?? 'meganations'
@@ -49,7 +59,7 @@ function hashCode(str) {
 
 /**
  * Shoelace formula
- * @param {Array<{x: number, z: number}>} vertices 
+ * @param {Polygon} vertices 
  */
 function getArea(vertices) {
 	let area = 0
@@ -68,7 +78,7 @@ function getArea(vertices) {
 
 /**
  * Computes total area of a marker, accounting for holes.
- * @param {{type: string, points: Array<Array<Array<{x:number,z:number}>>>}} marker
+ * @param {{type: string, points: Array<Array<Polygon>}} marker
  * @returns {number}
  */
 function calcMarkerArea(marker) {
@@ -98,8 +108,8 @@ function calcMarkerArea(marker) {
 
 /**
  * Credit: James Halliday (substack)
- * @param {{x: number, z: number}} vertex 
- * @param {Array<{x: number, z: number}>} polygon
+ * @param {Vertex} vertex 
+ * @param {Polygon} polygon
  */
 function pointInPolygon(vertex, polygon) {
 	let { x, z } = vertex
@@ -118,6 +128,16 @@ function pointInPolygon(vertex, polygon) {
 
 	return inside
 }
+
+/**
+ * @param {MarkerPoints} linePoints
+ * @param {string} weight 
+ * @param {string} colour 
+ */
+const makePolyline = (linePoints, weight = 1, colour = '#ffffff') => ({
+	'type': 'polyline', 'points': linePoints,
+	'weight': weight, 'color': colour,
+})
 
 /**
  * @param {Array<any>} data - The markers response JSON data.
@@ -142,17 +162,16 @@ async function main(data) {
 
 	data = addChunksLayer(data)
 
-	if (localStorage['emcdynmapplus-load-borders'] == 'true') {
-		const borders = typeof IS_USERSCRIPT === 'undefined' || !IS_USERSCRIPT 
-			? await fetch(chrome.runtime.getURL('src/borders.json')).then(r => r.json())
-			: JSON.parse(BORDERS_JSON)
+	const borders = typeof IS_USERSCRIPT === 'undefined' || !IS_USERSCRIPT 
+		? await fetch(chrome.runtime.getURL('src/borders.json')).then(r => r.json())
+		: JSON.parse(BORDERS_JSON)
 
-		if (borders) {
-			const dataWithBorders = addCountryBordersLayer(data, borders)
-			if (dataWithBorders) {
-				data = dataWithBorders
-				console.info("emcdynmapplus: added country borders layer to marker data")
-			}
+	if (!borders) showAlert("An unexpected error occurred fetching the borders resource file.")
+	else {
+		const dataWithBorders = addCountryBordersLayer(data, borders)
+		if (dataWithBorders) {
+			data = dataWithBorders
+			console.info("emcdynmapplus: added country borders layer to marker data")
 		}
 	}
 	
@@ -160,8 +179,8 @@ async function main(data) {
 	for (let marker of data[0].markers) {
 		if (marker.type != 'polygon' && marker.type != 'icon') continue
 		marker = (mapMode != 'archive' || date >= 20240701)
-			? modifyDescription(marker) 
-			: modifyOldDescription(marker)
+			? modifyDescription(marker, mapMode) 
+			: modifyOldDescription(marker, date)
 
 		if (marker.type != 'polygon') continue
 
@@ -183,33 +202,21 @@ async function main(data) {
  * @param {Array<any>} data - The markers response JSON data.
  */
 function addChunksLayer(data) {
+	const { L, R, U, D } = BORDER_CHUNK_COORDS
+	const ver = (x) => [{ x, z: U }, { x, z: D }, { x, z: U }]
+	const hor = (z) => [{ x: L, z }, { x: R, z }, { x: L, z }]
+	
+	/** @type {MarkerPoints} */
 	const chunkLines = []
-	for (let x = -33280; x <= 33088; x += 16) {
-		chunkLines.push([
-			{ 'x': x, 'z': -16640 },
-			{ 'x': x, 'z': +16512 },
-			{ 'x': x, 'z': -16640 }
-		])
-	}
-	for (let z = -16640; z <= 16512; z += 16) {
-		chunkLines.push([
-			{ 'x': -33280, 'z': z },
-			{ 'x': +33088, 'z': z },
-			{ 'x': -33280, 'z': z }
-		])
-	}
+	for (let x = L; x <= R; x += 16) chunkLines.push(ver(x))
+	for (let z = U; z <= D; z += 16) chunkLines.push(hor(z))
 
 	data[2] = {
-		'hide': true,
 		'name': 'Chunks',
-		'control': true,
 		'id': 'chunks',
-		'markers': [{
-			'weight': 0.33,
-			'color': '#000000',
-			'type': 'polyline',
-			'points': chunkLines
-		}]
+		'hide': true,
+		'control': true,
+		'markers': [makePolyline(chunkLines, 0.33, '#000000')]
 	}
 
 	return data
@@ -217,33 +224,29 @@ function addChunksLayer(data) {
 
 /**
  * @param {Array<any>} data - The markers response JSON data.
- * @param {any} borders - The borders JSON data.
+ * @param {Object} borders - The borders JSON data.
  */
 function addCountryBordersLayer(data, borders) {
 	try {
 		const points = Object.keys(borders).map(country => {
+			/** @type {Polygon} */
+			const countryPoly = []
 			const line = borders[country]
-			const linePoints = []
 			for (let i = 0; i < line.x.length; i++) {
 				if (!isNumeric(line.x[i])) continue
-				linePoints.push({ x: line.x[i], z: line.z[i] })
+				countryPoly.push({ x: line.x[i], z: line.z[i] })
 			}
 
-			return linePoints
+			return countryPoly
 		})
 
 		data[3] = {
-			'hide': true,
 			'name': 'Country Borders',
-			'control': true,
 			'id': 'borders',
 			'order': 999,
-			'markers': [{
-				'weight': 1,
-				'color': '#ffffff',
-				'type': 'polyline',
-				'points': points
-			}]
+			'hide': true,
+			'control': true,
+			'markers': [makePolyline(points)]
 		}
 		
 		return data
@@ -255,9 +258,9 @@ function addCountryBordersLayer(data, borders) {
 }
 
 /**
- * @param {{tooltip: string, popup: string, points: Array<Array<Array<{x:number,z:number}>>>}} marker 
+ * @param {{tooltip: string, popup: string, points: MultiPolygonPoints}} marker 
  */
-function modifyDescription(marker) {
+function modifyDescription(marker, curMapMode) {
 	const town = marker.tooltip.match(/<b>(.*)<\/b>/)[1]
 	const isCapital = marker.tooltip.match(/\(Capital of (.*)\)/) != null
 	const nation = marker.tooltip.match(/\(\b(?:Member|Capital)\b of (.*)\)\n/)?.[1]
@@ -278,7 +281,7 @@ function modifyDescription(marker) {
 	const area = calcMarkerArea(marker)
 
 	// Create clickable resident lists
-	const isArchiveMode = currentMapMode() == 'archive'
+	const isArchiveMode = curMapMode == 'archive'
 	const residentList = isArchiveMode ? residents :
 		residents.split(', ').map(resident => htmlCode.residentClickable.replaceAll('{player}', resident)).join(', ')
 	const councillorList = isArchiveMode ? councillors :
@@ -303,7 +306,8 @@ function modifyDescription(marker) {
 		.replace(nation, names.nation)
 		.replaceAll('<b>false</b>', '<b><span style="color: red">No</span></b>') // 'False' flag
 		.replaceAll('<b>true</b>', '<b><span style="color: green">Yes</span></b>') // 'True' flag
-	if (currentMapMode() != 'archive') {
+	
+	if (!isArchiveMode) {
 		marker.popup = marker.popup
 		.replace(/Mayor: <b>(.*)<\/b>/, `Mayor: <b>${htmlCode.residentClickable.replaceAll('{player}', mayor)}</b>`) // Lookup mayor
 		.replace(/Councillors: <b>(.*)<\/b>/, `Councillors: <b>${councillorList}</b>`) // Lookup councillors
@@ -311,7 +315,6 @@ function modifyDescription(marker) {
 	if (isCapital) marker.popup = marker.popup
 		.replace('<span style="font-size:120%;">', '<span style="font-size: 120%">★ ') // Add capital star
 
-	// Modify tooltip
 	marker.tooltip = marker.tooltip
 		.replace('<i>/town set board [msg]</i>', '<i></i>')
 		.replace('<br>\n    <i></i>', '')
@@ -321,7 +324,7 @@ function modifyDescription(marker) {
 		.replace(nation, names.nation)
 
 	// Add 'Part of' label
-	if (currentMapMode() == 'archive' || currentMapMode() == 'default') return marker
+	if (curMapMode == 'archive' || curMapMode == 'default') return marker
 	const nationAlliances = getNationAlliances(nation)
 	if (nationAlliances.length > 0) {
 		const allianceList = nationAlliances.map(alliance => alliance.name).join(', ')
@@ -334,9 +337,9 @@ function modifyDescription(marker) {
 
 /**
  * Modifies town descriptions for Dynmap archives
- * @param {{tooltip: string, popup: string, points: Array<{x: number, z: number}>}} marker 
+ * @param {{tooltip: string, popup: string, points: Polygon}} marker 
  */
-function modifyOldDescription(marker) {
+function modifyOldDescription(marker, curArchiveDate) {
 	const residents = marker.popup.match(/Members <span style="font-weight:bold">(.*)<\/span><br \/>Flags/)?.[1]
 	const residentNum = residents?.split(', ')?.length || 0
 	const isCapital = marker.popup.match(/capital: true/) != null
@@ -344,7 +347,7 @@ function modifyOldDescription(marker) {
 
 	// Modify description
 	if (isCapital) marker.popup = marker.popup.replace('120%">', '120%">★ ')
-	if (archiveDate() < 20220906) {
+	if (curArchiveDate < 20220906) {
 		marker.popup = marker.popup.replace(/">hasUpkeep:.+?(?<=<br \/>)/, '; white-space:pre">')
 	}
 	else marker.popup = marker.popup.replace('">pvp:', '; white-space:pre">pvp:')

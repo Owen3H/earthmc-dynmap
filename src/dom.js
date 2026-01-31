@@ -276,13 +276,13 @@ function addOptions(sidebar) {
 		decreaseBrightness: addCheckboxOption(0, 'toggle-darkened', 'Decrease brightness', 'darkened'),
 		darkMode: addCheckboxOption(1, 'toggle-darkmode', 'Toggle dark mode', 'darkmode'),
 		serverInfo: addCheckboxOption(2, 'toggle-serverinfo', 'Display server info', 'serverinfo'),
-		showBorders: addCheckboxOption(3, 'show-borders', 'Show country borders', 'load-borders')
+		//showBorders: addCheckboxOption(3, 'show-borders', 'Show country borders', 'load-borders')
 	}
 
 	checkbox.decreaseBrightness.addEventListener('change', event => decreaseBrightness(event.target.checked))
 	checkbox.darkMode.addEventListener('change', event => toggleDarkMode(event.target.checked))
 	checkbox.serverInfo.addEventListener('change', event => toggleServerInfo(event.target.checked))
-	checkbox.showBorders.addEventListener('change', event => toggleBorders(event.target.checked))
+	//checkbox.showBorders.addEventListener('change', event => toggleBorders(event.target.checked))
 }
 
 /**
@@ -353,10 +353,10 @@ function toggleServerInfo(boxTicked) {
 }
 
 /** @param {boolean} boxTicked */
-function toggleBorders(boxTicked) {
-	localStorage['emcdynmapplus-load-borders'] = boxTicked
-	location.reload()
-}
+// function toggleBorders(boxTicked) {
+// 	localStorage['emcdynmapplus-load-borders'] = boxTicked
+// 	location.reload()
+// }
 
 /** @param {boolean} boxTicked */
 function toggleDarkMode(boxTicked) {
@@ -395,7 +395,7 @@ function locate(selectValue, inputValue) {
 /** @param {string} date */
 function searchArchive(date) {
 	if (date == '') return
-	const URLDate = date.replaceAll('-', '')
+	const URLDate = date.replaceAll('-', '') // 2026-06-01 -> 20260601
 	localStorage['emcdynmapplus-archive-date'] = URLDate
 	localStorage['emcdynmapplus-mapmode'] = 'archive'
 	location.reload()
