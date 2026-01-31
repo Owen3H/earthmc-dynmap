@@ -19,7 +19,7 @@ const htmlCode = {
     sidebarOption: '<div class="sidebar-option"></div>',
     locateInput: '<input class="sidebar-input" id="locate-input" placeholder="London">',
     locateSelect: '<select class="sidebar-button" id="locate-select"><option>Town</option><option>Nation</option><option>Resident</option></select>',
-    archiveInput: `<input class="sidebar-input" id="archive-input" type="date" min="2022-05-01" max="${new Date().toLocaleDateString('en-ca')}">`,
+    archiveInput: `<input class="sidebar-input" id="archive-input" type="date" min="2022-05-01" max="${new Date().toLocaleDateString()}">`,
     currentMapModeLabel: '<div class="sidebar-option" id="current-map-mode-label">Map Mode: {currentMapMode}</div>',
     alertBox: '<div id="alert"><p id="alert-message">{message}</p><br><button id="alert-close">Dismiss</button></div>',
 	darkMode: `<style id="dark-mode">
@@ -59,6 +59,7 @@ function showAlert(message) {
 }
 
 /**
+ * Adds element to parent and uses selector to query select an element on parent.
  * @param {HTMLElement} parent
  * @param {HTMLElement} element
  * @param {string} selector
@@ -90,7 +91,7 @@ const waitForElement = (selector) => new Promise(resolve => {
 function initToggleOptions() {
 	const darkened = localStorage['emcdynmapplus-darkened']
 	if (darkened == 'true') {
-		waitForElement('.leaflet-tile-pane').then(() => decreaseBrightness(true))
+		waitForElement('.leaflet-tile-pane').then(_ => decreaseBrightness(true))
 	}
 
     const darkPref = localStorage['emcdynmapplus-darkmode']
@@ -101,7 +102,12 @@ function initToggleOptions() {
     }
 
 	const showServerInfo = localStorage['emcdynmapplus-serverinfo'] == 'true' ? true : false
-	waitForElement('#server-info').then(() => toggleServerInfo(showServerInfo))
+	waitForElement('#server-info').then(_ => toggleServerInfo(showServerInfo))
+
+	// Initialize date input from stored date. 20260801 -> 2026-08-01
+	const archiveDate = localStorage['emcdynmapplus-archive-date']
+	const formattedDate = archiveDate.slice(0, 4) + '-' + archiveDate.slice(4, 6) + '-' + archiveDate.slice(6, 8)
+	waitForElement('#archive-input').then(dateInputEl => dateInputEl.value = formattedDate)
 }
 
 function editUILayout() {
@@ -241,19 +247,29 @@ function renderServerInfo(element, info) {
 function addMainMenu(parent) {
 	const sidebar = addElement(parent, htmlCode.sidebar, '#sidebar')
 
+	// Locator button and input box
 	addLocateMenu(sidebar)
 
-	// Search archive
-	const archiveContainer = addElement(sidebar, htmlCode.sidebarOption, '.sidebar-option', true)[2]
+	//#region Archive search and date input
+	const archiveContainer = addElement(sidebar, htmlCode.sidebarOption, '.sidebar-option', true)[1]
 	const archiveButton = addElement(archiveContainer, htmlCode.buttons.searchArchive, '#archive-button')
 	const archiveInput = addElement(archiveContainer, htmlCode.archiveInput, '#archive-input')
-	archiveButton.addEventListener('click', () => searchArchive(archiveInput.value))
+	
+	// TODO: Does this even work when input is type="date" ?
 	archiveInput.addEventListener('keyup', e => { if (e.key == 'Enter') searchArchive(archiveInput.value) })
+	archiveInput.addEventListener('change', _ => {
+		const URLDate = archiveInput.value.replaceAll('-', '')
+		localStorage['emcdynmapplus-archive-date'] = URLDate
+	})
+
+	archiveButton.addEventListener('click', _ => searchArchive(archiveInput.value))
+	//#endregion
 
 	// Switch map mode button
 	const switchMapModeButton = addElement(sidebar, htmlCode.buttons.switchMapMode, '#switch-map-mode')
-	switchMapModeButton.addEventListener('click', () => switchMapMode())
+	switchMapModeButton.addEventListener('click', _ => switchMapMode())
 
+	// Options button and checkboxes
 	addOptions(sidebar)
 
 	// Current map mode label
@@ -268,7 +284,7 @@ function addOptions(sidebar) {
 	const optionsButton = addElement(sidebar, htmlCode.buttons.options, '#options-button')
 	const optionsMenu = addElement(sidebar, htmlCode.options.menu, '#options-menu')
 	optionsMenu.style.display = 'none'
-	optionsButton.addEventListener('click', () => {
+	optionsButton.addEventListener('click', _ => {
 		optionsMenu.style.display = (optionsMenu.style.display == 'none') ? 'unset' : 'none'
 	})
 
@@ -276,13 +292,13 @@ function addOptions(sidebar) {
 		decreaseBrightness: addCheckboxOption(0, 'toggle-darkened', 'Decrease brightness', 'darkened'),
 		darkMode: addCheckboxOption(1, 'toggle-darkmode', 'Toggle dark mode', 'darkmode'),
 		serverInfo: addCheckboxOption(2, 'toggle-serverinfo', 'Display server info', 'serverinfo'),
-		//showBorders: addCheckboxOption(3, 'show-borders', 'Show country borders', 'load-borders')
+		//loadBorders: addCheckboxOption(3, 'toggle-load-borders', 'Load country borders', 'load-borders')
 	}
 
 	checkbox.decreaseBrightness.addEventListener('change', event => decreaseBrightness(event.target.checked))
 	checkbox.darkMode.addEventListener('change', event => toggleDarkMode(event.target.checked))
 	checkbox.serverInfo.addEventListener('change', event => toggleServerInfo(event.target.checked))
-	//checkbox.showBorders.addEventListener('change', event => toggleBorders(event.target.checked))
+	//checkbox.loadBorders.addEventListener('change', event => toggleBorders(event.target.checked))
 }
 
 /**
@@ -299,6 +315,7 @@ function addCheckboxOption(index, optionId, optionText, variable) {
 		.replace('{option}', optionId)
 		.replace('{optionText}', optionText))
 	
+	// Initialize checkbox state
 	const checkbox = addElement(option, htmlCode.options.checkbox.replace('{option}', optionId), '#' + optionId)
 	checkbox.checked = (localStorage['emcdynmapplus-' + variable] == 'true')
 	return checkbox
@@ -306,8 +323,7 @@ function addCheckboxOption(index, optionId, optionText, variable) {
 
 /** @param {HTMLElement} sidebar */
 function addLocateMenu(sidebar) {
-	const locateMenu = addElement(sidebar, htmlCode.sidebarOption, '.sidebar-option', true)[0]
-	locateMenu.id = 'locate-menu'
+	const locateMenu = addElement(sidebar, '<div id="locate-menu"></div>', '#locate-menu')
 	const locateButton = addElement(locateMenu, htmlCode.buttons.locate, '#locate-button')
 	const locateSubmenu = addElement(locateMenu, htmlCode.sidebarOption, '.sidebar-option')
 	const locateSelect = addElement(locateSubmenu, htmlCode.locateSelect, '#locate-select')
@@ -396,7 +412,7 @@ function locate(selectValue, inputValue) {
 function searchArchive(date) {
 	if (date == '') return
 	const URLDate = date.replaceAll('-', '') // 2026-06-01 -> 20260601
-	localStorage['emcdynmapplus-archive-date'] = URLDate
+	localStorage['emcdynmapplus-archive-date'] = URLDate // In case 'change' event doesn't already update it
 	localStorage['emcdynmapplus-mapmode'] = 'archive'
 	location.reload()
 }

@@ -604,7 +604,7 @@ async function getArchive(data) {
 		actualArchiveDate = archive[0].timestamp
 	}
 
-	actualArchiveDate = new Date(parseInt(actualArchiveDate)).toLocaleDateString('en-ca')
+	actualArchiveDate = new Date(parseInt(actualArchiveDate)).toLocaleDateString()
 	document.querySelector('#current-map-mode-label').textContent += ` (${actualArchiveDate})`
 	loadingMessage.remove()
 	if (actualArchiveDate.replaceAll('-', '') != date) {
