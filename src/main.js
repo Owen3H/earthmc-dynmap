@@ -560,11 +560,13 @@ async function getAlliances() {
 function getNationAlliances(nation) {
 	if (alliances == null) return []
 
+	const mapMode = currentMapMode()
 	const nationAlliances = []
 	for (const alliance of alliances) {
+		if (alliance.modeType != mapMode) continue
+		
 		const nations = [...alliance.ownNations, ...alliance.puppetNations]
 		if (!nations.includes(nation)) continue
-		if (alliance.modeType != currentMapMode()) continue
 
 		nationAlliances.push({name: alliance.name, colours: alliance.colours})
 	}
@@ -601,7 +603,7 @@ async function getArchive(data) {
 	actualArchiveDate = new Date(parseInt(actualArchiveDate)).toLocaleDateString('en-ca')
 	document.querySelector('#current-map-mode-label').textContent += ` (${actualArchiveDate})`
 	loadingMessage.remove()
-	if (actualArchiveDate.replaceAll('-', '') != archiveDate()) {
+	if (actualArchiveDate.replaceAll('-', '') != date) {
 		showAlert(`The closest archive to your prompt comes from ${actualArchiveDate}.`)
 	}
 
