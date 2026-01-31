@@ -167,7 +167,7 @@ async function main(data) {
 
 	const borders = typeof IS_USERSCRIPT === 'undefined' || !IS_USERSCRIPT 
 		? await fetch(chrome.runtime.getURL('src/borders.json')).then(r => r.json())
-		: JSON.parse(BORDERS_JSON)
+		: BORDERS_JSON
 
 	if (!borders) showAlert("An unexpected error occurred fetching the borders resource file.")
 	else {

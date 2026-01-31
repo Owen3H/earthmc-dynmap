@@ -21,7 +21,7 @@
 				detail: { url, data: modifiedData, wasModified: true }
 			}))
 		} catch (err) {
-			console.error(`Error modifying data of at ${url}:\n${err.toString()}`)
+			console.error(`Error modifying data of: ${url}\n`, err)
 			document.dispatchEvent(new CustomEvent('EMCDYNMAPPLUS_MODIFIED', {
 				detail: { url, data, wasModified: false }
 			}))

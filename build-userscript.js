@@ -25,7 +25,6 @@ const buildOpts = {
     format: 'cjs',
     target: ['es2020'],
     treeShaking: false,
-    //loader: { '.css': 'text' }
     define: {
       IS_USERSCRIPT: 'true',
       STYLE_CSS: JSON.stringify(STYLE_CSS),
