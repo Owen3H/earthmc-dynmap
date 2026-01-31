@@ -5,7 +5,11 @@ console.log('emcdynmapplus: loaded main')
 /** @typedef {Array<Array<{x: number, z: number}>>} MarkerPoints */
 /** @typedef {Array<Array<Array<{x: number, z: number}>>>} MultiPolygonPoints */
 
-let alliances = null
+/** @typedef {{fill: string, outline: string}} AllianceColours */
+/** @typedef {{name: string, modeType: string, nations: Array<string>, colours: AllianceColours}} CachedAlliance */
+
+/** @type {Array<CachedAlliance>} */
+let cachedAlliances = null
 
 const BORDER_CHUNK_COORDS = { 
 	L: -33280, R: 33088,
@@ -78,28 +82,29 @@ function getArea(vertices) {
 
 /**
  * Computes total area of a marker, accounting for holes.
- * @param {{type: string, points: Array<Array<Polygon>}} marker
+ * @param {{type: string, points: MultiPolygonPoints}} marker
  * @returns {number}
  */
 function calcMarkerArea(marker) {
     if (marker.type !== 'polygon') return 0
 
     let area = 0
-    const processed = []
+    const processed = [] // Temp array of polys used to check existence of holes
     for (const multiPolygon of marker.points || []) {
-        for (const polygon of multiPolygon) {
+        for (let polygon of multiPolygon) {
             if (!polygon || polygon.length < 3) continue
 
-			const verts = polygon
+			// Filter out any NaN points
+			polygon = polygon
 				.map(v => ({ x: Number(v.x), z: Number(v.z) }))
 				.filter(v => Number.isFinite(v.x) && Number.isFinite(v.z))
             
-            if (verts.length < 3) continue
+            if (polygon.length < 3) continue
 
-            // check if polygon is fully inside any previous polygon
-            const isHole = processed.some(prev => verts.every(v => pointInPolygon(v, prev)))
-            area += isHole ? -getArea(verts) : getArea(verts)
-            processed.push(verts)
+            // Check if polygon is fully inside any previous polygon
+            const isHole = processed.some(prev => polygon.every(v => pointInPolygon(v, prev)))
+            area += isHole ? -getArea(polygon) : getArea(polygon)
+            processed.push(polygon)
         }
     }
 
@@ -116,10 +121,8 @@ function pointInPolygon(vertex, polygon) {
 	let n = polygon.length
 	let inside = false
 	for (let i = 0, j = n - 1; i < n; j = i++) {
-		let xi = polygon[i].x
-		let zi = polygon[i].z
-		let xj = polygon[j].x
-		let zj = polygon[j].z
+		let xi = polygon[i].x, xj = polygon[j].x
+		let zi = polygon[i].z, zj = polygon[j].z
 
 		let intersect = ((zi > z) != (zj > z))
 			&& (x < (xj - xi) * (z - zi) / (zj - zi) + xi)
@@ -151,13 +154,13 @@ async function main(data) {
 	}
 
 	if (!data?.[0]?.markers?.length) {
-		showAlert('Unexpected error occurred while loading the map, maybe EarthMC is down? Try again later.')
+		showAlert('Unexpected error occurred while loading the map, EarthMC may be down. Try again later.')
 		return data
 	}
 
 	const isAllianceMode = mapMode != 'default' && mapMode != 'archive'
-    if (isAllianceMode && alliances == null) {
-        alliances = await getAlliances()
+    if (isAllianceMode && cachedAlliances == null) {
+        cachedAlliances = await getAlliances()
     }
 
 	data = addChunksLayer(data)
@@ -498,7 +501,7 @@ async function lookupPlayer(playerName, showOnlineStatus = true) {
 const DEFAULT_ALLIANCE_COLOURS = { fill: '#000000', outline: '#000000' }
 
 /**
- * @param {{fill: string, outline: string}} colours  
+ * @param {AllianceColours} colours  
  */
 function parseColours(colours) {
 	if (!colours) return DEFAULT_ALLIANCE_COLOURS
@@ -508,7 +511,7 @@ function parseColours(colours) {
 }
 
 /**
- * @returns {Array<{name: string, modeType: string, nations: Array<string>, colours: {fill: string, outline: string}}>}
+ * @returns {Promise<Array<CachedAlliance>>}
  */
 async function getAlliances() {
 	const alliances = await fetchJSON(`${CAPI_BASE}/${CURRENT_MAP}/alliances`)
@@ -554,19 +557,20 @@ async function getAlliances() {
 
 /**
  * Gets all alliances the input nation exists within / is related to.
- * @param {string} nation 
- * @returns {Array<{name: string, colours: any}>}
+ * @param {string} nationName 
  */
-function getNationAlliances(nation) {
-	if (alliances == null) return []
+function getNationAlliances(nationName) {
+	if (cachedAlliances == null) return []
 
 	const mapMode = currentMapMode()
+
+	/** @type {Array<{name: string, colours: AllianceColours}>} */
 	const nationAlliances = []
-	for (const alliance of alliances) {
+	for (const alliance of cachedAlliances) {
 		if (alliance.modeType != mapMode) continue
-		
+
 		const nations = [...alliance.ownNations, ...alliance.puppetNations]
-		if (!nations.includes(nation)) continue
+		if (!nations.includes(nationName)) continue
 
 		nationAlliances.push({name: alliance.name, colours: alliance.colours})
 	}

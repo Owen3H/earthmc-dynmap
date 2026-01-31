@@ -19,7 +19,7 @@ window.fetch = async (...args) => {
 	if (!data) return response // prevent modifying response if we had bad data to begin with
 
     if (isSettings) {
-        console.log('intercepted settings.json and modified data')
+        console.log(`intercepted: ${response.url}\n\tmodifying body to include player heads`)
         return new Response(JSON.stringify(modifySettings(data)))
     }
 
