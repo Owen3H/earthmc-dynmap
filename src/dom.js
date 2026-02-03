@@ -19,7 +19,7 @@ const htmlCode = {
     sidebarOption: '<div class="sidebar-option"></div>',
     locateInput: '<input class="sidebar-input" id="locate-input" placeholder="London">',
     locateSelect: '<select class="sidebar-button" id="locate-select"><option>Town</option><option>Nation</option><option>Resident</option></select>',
-    archiveInput: `<input class="sidebar-input" id="archive-input" type="date" min="2022-05-01" max="${new Date().toLocaleDateString()}">`,
+    archiveInput: `<input class="sidebar-input" id="archive-input" type="date" min="${ARCHIVE_DATE.MIN}" max="${ARCHIVE_DATE.MAX}">`,
     currentMapModeLabel: '<div class="sidebar-option" id="current-map-mode-label">Map Mode: {currentMapMode}</div>',
     alertBox: '<div id="alert"><p id="alert-message">{message}</p><br><button id="alert-close">Dismiss</button></div>',
 	darkMode: `<style id="dark-mode">

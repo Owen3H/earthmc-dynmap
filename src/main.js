@@ -1,5 +1,3 @@
-console.log('emcdynmapplus: loaded main')
-
 /** @typedef {{x: number, z: number}} Vertex */
 /** @typedef {Array<{x: number, z: number}>} Polygon */
 /** @typedef {Array<Array<{x: number, z: number}>>} MarkerPoints */
@@ -8,27 +6,7 @@ console.log('emcdynmapplus: loaded main')
 /** @typedef {{fill: string, outline: string}} AllianceColours */
 /** @typedef {{name: string, modeType: string, nations: Array<string>, colours: AllianceColours}} CachedAlliance */
 
-/** @type {Array<CachedAlliance>} */
-let cachedAlliances = null
-
-const BORDER_CHUNK_COORDS = { 
-	L: -33280, R: 33088,
-	U: -16640, D: 16512
-}
-
-const archiveDate = () => parseInt(localStorage['emcdynmapplus-archive-date'])
-const currentMapMode = () => localStorage['emcdynmapplus-mapmode'] ?? 'meganations'
-
-function switchMapMode() {
-	const nextMapMode = {
-		default: 'meganations',
-		meganations: 'alliances',
-		alliances: 'default',
-	}
-
-	localStorage['emcdynmapplus-mapmode'] = nextMapMode[currentMapMode()] ?? 'meganations'
-	location.reload()
-}
+console.log('emcdynmapplus: loaded main')
 
 // Add clickable player nameplates
 waitForElement('.leaflet-nameplate-pane').then(element => {
@@ -40,6 +18,31 @@ waitForElement('.leaflet-nameplate-pane').then(element => {
 		}
 	})
 })
+
+/** @type {Array<CachedAlliance>} */
+let cachedAlliances = null
+
+const MAP_MODES = ["default", "overclaim", "meganations", "alliances"]
+const ARCHIVE_DATE = {
+	MIN: "2022-05-01",
+	MAX: new Date().toLocaleDateString()
+}
+const BORDER_CHUNK_COORDS = { 
+	L: -33280, R: 33088,
+	U: -16640, D: 16512
+}
+
+const archiveDate = () => parseInt(localStorage['emcdynmapplus-archive-date'])
+const currentMapMode = () => localStorage['emcdynmapplus-mapmode'] ?? 'meganations'
+
+function switchMapMode() {
+	// Get the current stored mode, defaulting to the first mode in the list
+	const currentMode = localStorage['emcdynmapplus-mapmode'] || mapModes[0]
+	const nextModeIndex = (MAP_MODES.indexOf(currentMode) + 1) % mapModes.length
+	
+	localStorage['emcdynmapplus-mapmode'] = MAP_MODES[nextModeIndex]
+	location.reload()
+}
 
 /** @param {string} str */
 const isNumeric = (str) => Number.isFinite(+str)
