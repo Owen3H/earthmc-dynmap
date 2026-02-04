@@ -3,6 +3,9 @@ console.log('emcdynmapplus: loaded httputil')
 const EMC_DOMAIN = "earthmc.net"
 const CURRENT_MAP = "aurora"
 
+const OAPI_REQ_PER_MIN = 180
+const OAPI_ITEMS_PER_REQ = 100
+
 const OAPI_BASE = `https://api.${EMC_DOMAIN}/v3` // bump number here after migrating to a new OAPI ver
 const MAPI_BASE = `https://map.${EMC_DOMAIN}`
 const CAPI_BASE = `https://emcstats.bot.nu`
@@ -34,6 +37,52 @@ const postJSON = (url, body) => fetchJSON(url, { body: JSON.stringify(body), met
  * @returns {Promise<ServerInfo>}
  */
 const fetchServerInfo = () => fetchJSON(`${OAPI_BASE}/${CURRENT_MAP}`)
+
+/**
+ * Sends multiple requests and concatenates the results to circumvent 
+ * the query limit while adhering to the rate limit.
+ * @param {string} url 
+ * @param {Array<any>} arr 
+ */
+async function queryConcurrent(url, arr) {
+	const chunks = chunkArr(arr, OAPI_ITEMS_PER_REQ)
+	const promises = chunks.map((chunk, index) => {
+		const delayTime = (index * 1000 * 60) / OAPI_REQ_PER_MIN
+		return delay(delayTime).then(() => sendBatch(url, chunk))
+	})
+
+	// Wait for all batches to complete and combine the results
+	const batchResults = await Promise.all(promises)
+	return batchResults.map(batch => [...batch]).flat()
+}
+
+/**
+ * Splits an array into sub arrays by chunkSize
+ * @param {Array<any>} arr 
+ * @param {number} chunkSize 
+ */
+function chunkArr(arr, chunkSize) {
+	/** @type {Array<Array<>>} */
+	const chunks = []
+	for (let i = 0; i < arr.length; i += chunkSize) {
+		chunks.push(arr.slice(i, i + chunkSize))
+	}
+	return chunks
+}
+
+/**
+ * @param {string} url 
+ * @param {Array<{uuid: string}} chunk 
+ */
+async function sendBatch(url, chunk) {
+	return postJSON(url, { query: chunk.map(e => e.uuid) }).catch(err => {
+		console.error('Error sending request:', err)
+		return []
+	})
+}
+
+/** @param {number} ms */
+const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms))
 
 /**
  * @typedef {Object} ServerInfo

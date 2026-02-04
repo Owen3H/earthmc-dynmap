@@ -22,7 +22,10 @@ waitForElement('.leaflet-nameplate-pane').then(element => {
 /** @type {Array<CachedAlliance>} */
 let cachedAlliances = null
 
-const MAP_MODES = ["default", /*"overclaim",*/ "meganations", "alliances"]
+/** @type {Map<string, string>} */
+let cachedApiNations = null
+
+const MAP_MODES = ["default", "overclaim", "meganations", "alliances"]
 const BORDER_CHUNK_COORDS = { 
 	L: -33280, R: 33088,
 	U: -16640, D: 16512
@@ -35,8 +38,9 @@ function switchMapMode() {
 	// Get the current stored mode, defaulting to the first mode in the list
 	const currentMode = localStorage['emcdynmapplus-mapmode'] || MAP_MODES[0]
 	const nextModeIndex = (MAP_MODES.indexOf(currentMode) + 1) % MAP_MODES.length
-	
-	localStorage['emcdynmapplus-mapmode'] = MAP_MODES[nextModeIndex]
+	const nextMode = MAP_MODES[nextModeIndex]
+
+	localStorage['emcdynmapplus-mapmode'] = nextMode
 	location.reload()
 }
 
@@ -161,6 +165,14 @@ async function main(data) {
         cachedAlliances = await getAlliances()
     }
 
+	if (mapMode == 'overclaim' && cachedApiNations == null) {
+		const nlist = await fetchJSON(`${OAPI_BASE}/${CURRENT_MAP}/nations`)
+		const apiNations = await queryConcurrent(`${OAPI_BASE}/${CURRENT_MAP}/nations`, nlist)
+		cachedApiNations = new Map(apiNations.map(n => [n.name.toLowerCase(), n]))
+		
+		//console.log("emcdynmapplus: queryConcurrent returned nation count: " + cachedApiNations.length)
+	}
+
 	data = addChunksLayer(data)
 
 	const borders = typeof IS_USERSCRIPT === 'undefined' || !IS_USERSCRIPT 
@@ -172,13 +184,13 @@ async function main(data) {
 		const dataWithBorders = addCountryBordersLayer(data, borders)
 		if (dataWithBorders) {
 			data = dataWithBorders
-			console.info("emcdynmapplus: added country borders layer to marker data")
+			//console.log("emcdynmapplus: added country borders layer to marker data")
 		}
 	}
 	
 	const date = archiveDate()
-	const start = performance.now()
 
+	const start = performance.now()
 	for (let marker of data[0].markers) {
 		if (marker.type != 'polygon' && marker.type != 'icon') continue
 		marker = (mapMode != 'archive' || date >= 20240701)
@@ -193,7 +205,7 @@ async function main(data) {
 		marker.weight = 1.5
 
 		if (mapMode == 'default' || mapMode == 'archive') continue
-		marker = colorTowns(marker, mapMode)
+		marker = colorTown(marker, mapMode)
 	}
 	
 	const elapsed = (performance.now() - start)
@@ -415,27 +427,41 @@ const DEFAULT_GREEN = '#89c500'
  * @param {{tooltip: string, popup: string, color: string, fillColor: string, weight: number }} marker
  * @param {string} mapMode - The currently selected map mode.
  */
-function colorTowns(marker, mapMode) {
+function colorTown(marker, mapMode) {
 	const mayor = marker.popup.match(/Mayor: <b>(.*)<\/b>/)?.[1]
 	const isRuin = !!mayor?.match(/NPC[0-9]+/)
 	if (isRuin) return colorMarker(marker, '#000000', '#000000')
 
-	const nation = marker.tooltip.match(/\(\b(?:Member|Capital)\b of (.*)\)\n/)?.[1]
+	const nationName = marker.tooltip.match(/\(\b(?:Member|Capital)\b of (.*)\)\n/)?.[1]
 
-	// Universal properties for the map modes
-	if (mapMode != 'alliances') {
+	if (mapMode == 'meganations') {
 		const isDefaultCol = marker.color == DEFAULT_BLUE && marker.fillColor == DEFAULT_BLUE
 		marker.color = isDefaultCol ? '#363636' : DEFAULT_GREEN
-		marker.fillColor = isDefaultCol ? hashCode(nation) : marker.fillColor
-	} else colorMarker(marker, '#000000', '#000000', 1)
+		marker.fillColor = isDefaultCol ? hashCode(nationName) : marker.fillColor
+	}
+	else if (mapMode == 'overclaim') {
+		const nation = nationName ? cachedApiNations.get(nationName.toLowerCase()) : null
+		const chunksClaimed = calcMarkerArea(marker)
+		
+		const residents = marker.popup.match(/<\/summary>\n    \t(.*)\n   \t<\/details>/)?.[1]
+		const numResidents = residents.split(', ').length
 
-	// Properties for alliances
-	const nationAlliances = getNationAlliances(nation, mapMode)
+		const overclaimInfo = !!nation
+			? checkOverclaimed(chunksClaimed, numResidents, nation.stats.numResidents)
+			: checkOverclaimedNationless(chunksClaimed, numResidents)
+
+		const colour = overclaimInfo.isOverclaimed ? '#ff0000' : '#00ff00'
+		colorMarker(marker, colour, colour, overclaimInfo.isOverclaimed ? 2 : 0.5)
+	}
+	else colorMarker(marker, '#000000', '#000000', 1) // 'alliances' mode
+
+	// Properties for alliances and meganations
+	const nationAlliances = getNationAlliances(nationName, mapMode)
 	if (nationAlliances.length == 0) return marker
 	
 	const { colours } = nationAlliances[0] // First alliance in related alliances
 	const newWeight = nationAlliances.length > 1 ? 1.5 : 0.75 // Use bolder weight if many related alliances
-	return colorMarker(marker, colours.outline, colours.fill, newWeight)
+	return colorMarker(marker, colours.fill, colours.outline, newWeight)
 }
 
 /**
@@ -616,3 +642,52 @@ async function getArchive(data) {
 
 	return data
 }
+
+const CHUNKS_PER_RES = 12
+
+/**
+ * Calculate the claim limit for an independent town and report overclaimed status.
+ * @param {number} claimedChunks 
+ * @param {number} numResidents 
+ */
+function checkOverclaimedNationless(claimedChunks, numResidents) {
+    const resLimit = numResidents * CHUNKS_PER_RES
+    const isOverclaimed = claimedChunks > resLimit
+
+    // Calculate how much the town is overclaimed by, if applicable
+    return { 
+		isOverclaimed,
+		chunksOverclaimed: isOverclaimed ? claimedChunks - resLimit : 0,
+		resLimit
+	}
+}
+
+/**
+ * Calculate the claim limit for a town with a nation and report overclaimed status.
+ * @param {number} claimedChunks 
+ * @param {number} numNationResidents 
+ */
+function checkOverclaimed(claimedChunks, numResidents, numNationResidents) {
+    const resLimit = numResidents * CHUNKS_PER_RES
+	
+	const bonus = auroraNationBonus(numNationResidents)
+    const totalClaimLimit = resLimit + bonus
+    const isOverclaimed = claimedChunks > totalClaimLimit
+	
+	return { 
+		isOverclaimed, 
+		chunksOverclaimed: isOverclaimed ? claimedChunks - totalClaimLimit : 0,
+		nationBonus: bonus,
+		resLimit, totalClaimLimit
+	}
+}
+
+/** @param {number} numNationResidents */
+function auroraNationBonus(numNationResidents) {
+	return numNationResidents >= 200 ? 100
+		: numNationResidents >= 120 ? 80
+		: numNationResidents >= 80 ? 60
+		: numNationResidents >= 60 ? 50
+		: numNationResidents >= 40 ? 30
+		: numNationResidents >= 20 ? 10 : 0
+} 
