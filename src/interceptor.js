@@ -64,3 +64,13 @@ function modifySettings(data) {
 
 	return data
 }
+
+document.addEventListener('EMCDYNMAPPLUS_ADJUST_SCROLL', e => {
+	const adjustedZoom = e.detail.pxPerZoomLevel  // Get the adjusted zoom value from the custom event
+    console.log('attempting to adjust zoom to: ' + adjustedZoom)
+
+	// Apply the zoom sensitivity adjustment via Leaflet
+	if (window.L && window.L.Map) {
+		window.L.Map.mergeOptions({ wheelPxPerZoomLevel: adjustedZoom })
+	}
+})

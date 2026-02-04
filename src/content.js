@@ -61,31 +61,28 @@ function init(manifest) {
     localStorage['emcdynmapplus-mapmode'] ??= 'meganations'
     localStorage['emcdynmapplus-darkened'] ??= 'true'
 	localStorage['emcdynmapplus-serverinfo'] ??= 'true'
-    
+	localStorage['emcdynmapplus-normalize-scroll'] ??= 'true'
+
     insertSidebarMenu()
 	insertServerInfoPanel().then(el => updateServerInfo(el))
     editUILayout()
     initToggleOptions() // brightness and dark mode
-
 	checkForUpdate(manifest)
 }
 
-/** @returns {string} */
-function checkForUpdate(manifest) {
-    const cachedVer = localStorage['emcdynmapplus-version']
-    const latestVer = manifest.version
-    console.log("emcdynmapplus: current version is: " + latestVer)
+const baseZoom = 90
+const scrollLineDelta = 30	// 1 scroll line = ~30 deltaY in windows
+const scrollThreshold = 5	// increase zoom by this many scroll lines
 
-    if (!cachedVer) return localStorage['emcdynmapplus-version'] = latestVer
-    if (cachedVer != latestVer) {
-        const changelogURL = `${PROJECT_URL}/releases/v${latestVer}`
-        showAlert(`
-            Extension has been automatically updated from ${cachedVer} to ${latestVer}. 
-            Read what has been changed <a href="${changelogURL}" target="_blank">here</a>.
-        `)
-    }
+/** @param {number} deltaY */
+function triggerScrollEvent(deltaY) {
+    // Calculate how many sets of 5 scroll lines the user scrolled
+    const zoomMultiplier = Math.floor(Math.abs(deltaY) / (scrollLineDelta * scrollThreshold))
+    const pxPerZoomLevel = baseZoom + (zoomMultiplier * 30)
 
-    return localStorage['emcdynmapplus-version'] = latestVer
+    document.dispatchEvent(new CustomEvent('EMCDYNMAPPLUS_ADJUST_SCROLL', {
+        detail: { pxPerZoomLevel: deltaY < 0 ? pxPerZoomLevel : -pxPerZoomLevel }
+    }))
 }
 
 const SERVERINFO_INTERVAL = 5_000
@@ -104,4 +101,22 @@ async function updateServerInfo(element) {
 	} else {
 		serverInfoScheduler = null
 	}
+}
+
+/** @returns {string} */
+function checkForUpdate(manifest) {
+    const cachedVer = localStorage['emcdynmapplus-version']
+    const latestVer = manifest.version
+    console.log("emcdynmapplus: current version is: " + latestVer)
+
+    if (!cachedVer) return localStorage['emcdynmapplus-version'] = latestVer
+    if (cachedVer != latestVer) {
+        const changelogURL = `${PROJECT_URL}/releases/v${latestVer}`
+        showAlert(`
+            Extension has been automatically updated from ${cachedVer} to ${latestVer}. 
+            Read what has been changed <a href="${changelogURL}" target="_blank">here</a>.
+        `)
+    }
+
+    return localStorage['emcdynmapplus-version'] = latestVer
 }

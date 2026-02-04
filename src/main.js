@@ -22,11 +22,7 @@ waitForElement('.leaflet-nameplate-pane').then(element => {
 /** @type {Array<CachedAlliance>} */
 let cachedAlliances = null
 
-const MAP_MODES = ["default", "overclaim", "meganations", "alliances"]
-const ARCHIVE_DATE = {
-	MIN: "2022-05-01",
-	MAX: new Date().toLocaleDateString()
-}
+const MAP_MODES = ["default", /*"overclaim",*/ "meganations", "alliances"]
 const BORDER_CHUNK_COORDS = { 
 	L: -33280, R: 33088,
 	U: -16640, D: 16512
@@ -37,8 +33,8 @@ const currentMapMode = () => localStorage['emcdynmapplus-mapmode'] ?? 'meganatio
 
 function switchMapMode() {
 	// Get the current stored mode, defaulting to the first mode in the list
-	const currentMode = localStorage['emcdynmapplus-mapmode'] || mapModes[0]
-	const nextModeIndex = (MAP_MODES.indexOf(currentMode) + 1) % mapModes.length
+	const currentMode = localStorage['emcdynmapplus-mapmode'] || MAP_MODES[0]
+	const nextModeIndex = (MAP_MODES.indexOf(currentMode) + 1) % MAP_MODES.length
 	
 	localStorage['emcdynmapplus-mapmode'] = MAP_MODES[nextModeIndex]
 	location.reload()
@@ -68,9 +64,8 @@ function hashCode(str) {
  * Shoelace formula
  * @param {Polygon} vertices 
  */
-function getArea(vertices) {
+function calcPolygonArea(vertices) {
 	let area = 0
-	
 	const amtVerts = vertices.length
 	for (let i = 0; i < amtVerts; i++) {
 		const j = (i + 1) % amtVerts
@@ -106,7 +101,7 @@ function calcMarkerArea(marker) {
 
             // Check if polygon is fully inside any previous polygon
             const isHole = processed.some(prev => polygon.every(v => pointInPolygon(v, prev)))
-            area += isHole ? -getArea(polygon) : getArea(polygon)
+            area += isHole ? -calcPolygonArea(polygon) : calcPolygonArea(polygon)
             processed.push(polygon)
         }
     }
@@ -161,7 +156,7 @@ async function main(data) {
 		return data
 	}
 
-	const isAllianceMode = mapMode != 'default' && mapMode != 'archive'
+	const isAllianceMode = mapMode == 'alliances' || mapMode == 'meganations'
     if (isAllianceMode && cachedAlliances == null) {
         cachedAlliances = await getAlliances()
     }
@@ -182,6 +177,8 @@ async function main(data) {
 	}
 	
 	const date = archiveDate()
+	const start = performance.now()
+
 	for (let marker of data[0].markers) {
 		if (marker.type != 'polygon' && marker.type != 'icon') continue
 		marker = (mapMode != 'archive' || date >= 20240701)
@@ -195,12 +192,13 @@ async function main(data) {
 		marker.fillOpacity = 0.33
 		marker.weight = 1.5
 
-		// Alliance only properties
-		if (isAllianceMode) {
-			marker = colorTowns(marker)
-		}
+		if (mapMode == 'default' || mapMode == 'archive') continue
+		marker = colorTowns(marker, mapMode)
 	}
 	
+	const elapsed = (performance.now() - start)
+	console.log(`emcdynmapplus: modified description and colour of all markers. took ${elapsed.toFixed(2)}ms`)
+
 	return data
 }
 
@@ -264,30 +262,29 @@ function addCountryBordersLayer(data, borders) {
 }
 
 /**
- * @param {{tooltip: string, popup: string, points: MultiPolygonPoints}} marker 
+ * @param {{tooltip: string, popup: string, points: MultiPolygonPoints}} marker
+ * @param 
  */
-function modifyDescription(marker, curMapMode) {
+function modifyDescription(marker, mapMode) {
 	const town = marker.tooltip.match(/<b>(.*)<\/b>/)[1]
 	const isCapital = marker.tooltip.match(/\(Capital of (.*)\)/) != null
 	const nation = marker.tooltip.match(/\(\b(?:Member|Capital)\b of (.*)\)\n/)?.[1]
 	const mayor = marker.popup.match(/Mayor: <b>(.*)<\/b>/)?.[1]
-	
+
 	const residents = marker.popup.match(/<\/summary>\n    \t(.*)\n   \t<\/details>/)?.[1]
 	const residentNum = residents.split(', ').length
 
 	const councillors = marker.popup.match(/Councillors: <b>(.*)<\/b>/)?.[1]
 		.split(', ').filter(councillor => councillor != 'None')
 
-	// Fixes a bug with names that are wrapped in angle brackets
-	const names = {
-		town: town.replaceAll('<', '&lt;').replaceAll('>', '&gt;'),
-		nation: nation?.replaceAll('<', '&lt;').replaceAll('>', '&gt;') ?? nation
-	}
+	// Fix a bug with names that are wrapped in angle brackets
+	const fixedTownName = town.replaceAll('<', '&lt;').replaceAll('>', '&gt;')
+	const fixedNationName = nation?.replaceAll('<', '&lt;').replaceAll('>', '&gt;') ?? nation
 
-	const area = calcMarkerArea(marker)
+	const area = calcMarkerArea(marker) // Area excluding interior holes
 
 	// Create clickable resident lists
-	const isArchiveMode = curMapMode == 'archive'
+	const isArchiveMode = mapMode == 'archive'
 	const residentList = isArchiveMode ? residents :
 		residents.split(', ').map(resident => htmlCode.residentClickable.replaceAll('{player}', resident)).join(', ')
 	const councillorList = isArchiveMode ? councillors :
@@ -308,34 +305,36 @@ function modifyDescription(marker, curMapMode) {
 		.replace('\n    <i>', '\n    <i style="overflow-wrap: break-word">') // Wrap long town board
 		.replace('Councillors: <b>None</b>\n\t<br>', '') // Remove none councillors info
 		.replace('Size: <b>0 chunks</b><br/>', '') // Remove 0 chunks town size info
-		.replace(town, names.town)
-		.replace(nation, names.nation)
+		.replace(town, fixedTownName)
+		.replace(nation, fixedNationName)
 		.replaceAll('<b>false</b>', '<b><span style="color: red">No</span></b>') // 'False' flag
 		.replaceAll('<b>true</b>', '<b><span style="color: green">Yes</span></b>') // 'True' flag
 	
 	if (!isArchiveMode) {
 		marker.popup = marker.popup
 		.replace(/Mayor: <b>(.*)<\/b>/, `Mayor: <b>${htmlCode.residentClickable.replaceAll('{player}', mayor)}</b>`) // Lookup mayor
-		.replace(/Councillors: <b>(.*)<\/b>/, `Councillors: <b>${councillorList}</b>`) // Lookup councillors
+		.replace(/Councillors: <b>(.*)<\/b>/, `Councillors: <b>${councillorList}</b>`) // Lookup a councillor in the list
 	}
-	if (isCapital) marker.popup = marker.popup
-		.replace('<span style="font-size:120%;">', '<span style="font-size: 120%">★ ') // Add capital star
+	if (isCapital) {
+		// Add star that indicates a capital
+		marker.popup = marker.popup.replace('<span style="font-size:120%;">', '<span style="font-size: 120%">★ ')
+	}
 
 	marker.tooltip = marker.tooltip
 		.replace('<i>/town set board [msg]</i>', '<i></i>')
 		.replace('<br>\n    <i></i>', '')
-		// Clamp long town board
-		.replace('\n    <i>', '\n    <i id="clamped-board">')
-		.replace(town, names.town)
-		.replace(nation, names.nation)
+		.replace('\n    <i>', '\n    <i id="clamped-board">') // Clamp long town board
+		.replace(town, fixedTownName)
+		.replace(nation, fixedNationName)
 
-	// Add 'Part of' label
-	if (curMapMode == 'archive' || curMapMode == 'default') return marker
-	const nationAlliances = getNationAlliances(nation)
-	if (nationAlliances.length > 0) {
-		const allianceList = nationAlliances.map(alliance => alliance.name).join(', ')
-		const partOfLabel = htmlCode.partOfLabel.replace('{allianceList}', allianceList)
-		marker.popup = marker.popup.replace('</span>\n', '</span></br>' + partOfLabel)
+	if (mapMode == 'alliances' || mapMode == 'meganations') {
+		// Add 'Part of' label
+		const nationAlliances = getNationAlliances(nation, mapMode)
+		if (nationAlliances.length > 0) {
+			const allianceList = nationAlliances.map(alliance => alliance.name).join(', ')
+			const partOfLabel = htmlCode.partOfLabel.replace('{allianceList}', allianceList)
+			marker.popup = marker.popup.replace('</span>\n', '</span></br>' + partOfLabel)
+		}
 	}
 
 	return marker
@@ -349,7 +348,7 @@ function modifyOldDescription(marker, curArchiveDate) {
 	const residents = marker.popup.match(/Members <span style="font-weight:bold">(.*)<\/span><br \/>Flags/)?.[1]
 	const residentNum = residents?.split(', ')?.length || 0
 	const isCapital = marker.popup.match(/capital: true/) != null
-	const area = getArea(marker.points)
+	const area = calcPolygonArea(marker.points)
 
 	// Modify description
 	if (isCapital) marker.popup = marker.popup.replace('120%">', '120%">★ ')
@@ -398,40 +397,45 @@ function convertOldMarkersStructure(markers) {
 	}))
 }
 
-/**
- * @param {{tooltip: string, popup: string}} marker 
+/** 
+ * Sets the colours of a marker with optional weight and returns it back.
+ * @param {{tooltip: string, popup: string, color: string, fillColor: string, weight: number }} marker 
  */
-function colorTowns(marker) {
-	const nation = marker.tooltip.match(/\(\b(?:Member|Capital)\b of (.*)\)\n/)?.[1]
+const colorMarker = (marker, fill, outline, weight=null) => {
+	marker.fillColor = fill
+	marker.color = outline
+	if (weight) marker.weight = weight
+	return marker
+}
+
+const DEFAULT_BLUE = '#3fb4ff'
+const DEFAULT_GREEN = '#89c500'
+
+/**
+ * @param {{tooltip: string, popup: string, color: string, fillColor: string, weight: number }} marker
+ * @param {string} mapMode - The currently selected map mode.
+ */
+function colorTowns(marker, mapMode) {
 	const mayor = marker.popup.match(/Mayor: <b>(.*)<\/b>/)?.[1]
-	const isRuin = (mayor.match(/NPC[0-9]+/) != null)
-	//const isNationless = (nation == null)
-	
+	const isRuin = !!mayor?.match(/NPC[0-9]+/)
+	if (isRuin) return colorMarker(marker, '#000000', '#000000')
+
+	const nation = marker.tooltip.match(/\(\b(?:Member|Capital)\b of (.*)\)\n/)?.[1]
+
 	// Universal properties for the map modes
-	if (currentMapMode() == 'alliances') {
-		marker.color = '#000000' // Black
-		marker.fillColor = '#000000'
-		marker.weight = 0.5
-	} else {
-		const nationHasDefaultColor = (marker.color == '#3fb4ff' && marker.fillColor == '#3fb4ff') // Default blue
-		if (nationHasDefaultColor) {
-			marker.color = '#363636' // Dark gray
-			marker.fillColor = hashCode(nation)
-		}
-		else marker.color = '#89c500' // Default green
-	}
-	if (isRuin) return marker.fillColor = marker.color = '#000000' // Black
+	if (mapMode != 'alliances') {
+		const isDefaultCol = marker.color == DEFAULT_BLUE && marker.fillColor == DEFAULT_BLUE
+		marker.color = isDefaultCol ? '#363636' : DEFAULT_GREEN
+		marker.fillColor = isDefaultCol ? hashCode(nation) : marker.fillColor
+	} else colorMarker(marker, '#000000', '#000000', 1)
 
 	// Properties for alliances
-	const nationAlliances = getNationAlliances(nation)
+	const nationAlliances = getNationAlliances(nation, mapMode)
 	if (nationAlliances.length == 0) return marker
-	marker.weight = 1.5
-	marker.fillColor = nationAlliances[0].colours.fill
-	marker.color = nationAlliances[0].colours.outline
-	if (nationAlliances.length < 2) return marker
-	marker.weight = 0.5
-
-	return marker
+	
+	const { colours } = nationAlliances[0] // First alliance in related alliances
+	const newWeight = nationAlliances.length > 1 ? 1.5 : 0.75 // Use bolder weight if many related alliances
+	return colorMarker(marker, colours.outline, colours.fill, newWeight)
 }
 
 /**
@@ -439,21 +443,21 @@ function colorTowns(marker) {
  * @param {boolean} showOnlineStatus 
  */
 async function lookupPlayer(playerName, showOnlineStatus = true) {
-	if (document.querySelector('#player-lookup') != null) document.querySelector('#player-lookup').remove()
-	if (document.querySelector('#player-lookup-loading') != null) document.querySelector('#player-lookup-loading').remove()
+	document.querySelector('#player-lookup')?.remove()
+	document.querySelector('#player-lookup-loading')?.remove()
 	
-	const loading = addElement(document.querySelector('.leaflet-top.leaflet-left'), htmlCode.playerLookupLoading, '#player-lookup-loading')
-	const players = await fetchJSON(`${OAPI_BASE}/${CURRENT_MAP}/players`, { 
-		body: JSON.stringify({query: [playerName]}),
-		method: 'POST',
-	})
+	const leafletTL = document.querySelector('.leaflet-top.leaflet-left')
+	if (!leafletTL) return showAlert('Error selecting element required to show player lookup.')
+
+	const loading = addElement(leafletTL, htmlCode.playerLookupLoading, '#player-lookup-loading')
+	const players = await postJSON(`${OAPI_BASE}/${CURRENT_MAP}/players`, { query: [playerName] })
 
 	loading.remove()
 
 	if (players == null) return showAlert('Service is currently unavailable, please try later.')
 	if (players.length < 1) return showAlert('Error looking up this player. They have possibly opted-out.')
 
-	const lookup = addElement(document.querySelector('.leaflet-top.leaflet-left'), htmlCode.playerLookup, '#player-lookup')
+	const lookup = addElement(leafletTL, htmlCode.playerLookup, '#player-lookup')
 
 	// Populate with placeholders
 	lookup.insertAdjacentHTML('beforeend', '<span class="close-container">X</span>')
@@ -560,12 +564,11 @@ async function getAlliances() {
 
 /**
  * Gets all alliances the input nation exists within / is related to.
- * @param {string} nationName 
+ * @param {string} nationName - The name of the nation to get related alliances.
+ * @param {string} mapMode - The currently selected map mode.
  */
-function getNationAlliances(nationName) {
+function getNationAlliances(nationName, mapMode) {
 	if (cachedAlliances == null) return []
-
-	const mapMode = currentMapMode()
 
 	/** @type {Array<{name: string, colours: AllianceColours}>} */
 	const nationAlliances = []
@@ -581,21 +584,18 @@ function getNationAlliances(nationName) {
 	return nationAlliances
 }
 
+const getArchiveURL = (date, markersURL) => `https://web.archive.org/web/${date}id_/${markersURL}`
 async function getArchive(data) {
 	const loadingMessage = addElement(document.body, htmlCode.alertMsg.replace('{message}', 'Loading archive, please wait...'), '.message')
-
 	const date = archiveDate()
-	const archiveWebsite = `https://web.archive.org/web/${date}id_/`
+	
 	// markers.json URL changed over time
-	let markersURL = 'https://map.earthmc.net/tiles/minecraft_overworld/markers.json'
-	if (date < 20230212) {
-		markersURL = 'https://earthmc.net/map/aurora/tiles/_markers_/marker_earth.json'
-	} else if (date < 20240701) {
-		markersURL = 'https://earthmc.net/map/aurora/standalone/MySQL_markers.php?marker=_markers_/marker_earth.json'
-	}
-	markersURL = archiveWebsite + markersURL
+	const markersURL = 
+		date < 20240701 ? "https://earthmc.net/map/aurora/standalone/MySQL_markers.php?marker=_markers_/marker_earth.json" :
+		date < 20230212 ? "https://earthmc.net/map/aurora/tiles/_markers_/marker_earth.json" :
+		"https://map.earthmc.net/tiles/minecraft_overworld/markers.json" // latest
 
-	const archive = await fetchJSON(PROXY_URL + markersURL)
+	const archive = await fetchJSON(PROXY_URL + getArchiveURL(date, markersURL))
 	if (!archive) return showAlert('Archive service is currently unavailable, please try later.')
 
 	let actualArchiveDate // Structure of markers.json changed at some point

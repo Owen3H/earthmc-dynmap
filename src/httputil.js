@@ -9,12 +9,11 @@ const CAPI_BASE = `https://emcstats.bot.nu`
 
 const PROXY_URL = `https://api.codetabs.com/v1/proxy/?quest=`
 const PROJECT_URL = `https://github.com/3meraldK/earthmc-dynmap`
-// const MARKERS_URL = `https://web.archive.org/web/2024id_/https://earthmc.net/map/aurora/standalone/MySQL_markers.php?marker=_markers_/marker_earth.json`
 
 /**
- * Fetches data at url, parsing it as JSON unless we received 404.
- * @param {string} url 
- * @param {RequestInit} options 
+ * Sends a request to a url, parsing the response as JSON unless we received 404.
+ * @param {string} url - The URL to retrieve data from.
+ * @param {RequestInit} options - Optional options like method, body, credentials etc.
  */
 async function fetchJSON(url, options = null) {
     const response = await fetch(url, options)
@@ -24,12 +23,17 @@ async function fetchJSON(url, options = null) {
 }
 
 /**
+ * Sends a POST request to a url with the body, parsing the response as JSON unless we received 404.
+ * @param {string} url - The URL to send and retrieve data from.
+ * @param {Object} body - A JS object that is automatically stringified. 
+ */
+const postJSON = (url, body) => fetchJSON(url, { body: JSON.stringify(body), method: 'POST' })
+
+/**
  * Fetches an info object from the Official API base endpoint.
  * @returns {Promise<ServerInfo>}
  */
-async function fetchServerInfo() {
-    return fetchJSON(`${OAPI_BASE}/${CURRENT_MAP}`)
-}
+const fetchServerInfo = () => fetchJSON(`${OAPI_BASE}/${CURRENT_MAP}`)
 
 /**
  * @typedef {Object} ServerInfo

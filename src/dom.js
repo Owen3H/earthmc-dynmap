@@ -1,5 +1,10 @@
 console.log('emcdynmapplus: loaded dom')
 
+const ARCHIVE_DATE = {
+	MIN: "2022-05-01",
+	MAX: new Date().toLocaleDateString()
+}
+
 const htmlCode = {
 	// Used in this file
     buttons: {
@@ -108,6 +113,9 @@ function initToggleOptions() {
 	const archiveDate = localStorage['emcdynmapplus-archive-date']
 	const formattedDate = archiveDate.slice(0, 4) + '-' + archiveDate.slice(4, 6) + '-' + archiveDate.slice(6, 8)
 	waitForElement('#archive-input').then(dateInputEl => dateInputEl.value = formattedDate)
+
+	const normalizeScroll = localStorage['emcdynmapplus-normalize-scroll'] == 'true' ? true : false
+	toggleScrollNormalize(normalizeScroll)
 }
 
 function editUILayout() {
@@ -292,13 +300,15 @@ function addOptions(sidebar) {
 		decreaseBrightness: addCheckboxOption(0, 'toggle-darkened', 'Decrease brightness', 'darkened'),
 		darkMode: addCheckboxOption(1, 'toggle-darkmode', 'Toggle dark mode', 'darkmode'),
 		serverInfo: addCheckboxOption(2, 'toggle-serverinfo', 'Display server info', 'serverinfo'),
-		//loadBorders: addCheckboxOption(3, 'toggle-load-borders', 'Load country borders', 'load-borders')
+		normalizeScroll: addCheckboxOption(3, 'toggle-normalize-scroll', 'Normalize scroll inputs', 'normalize-scroll'),
+		//loadBorders: addCheckboxOption(4, 'toggle-load-borders', 'Load country borders', 'load-borders')
 	}
 
-	checkbox.decreaseBrightness.addEventListener('change', event => decreaseBrightness(event.target.checked))
-	checkbox.darkMode.addEventListener('change', event => toggleDarkMode(event.target.checked))
-	checkbox.serverInfo.addEventListener('change', event => toggleServerInfo(event.target.checked))
-	//checkbox.loadBorders.addEventListener('change', event => toggleBorders(event.target.checked))
+	checkbox.decreaseBrightness.addEventListener('change', e => decreaseBrightness(e.target.checked))
+	checkbox.darkMode.addEventListener('change', e => toggleDarkMode(e.target.checked))
+	checkbox.serverInfo.addEventListener('change', e => toggleServerInfo(e.target.checked))
+	checkbox.normalizeScroll.addEventListener('change', e => toggleScrollNormalize(e.target.checked))
+	//checkbox.loadBorders.addEventListener('change', e => toggleBorders(e.target.checked))
 }
 
 /**
@@ -395,6 +405,35 @@ function unloadDarkMode() {
 	waitForElement('.leaflet-map-pane').then(el => el.style.filter = '')
 }
 
+let scrollListener = null
+
+/** @param {boolean} boxTicked */
+function toggleScrollNormalize(boxTicked) {
+	localStorage['emcdynmapplus-normalize-scroll'] = boxTicked
+
+	const el = window.document.querySelector('#map')
+	return boxTicked ? addScrollNormalizer(el) : removeScrollNormalizer(el)
+}
+
+/** @param {HTMLElement} mapEl */
+function addScrollNormalizer(mapEl) {
+    scrollListener = e => {
+        e.preventDefault()  // Prevent default scroll behavior (so Leaflet doesn't zoom immediately)
+        triggerScrollEvent(e.deltaY)
+    }
+
+    mapEl.addEventListener('wheel', scrollListener, { passive: false })
+}
+
+/** @param {HTMLElement} mapEl */
+function removeScrollNormalizer(mapEl) {
+	mapEl.removeEventListener('wheel', scrollListener)
+
+	document.dispatchEvent(new CustomEvent('EMCDYNMAPPLUS_ADJUST_SCROLL', {
+        detail: { pxPerZoomLevel: 60 }
+    }))
+}
+
 /**
  * Runs appropriate locator func based on selectValue, passing inputValue as the argument. 
  * @param {string} selectValue
@@ -434,8 +473,8 @@ async function locateNation(nation) {
 	nation = nation.trim().toLowerCase()
 	if (nation == '') return
 
-	const query = { query: [nation], template: { capital: true } }
-	const data = await fetchJSON(`${OAPI_BASE}/${CURRENT_MAP}/nations`, {method: 'POST', body: JSON.stringify(query)})
+	const queryBody = { query: [nation], template: { capital: true } }
+	const data = await postJSON(`${OAPI_BASE}/${CURRENT_MAP}/nations`, queryBody)
 	if (data == false) return showAlert('Searched nation has not been found.')
 	if (data == null) return showAlert('Service is currently unavailable, please try later.')
 
@@ -451,8 +490,8 @@ async function locateResident(resident) {
 	resident = resident.trim().toLowerCase()
 	if (resident == '') return
 
-	const query = { query: [resident], template: { town: true } }
-	const data = await fetchJSON(`${OAPI_BASE}/${CURRENT_MAP}/players`, {method: 'POST', body: JSON.stringify(query)})
+	const queryBody = { query: [resident], template: { town: true } }
+	const data = await postJSON(`${OAPI_BASE}/${CURRENT_MAP}/players`, queryBody)
 	if (data == false) return showAlert('Searched resident has not been found.')
 	if (data == null) return showAlert('Service is currently unavailable, please try later.')
 
@@ -466,8 +505,8 @@ async function locateResident(resident) {
 
 /** @param {string} town */
 async function getTownSpawn(town) {
-	const query = { query: [town], template: { coordinates: true } }
-	const data = await fetchJSON(`${OAPI_BASE}/${CURRENT_MAP}/towns`, {method: 'POST', body: JSON.stringify(query)})
+	const queryBody = { query: [town], template: { coordinates: true } }
+	const data = await postJSON(`${OAPI_BASE}/${CURRENT_MAP}/towns`, queryBody)
 	if (data == false || data == undefined) return false
 	if (data == null) return null
 
