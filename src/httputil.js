@@ -1,3 +1,4 @@
+/** ANYTHING RELATED TO NETWORKING */
 console.log('emcdynmapplus: loaded httputil')
 
 const PROJECT_URL = `https://github.com/3meraldK/earthmc-dynmap`
@@ -13,8 +14,68 @@ const OAPI_BASE = `https://api.${EMC_DOMAIN}/v3` // bump number here after migra
 const OAPI_REQ_PER_MIN = 180
 const OAPI_ITEMS_PER_REQ = 100
 
-const bucket = new TokenBucket(OAPI_REQ_PER_MIN, OAPI_REQ_PER_MIN / (60 * 1000))
-bucket.start()
+/** Token bucket rate limiter */
+class TokenBucket {
+	constructor(capacity, refillRate, storageKey) {
+		this.capacity = capacity       // max tokens
+		this.refillRate = refillRate   // tokens per second
+		this.storageKey = storageKey
+
+		// load previous bucket state
+		const cachedBucket = localStorage.getItem(this.storageKey)
+		if (cachedBucket) {
+			const bucketData = JSON.parse(cachedBucket)
+			const elapsed = (Date.now() - bucketData.lastRefill) / 1000
+			const added = elapsed * this.refillRate
+			this.tokens = Math.min(capacity, bucketData.tokens + added)
+			this.lastRefill = Date.now()
+		} else {
+			this.tokens = capacity
+			this.lastRefill = Date.now()
+		}
+	}
+
+	#save() {
+		localStorage.setItem(this.storageKey, JSON.stringify({
+			tokens: this.tokens,
+			lastRefill: this.lastRefill
+		}))
+	}
+
+	refill() {
+		const now = Date.now()
+		const elapsed = (now - this.lastRefill) / 1000
+		if (elapsed <= 0) return
+
+		const added = elapsed * this.refillRate
+		this.tokens = Math.min(this.capacity, this.tokens + added)
+		this.lastRefill = now
+		this.#save()
+	}
+
+	take = async () => new Promise(resolve => {
+		const attempt = () => {
+			this.refill()
+			if (this.tokens >= 1) {
+				this.tokens -= 1
+				this.#save()
+				resolve()
+			} else {
+				// automatically retry after enough time for one token
+				const msUntilNext = Math.ceil((1 - this.tokens) / this.refillRate * 1000)
+				setTimeout(attempt, msUntilNext)
+			}
+		}
+
+		attempt()
+	})
+}
+
+const oapiBucket = new TokenBucket(
+	OAPI_REQ_PER_MIN,               // bucket capacity (max requests)
+	OAPI_REQ_PER_MIN / 60, 			// refill rate per sec
+	'emcdynmapplus-oapi-bucket'		// localStorage key
+)
 
 /**
  * Sends a request to a url, parsing the response as JSON unless we received 404.
@@ -49,9 +110,8 @@ const fetchServerInfo = () => fetchJSON(`${OAPI_BASE}/${CURRENT_MAP}`)
  */
 async function queryConcurrent(url, arr) {
 	const chunks = chunkArr(arr, OAPI_ITEMS_PER_REQ)
-
 	const promises = chunks.map(async chunk => {
-		await bucket.take()
+		await oapiBucket.take()
 		return sendBatch(url, chunk)
 	})
 
@@ -83,47 +143,3 @@ async function sendBatch(url, chunk) {
 		return []
 	})
 }
-
-/**
- * @typedef {Object} ServerInfo
- * @property {string} version
- * @property {string} moonPhase
- * @property {ServerTimestamps} timestamps
- * @property {ServerStatus} status
- * @property {ServerStats} stats
- * @property {ServerVoteParty} voteParty
- */
-
-/**
- * @typedef {Object} ServerTimestamps
- * @property {number} newDayTime
- * @property {number} serverTimeOfDay
- */
-
-/**
- * @typedef {Object} ServerStatus
- * @property {boolean} hasStorm
- * @property {boolean} isThundering
- */
-
-/**
- * @typedef {Object} ServerStats
- * @property {number} time
- * @property {number} fullTime
- * @property {number} maxPlayers
- * @property {number} numOnlinePlayers
- * @property {number} numOnlineNomads
- * @property {number} numResidents
- * @property {number} numNomads
- * @property {number} numTowns
- * @property {number} numTownBlocks
- * @property {number} numNations
- * @property {number} numQuarters
- * @property {number} numCuboids
- */
-
-/**
- * @typedef {Object} ServerVoteParty
- * @property {number} target
- * @property {number} numRemaining
- */

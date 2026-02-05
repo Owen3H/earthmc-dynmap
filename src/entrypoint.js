@@ -1,3 +1,4 @@
+/** THIS FILE IS RUN FIRST, ANY SETUP/INIT REQUIRED BELONGS HERE */
 (async function entrypoint() {
 	const isUserscript = typeof IS_USERSCRIPT !== 'undefined' && IS_USERSCRIPT
 	const manifest = isUserscript ? MANIFEST : chrome.runtime.getManifest()

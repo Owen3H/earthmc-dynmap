@@ -1,3 +1,4 @@
+/** ANYTHING RELATED TO UI ELEMENTS OR DOM MANIPULATION BELONGS IN THIS FILE */
 console.log('emcdynmapplus: loaded dom')
 
 const ARCHIVE_DATE = {

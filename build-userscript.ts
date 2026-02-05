@@ -16,21 +16,9 @@ type Manifest = {
 type Border = { x: Array<number>, y: Array<number>, z: Array<number> }
 type Borders = { [key: string]: Border }
 
-const EXTRA_BORDER_OPTS = {
-    label: "Country Border",
-    opacity: 0.5,
-    weight: 3,
-    color:  "#000000",
-    markup: false,
-}
-
-const BORDERS: Borders = JSON.parse(readFileSync('src/borders.json', 'utf8'))
-for (const key in BORDERS) {
-	BORDERS[key] = { ...BORDERS[key], ...EXTRA_BORDER_OPTS }
-}
-
+const STYLE_CSS = readFileSync('resources/style.css', 'utf8')
+const BORDERS: Borders = JSON.parse(readFileSync('resources/borders.json', 'utf8'))
 const MANIFEST: Manifest = JSON.parse(readFileSync('manifest.json', 'utf8'))
-const STYLE_CSS = readFileSync('style.css', 'utf8')
 
 const contentScripts = MANIFEST.content_scripts[0]
 const HEADER = `// ==UserScript==
@@ -45,7 +33,7 @@ const HEADER = `// ==UserScript==
 `
 
 const buildOpts: BuildOptions = {
-    entryPoints: ['src/interceptor.js', ...contentScripts.js],
+    entryPoints: ['resources/interceptor.js', ...contentScripts.js],
     outdir: 'dist',
     bundle: true,
     write: false,

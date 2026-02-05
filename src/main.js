@@ -1,11 +1,4 @@
-/** @typedef {{x: number, z: number}} Vertex */
-/** @typedef {Array<{x: number, z: number}>} Polygon */
-/** @typedef {Array<Array<{x: number, z: number}>>} MarkerPoints */
-/** @typedef {Array<Array<Array<{x: number, z: number}>>>} MultiPolygonPoints */
-
-/** @typedef {{fill: string, outline: string}} AllianceColours */
-/** @typedef {{name: string, modeType: string, nations: Array<string>, colours: AllianceColours}} CachedAlliance */
-
+/** WHERE MAIN LOGIC HAPPENS. ANYTHING NOT RELATING TO HTTP/SETUP/DOM BELONGS HERE */
 console.log('emcdynmapplus: loaded main')
 
 // Add clickable player nameplates
@@ -29,6 +22,14 @@ const MAP_MODES = ["default", "overclaim", "meganations", "alliances"]
 const BORDER_CHUNK_COORDS = { 
 	L: -33280, R: 33088,
 	U: -16640, D: 16512
+}
+
+const EXTRA_BORDER_OPTS = {
+	label: "Country Border",
+	opacity: 0.5,
+	weight: 3,
+	color:  "#000000",
+	markup: false,
 }
 
 const archiveDate = () => parseInt(localStorage['emcdynmapplus-archive-date'])
@@ -171,8 +172,11 @@ async function modifyMarkers(data) {
 
 	data = addChunksLayer(data)
 
-	const isUserscript = typeof IS_USERSCRIPT === 'undefined' || !IS_USERSCRIPT 
-	const borders = isUserscript ? BORDERS : await fetch(chrome.runtime.getURL('src/borders.json')).then(r => r.json())
+	const isUserscript = typeof IS_USERSCRIPT !== 'undefined' && IS_USERSCRIPT
+	const borders = isUserscript ? BORDERS : await fetch(chrome.runtime.getURL('resources/borders.json')).then(r => r.json())
+	for (const key in borders) {
+		borders[key] = { ...borders[key], ...EXTRA_BORDER_OPTS }
+	}
 
 	if (!borders) showAlert("An unexpected error occurred fetching the borders resource file.")
 	else {

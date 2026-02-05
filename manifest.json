@@ -5,26 +5,25 @@
 	"author": "3meraldK",
 	"description": "Extension to enrich the EarthMC map experience",
 	"icons": {
-		"48": "icon48.png",
-		"128": "icon128.png"
+		"48": "resources/icon48.png",
+		"128": "resources/icon128.png"
 	},
 	"web_accessible_resources": [{
 		"run_at": "document_start",
 		"matches": ["https://map.earthmc.net/*"],
 		"resources": [
-			"src/interceptor.js",
-			"src/borders.json"
+			"resources/borders.json",
+			"resources/interceptor.js"
 		]
 	}],
 	"content_scripts": [{
 		"matches": ["https://map.earthmc.net/*"],
-		"css": ["style.css"],
+		"css": ["resources/style.css"],
 		"js": [
-			"src/ratelimit.js",
 			"src/httputil.js",
 			"src/dom.js",
 			"src/main.js",
-			"src/content.js"
+			"src/entrypoint.js"
 		]
 	}]
 }
