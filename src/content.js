@@ -16,7 +16,7 @@
 		try {
 			//console.log('intercepted: ' + url + "\n\tmodifying markers..")
 
-			const modifiedData = await main(data)
+			const modifiedData = await modifyMarkers(data)
 			document.dispatchEvent(new CustomEvent('EMCDYNMAPPLUS_MODIFIED', {
 				detail: { url, data: modifiedData, wasModified: true }
 			}))

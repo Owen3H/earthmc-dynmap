@@ -144,12 +144,8 @@ const makePolyline = (linePoints, weight = 1, colour = '#ffffff') => ({
 	'weight': weight, 'color': colour,
 })
 
-/**
- * @param {Array<any>} data - The markers response JSON data.
- */
-// TODO: Should probably split main into modifyMarkers() to match modifySettings().
-// 		 It also makes more sense during fetch intercept to call modifyMarkers instead of main.
-async function main(data) {
+/** @param {Array<any>} data - The markers response JSON data. */
+async function modifyMarkers(data) {
 	const mapMode = currentMapMode()
 	if (mapMode == 'archive') {
 		data = await getArchive(data)
@@ -604,7 +600,7 @@ function getNationAlliances(nationName, mapMode) {
 		const nations = [...alliance.ownNations, ...alliance.puppetNations]
 		if (!nations.includes(nationName)) continue
 
-		nationAlliances.push({name: alliance.name, colours: alliance.colours})
+		nationAlliances.push({ name: alliance.name, colours: alliance.colours })
 	}
 
 	return nationAlliances
