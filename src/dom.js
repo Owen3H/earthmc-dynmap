@@ -379,12 +379,6 @@ function toggleServerInfo(boxTicked) {
 }
 
 /** @param {boolean} boxTicked */
-// function toggleBorders(boxTicked) {
-// 	localStorage['emcdynmapplus-load-borders'] = boxTicked
-// 	location.reload()
-// }
-
-/** @param {boolean} boxTicked */
 function toggleDarkMode(boxTicked) {
 	localStorage['emcdynmapplus-darkmode'] = boxTicked
 	return boxTicked ? loadDarkMode() : unloadDarkMode()

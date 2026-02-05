@@ -3,11 +3,14 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "userscript": "bunx build-userscript.js",
-    "extension": "bunx build-extension.js",
+    "userscript": "bunx build-userscript.ts",
+    "extension": "bunx build-extension.ts",
     "build": "bun run userscript && bun run extension"
   },
   "devDependencies": {
+    "typescript": "latest",
+    "@types/node": "latest",
+    "@types/archiver": "latest",
     "archiver": "^7.0.1",
     "esbuild": "^0.27.2"
   }

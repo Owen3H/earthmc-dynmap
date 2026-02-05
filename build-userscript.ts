@@ -1,24 +1,24 @@
-import fs from 'fs'
-import esbuild from 'esbuild'
+import { readFileSync, writeFileSync } from 'fs'
+import { build, type BuildOptions } from 'esbuild'
 
-const STYLE_CSS = fs.readFileSync('style.css', 'utf8').toString()
-const BORDERS_JSON = JSON.parse(fs.readFileSync('src/borders.json', 'utf8'))
-const MANIFEST = JSON.parse(fs.readFileSync('manifest.json', 'utf8'))
+const STYLE_CSS = readFileSync('style.css', 'utf8')
+const BORDERS_JSON = JSON.parse(readFileSync('src/borders.json', 'utf8'))
+const MANIFEST = JSON.parse(readFileSync('manifest.json', 'utf8'))
 
+const contentScripts = MANIFEST.content_scripts[0]
 const HEADER = `// ==UserScript==
 // @name        ${MANIFEST.name}
 // @version     ${MANIFEST.version}
 // @description ${MANIFEST.description}
 // @author      ${MANIFEST.author}
-// @include     ${MANIFEST.content_scripts[0].matches[0]}
+// @include     ${contentScripts.matches[0]}
 // @iconURL     https://raw.githubusercontent.com/3meraldK/earthmc-dynmap/main/icon.png
 // @grant       GM_addStyle
 // ==/UserScript==
 `
 
-const contentFiles = MANIFEST.content_scripts[0].js
-const buildOpts = {
-    entryPoints: ['src/interceptor.js', ...contentFiles],
+const buildOpts: BuildOptions = {
+    entryPoints: ['src/interceptor.js', ...contentScripts.js],
     outdir: 'dist',
     bundle: true,
     write: false,
@@ -35,9 +35,10 @@ const buildOpts = {
     },
 }
 
-esbuild.build(buildOpts).then(res => {
+const outfile = 'dist/emcdynmapplus.user.js'
+build(buildOpts).then(res => {
     const contentCode = res.outputFiles.map(f => f.text).join('\n')
 
-    fs.writeFileSync('dist/emcdynmapplus.user.js', `${HEADER}\n${contentCode}`)
-    console.log('Successfully compiled userscript. Output at: dist/emcdynmapplus.user.js')
+    writeFileSync(outfile, `${HEADER}\n${contentCode}`)
+    console.log(`Successfully compiled userscript. Output at: ${outfile}`)
 })

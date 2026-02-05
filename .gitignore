@@ -1,4 +1,7 @@
 bun.lockb
+package-lock.json
+
 node_modules/
 dist/
+
 src/borders.json
