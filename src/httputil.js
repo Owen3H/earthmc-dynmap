@@ -1,17 +1,20 @@
 console.log('emcdynmapplus: loaded httputil')
 
+const PROJECT_URL = `https://github.com/3meraldK/earthmc-dynmap`
+const PROXY_URL = `https://api.codetabs.com/v1/proxy/?quest=`
+
 const EMC_DOMAIN = "earthmc.net"
 const CURRENT_MAP = "aurora"
+
+const CAPI_BASE = `https://emcstats.bot.nu`
+const MAPI_BASE = `https://map.${EMC_DOMAIN}`
+const OAPI_BASE = `https://api.${EMC_DOMAIN}/v3` // bump number here after migrating to a new OAPI ver
 
 const OAPI_REQ_PER_MIN = 180
 const OAPI_ITEMS_PER_REQ = 100
 
-const OAPI_BASE = `https://api.${EMC_DOMAIN}/v3` // bump number here after migrating to a new OAPI ver
-const MAPI_BASE = `https://map.${EMC_DOMAIN}`
-const CAPI_BASE = `https://emcstats.bot.nu`
-
-const PROXY_URL = `https://api.codetabs.com/v1/proxy/?quest=`
-const PROJECT_URL = `https://github.com/3meraldK/earthmc-dynmap`
+const bucket = new TokenBucket(OAPI_REQ_PER_MIN, OAPI_REQ_PER_MIN / (60 * 1000))
+bucket.start()
 
 /**
  * Sends a request to a url, parsing the response as JSON unless we received 404.
@@ -46,14 +49,14 @@ const fetchServerInfo = () => fetchJSON(`${OAPI_BASE}/${CURRENT_MAP}`)
  */
 async function queryConcurrent(url, arr) {
 	const chunks = chunkArr(arr, OAPI_ITEMS_PER_REQ)
-	const promises = chunks.map((chunk, index) => {
-		const delayTime = (index * 1000 * 60) / OAPI_REQ_PER_MIN
-		return delay(delayTime).then(() => sendBatch(url, chunk))
+
+	const promises = chunks.map(async chunk => {
+		await bucket.take()
+		return sendBatch(url, chunk)
 	})
 
-	// Wait for all batches to complete and combine the results
 	const batchResults = await Promise.all(promises)
-	return batchResults.map(batch => [...batch]).flat()
+	return batchResults.flat()
 }
 
 /**
@@ -62,7 +65,7 @@ async function queryConcurrent(url, arr) {
  * @param {number} chunkSize 
  */
 function chunkArr(arr, chunkSize) {
-	/** @type {Array<Array<>>} */
+	/** @type {Array<Array>} */
 	const chunks = []
 	for (let i = 0; i < arr.length; i += chunkSize) {
 		chunks.push(arr.slice(i, i + chunkSize))
@@ -72,17 +75,17 @@ function chunkArr(arr, chunkSize) {
 
 /**
  * @param {string} url 
- * @param {Array<{uuid: string}} chunk 
+ * @param {Array<{uuid: string}>} chunk 
  */
 async function sendBatch(url, chunk) {
 	return postJSON(url, { query: chunk.map(e => e.uuid) }).catch(err => {
-		console.error('Error sending request:', err)
+		console.error('emcdynmapplus: error sending request:', err)
 		return []
 	})
 }
 
 /** @param {number} ms */
-const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms))
+const delay = ms => new Promise(resolve => setTimeout(resolve, ms))
 
 /**
  * @typedef {Object} ServerInfo

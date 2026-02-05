@@ -20,6 +20,7 @@
 		"matches": ["https://map.earthmc.net/*"],
 		"css": ["style.css"],
 		"js": [
+			"src/ratelimit.js",
 			"src/httputil.js",
 			"src/dom.js",
 			"src/main.js",
