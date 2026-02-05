@@ -1,9 +1,36 @@
 import { readFileSync, writeFileSync } from 'fs'
 import { build, type BuildOptions } from 'esbuild'
 
+type Manifest = {
+    [key: string]: any
+    name: string
+    version: string
+    description: string
+    author: string
+    content_scripts: Array<{
+        matches: string[],
+        js: string[]
+    }>
+}
+
+type Border = { x: Array<number>, y: Array<number>, z: Array<number> }
+type Borders = { [key: string]: Border }
+
+const EXTRA_BORDER_OPTS = {
+    label: "Country Border",
+    opacity: 0.5,
+    weight: 3,
+    color:  "#000000",
+    markup: false,
+}
+
+const BORDERS: Borders = JSON.parse(readFileSync('src/borders.json', 'utf8'))
+for (const key in BORDERS) {
+	BORDERS[key] = { ...BORDERS[key], ...EXTRA_BORDER_OPTS }
+}
+
+const MANIFEST: Manifest = JSON.parse(readFileSync('manifest.json', 'utf8'))
 const STYLE_CSS = readFileSync('style.css', 'utf8')
-const BORDERS_JSON = JSON.parse(readFileSync('src/borders.json', 'utf8'))
-const MANIFEST = JSON.parse(readFileSync('manifest.json', 'utf8'))
 
 const contentScripts = MANIFEST.content_scripts[0]
 const HEADER = `// ==UserScript==
@@ -26,12 +53,12 @@ const buildOpts: BuildOptions = {
     target: ['es2020'],
     treeShaking: false,
     define: {
-      IS_USERSCRIPT: 'true',
-      STYLE_CSS: JSON.stringify(STYLE_CSS),
-      BORDERS_JSON: JSON.stringify(BORDERS_JSON),
-      MANIFEST: JSON.stringify(MANIFEST),
-      window: 'unsafeWindow',
-      'chrome.runtime.getURL': 'GM_getResourceURL',
+        IS_USERSCRIPT: 'true',
+        STYLE_CSS: JSON.stringify(STYLE_CSS),
+        BORDERS: JSON.stringify(BORDERS),
+        MANIFEST: JSON.stringify(MANIFEST),
+        window: 'unsafeWindow',
+        'chrome.runtime.getURL': 'GM_getResourceURL',
     },
 }
 
