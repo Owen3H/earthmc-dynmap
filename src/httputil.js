@@ -84,9 +84,6 @@ async function sendBatch(url, chunk) {
 	})
 }
 
-/** @param {number} ms */
-const delay = ms => new Promise(resolve => setTimeout(resolve, ms))
-
 /**
  * @typedef {Object} ServerInfo
  * @property {string} version
