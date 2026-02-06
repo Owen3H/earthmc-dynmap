@@ -41,7 +41,6 @@
  * @param {string} local - Whether the file should be injected locally (text) or external (src).
  * @returns {Promise<void>}
  */
-// TODO: This is an unsafe workaround and we should migrate to ES6 modules with dynamic import.
 function injectScript(resource) {
 	return new Promise(resolve => {
 		const script = document.createElement('script')
@@ -51,7 +50,7 @@ function injectScript(resource) {
 	})
 }
 
-function init(manifest) {
+async function init(manifest) {
 	const isUserscript = typeof IS_USERSCRIPT !== 'undefined' && IS_USERSCRIPT
 	if (isUserscript) {
 		GM_addStyle(STYLE_CSS)
@@ -64,9 +63,9 @@ function init(manifest) {
 	localStorage['emcdynmapplus-serverinfo'] ??= 'true'
 	localStorage['emcdynmapplus-normalize-scroll'] ??= 'true'
 
-    insertSidebarMenu()
-	insertServerInfoPanel().then(el => updateServerInfo(el))
-    editUILayout()
+    await insertSidebarMenu()
+	await updateServerInfo(await insertServerInfoPanel())
+    await editUILayout()
     initToggleOptions() // brightness and dark mode
 	checkForUpdate(manifest)
 }

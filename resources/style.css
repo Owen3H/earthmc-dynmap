@@ -219,6 +219,17 @@
 	margin-block: 0;
 }
 
+#alert-close {
+	font-size: 14px;
+	font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+    background: #e12a2a52;
+	border-radius: 2px;
+    border: 1px solid;
+	padding: 4px 8px 4px 8px;
+	margin-bottom: 7.5px;
+    margin-top: 15px;
+}
+
 /* Clickable nameplates */
 
 .leaflet-tooltip {
@@ -249,4 +260,17 @@
 
 .leaflet-popup {
 	backdrop-filter: blur(2px);
+}
+
+/* Make coords easier to read and nicer to look at */
+.leaflet-control-layers.coordinates {
+	font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+	font-weight: 500 !important;
+}
+
+/* Fix blurry link icon */
+div.leaflet-control-layers.link img {
+	width: 35px !important;
+	height: 35px !important;
+	background-size: 23px, 22.5px !important;
 }

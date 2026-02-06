@@ -27,7 +27,7 @@ const htmlCode = {
     locateSelect: '<select class="sidebar-button" id="locate-select"><option>Town</option><option>Nation</option><option>Resident</option></select>',
     archiveInput: `<input class="sidebar-input" id="archive-input" type="date" min="${ARCHIVE_DATE.MIN}" max="${ARCHIVE_DATE.MAX}">`,
     currentMapModeLabel: '<div class="sidebar-option" id="current-map-mode-label">Map Mode: {currentMapMode}</div>',
-    alertBox: '<div id="alert"><p id="alert-message">{message}</p><br><button id="alert-close">Dismiss</button></div>',
+    alertBox: '<div id="alert"><p id="alert-message">{message}</p><button id="alert-close">Dismiss</button></div>',
 	darkMode: `<style id="dark-mode">
 		.leaflet-control, #alert, .sidebar-input,
 		.sidebar-button, .leaflet-bar > a, .leaflet-tooltip-top,
@@ -78,9 +78,9 @@ function addElement(parent, element, selector, all = false) {
 
 /**
  * @param {string} selector
- * @returns {Promise<Element | null>}
+ * @returns {Promise<HTMLElement | null>}
  */
-const waitForElement = (selector) => new Promise(resolve => {
+const waitForElement = selector => new Promise(resolve => {
     const selected = document.querySelector(selector)
     if (selected) return resolve(selected)
 
@@ -93,6 +93,33 @@ const waitForElement = (selector) => new Promise(resolve => {
     })
     observer.observe(document.body, { childList: true, subtree: true })
 })
+
+/**
+ * Calls `callback` whenever the element's href changes
+ * @param {Element} element
+ * @param {HTMLElement} anchorParent
+ * @param {() => HTMLElement} getAnchor
+ * @param {(newHref: string, lastHref: string) => void} callback
+ */
+function onAnchorUpdate(anchorParent, getAnchor, callback) {
+	let lastHref = null
+	const check = () => {
+		const anchor = getAnchor()
+		if (!anchor) return
+
+		const href = anchor.href
+		if (href !== lastHref) {
+			callback(href, lastHref)
+			lastHref = href
+		}
+	}
+
+	const observer = new MutationObserver(check)
+	observer.observe(anchorParent, { childList: true, subtree: true, attributes: true })
+
+	check()
+	return observer
+}
 
 function initToggleOptions() {
 	const darkened = localStorage['emcdynmapplus-darkened']
@@ -119,12 +146,24 @@ function initToggleOptions() {
 	toggleScrollNormalize(normalizeScroll)
 }
 
-function editUILayout() {
+async function editUILayout() {
+    const coordinates = await waitForElement('.leaflet-control-layers.coordinates')
+	const link = await waitForElement('.leaflet-control-layers.link')
+
+	// Change the link/anchor coords button so that it doesn't 
+	// reload the page and just updates the address bar.
+	onAnchorUpdate(link, () => link?.querySelector('a'), (newHref, _) => {
+		link.onclick = e => {
+			e.preventDefault()
+			e.stopPropagation()
+			history.replaceState(null, '', newHref)
+			showAlert('Updated URL with current camera coordinates. Next refresh will navigate there automatically.')
+		}
+	})
+
     // move the +- zoom control buttons to the bottom instead of top
     // and make sure the link and coordinates buttons align with it
     waitForElement('.leaflet-bottom.leaflet-left').then(async el => {
-        const link = await waitForElement('.leaflet-control-layers.link')
-        const coordinates = await waitForElement('.leaflet-control-layers.coordinates')
         if (link || coordinates) {
             // Create a wrapper div
             const wrapper = document.createElement('div')
