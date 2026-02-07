@@ -18,7 +18,8 @@ let cachedAlliances = null
 /** @type {Map<string, string>} */
 let cachedApiNations = null
 
-const MAP_MODES = ["default", "overclaim", "meganations", "alliances"]
+/** @typedef {typeof MAP_MODES[number]} MapMode */
+const MAP_MODES = ["default", "overclaim", "nationclaims", "meganations", "alliances"]
 const BORDER_CHUNK_COORDS = { 
 	L: -33280, R: 33088,
 	U: -16640, D: 16512
@@ -190,11 +191,15 @@ async function modifyMarkers(data) {
 	const date = archiveDate()
 
 	const start = performance.now()
-	for (let marker of data[0].markers) {
+	for (const marker of data[0].markers) {
 		if (marker.type != 'polygon' && marker.type != 'icon') continue
-		marker = (mapMode != 'archive' || date >= 20240701)
-			? modifyDescription(marker, mapMode) 
-			: modifyOldDescription(marker, date)
+		
+		let parsedInfo = {}
+		if (mapMode != 'archive' || date >= 20240701) {
+			parsedInfo = modifyDescription(marker, mapMode)
+		} else {
+			parsedInfo = modifyOldDescription(marker, date)
+		}
 
 		if (marker.type != 'polygon') continue
 
@@ -204,7 +209,7 @@ async function modifyMarkers(data) {
 		marker.weight = 1.5
 
 		if (mapMode == 'default' || mapMode == 'archive') continue
-		marker = colorTown(marker, mapMode)
+		colorTown(marker, parsedInfo, mapMode)
 	}
 	
 	const elapsed = (performance.now() - start)
@@ -274,7 +279,8 @@ function addCountryBordersLayer(data, borders) {
 
 /**
  * @param {{tooltip: string, popup: string, points: MultiPolygonPoints}} marker
- * @param 
+ * @param {MapMode} mapMode
+ * @returns {{residentList: string[], residentNum: number, isCapital: bool, area: number}}
  */
 function modifyDescription(marker, mapMode) {
 	const town = marker.tooltip.match(/<b>(.*)<\/b>/)[1]
@@ -348,16 +354,19 @@ function modifyDescription(marker, mapMode) {
 		}
 	}
 
-	return marker
+	return { residentList: residents.split(', '), residentNum, isCapital, area }
 }
 
 /**
  * Modifies town descriptions for Dynmap archives
  * @param {{tooltip: string, popup: string, points: Polygon}} marker 
+ * @param {number} curArchiveDate - Date as a number in the format YYYYDDMM
+ * @returns {{residentList: string[], residentNum: number, isCapital: bool, area: number}}
  */
 function modifyOldDescription(marker, curArchiveDate) {
 	const residents = marker.popup.match(/Members <span style="font-weight:bold">(.*)<\/span><br \/>Flags/)?.[1]
-	const residentNum = residents?.split(', ')?.length || 0
+	const residentList = residents?.split(', ') ?? []
+	const residentNum = residentList.length
 	const isCapital = marker.popup.match(/capital: true/) != null
 	const area = calcPolygonArea(marker.points)
 
@@ -390,22 +399,7 @@ function modifyOldDescription(marker, curArchiveDate) {
 			.replace('<br>Flags', '</div><br>Flags')
 	}
 
-	return marker
-}
-
-/**
- * @param {Object} markers - The old markers response JSON data
- */
-function convertOldMarkersStructure(markers) {
-	return Object.entries(markers.areas).filter(([key]) => !key.includes('_Shop')).map(([_, v]) => ({
-		fillColor: v.fillcolor,
-		color: v.color,
-		popup: v.desc ?? `<div><b>${v.label}</b></div>`,
-		weight: v.weight,
-		opacity: v.opacity,
-		type: 'polygon',
-		points: v.x.map((x, i) => ({ x, z: v.z[i] }))
-	}))
+	return { residentList, residentNum, isCapital, area }
 }
 
 /** 
@@ -416,7 +410,6 @@ const colorMarker = (marker, fill, outline, weight=null) => {
 	marker.fillColor = fill
 	marker.color = outline
 	if (weight) marker.weight = weight
-	return marker
 }
 
 const DEFAULT_BLUE = '#3fb4ff'
@@ -424,9 +417,10 @@ const DEFAULT_GREEN = '#89c500'
 
 /**
  * @param {{tooltip: string, popup: string, color: string, fillColor: string, weight: number }} marker
- * @param {string} mapMode - The currently selected map mode.
+ * @param {{residentList: string[], residentNum: number, isCapital: bool, area: number}} townInfo
+ * @param {MapMode} mapMode - The currently selected map mode.
  */
-function colorTown(marker, mapMode) {
+function colorTown(marker, townInfo, mapMode) {
 	const mayor = marker.popup.match(/Mayor: <b>(.*)<\/b>/)?.[1]
 	const isRuin = !!mayor?.match(/NPC[0-9]+/)
 	if (isRuin) return colorMarker(marker, '#000000', '#000000')
@@ -440,14 +434,9 @@ function colorTown(marker, mapMode) {
 	}
 	else if (mapMode == 'overclaim') {
 		const nation = nationName ? cachedApiNations.get(nationName.toLowerCase()) : null
-		const chunksClaimed = calcMarkerArea(marker)
-		
-		const residents = marker.popup.match(/<\/summary>\n    \t(.*)\n   \t<\/details>/)?.[1]
-		const numResidents = residents.split(', ').length
-
 		const overclaimInfo = !!nation
-			? checkOverclaimed(chunksClaimed, numResidents, nation.stats.numResidents)
-			: checkOverclaimedNationless(chunksClaimed, numResidents)
+			? checkOverclaimed(townInfo.area, townInfo.residentNum, nation.stats.numResidents)
+			: checkOverclaimedNationless(townInfo.area, townInfo.residentNum)
 
 		const colour = overclaimInfo.isOverclaimed ? '#ff0000' : '#00ff00'
 		colorMarker(marker, colour, colour, overclaimInfo.isOverclaimed ? 2 : 0.5)
@@ -456,7 +445,7 @@ function colorTown(marker, mapMode) {
 
 	// Properties for alliances and meganations
 	const nationAlliances = getNationAlliances(nationName, mapMode)
-	if (nationAlliances.length == 0) return marker
+	if (nationAlliances.length == 0) return
 	
 	const { colours } = nationAlliances[0] // First alliance in related alliances
 	const newWeight = nationAlliances.length > 1 ? 1.5 : 0.75 // Use bolder weight if many related alliances
@@ -640,6 +629,21 @@ async function getArchive(data) {
 	}
 
 	return data
+}
+
+/**
+ * @param {Object} markers - The old markers response JSON data
+ */
+function convertOldMarkersStructure(markers) {
+	return Object.entries(markers.areas).filter(([key]) => !key.includes('_Shop')).map(([_, v]) => ({
+		fillColor: v.fillcolor,
+		color: v.color,
+		popup: v.desc ?? `<div><b>${v.label}</b></div>`,
+		weight: v.weight,
+		opacity: v.opacity,
+		type: 'polygon',
+		points: v.x.map((x, i) => ({ x, z: v.z[i] }))
+	}))
 }
 
 const CHUNKS_PER_RES = 12

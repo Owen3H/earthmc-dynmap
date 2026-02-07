@@ -20,6 +20,9 @@ const htmlCode = {
         label: '<label for="{option}">{optionText}</label>',
         checkbox: '<input id="{option}" type="checkbox" name="{option}">'
     },
+	nationClaims: '<div class="leaflet-control-layers leaflet-control" id="nation-claims"></div>',
+	nationClaimsColorInput: '<input type="color" id="nation-color-entry{index}"></input>',
+	nationClaimsTextInput: '<input type="text" id="nation-text-entry{index}" placeholder="Enter nation name..." style="margin-left: 5px"></input>',
 	serverInfo: '<div class="leaflet-control-layers leaflet-control" id="server-info"></div>',
     sidebar: '<div class="leaflet-control-layers leaflet-control" id="sidebar"></div>',
     sidebarOption: '<div class="sidebar-option"></div>',
@@ -194,6 +197,17 @@ async function editUILayout() {
 	}))
 }
 
+/** @returns {Promise<Element | null>} The "#nation-claims" element. */
+function tryInsertNationClaimsPanel() {
+	const mode = localStorage['emcdynmapplus-mapmode']
+	if (mode != 'nationclaims') return
+
+	return waitForElement('.leaflet-bottom.leaflet-right').then(el => {
+		disablePanAndZoom(el)
+		return addNationClaimsPanel(el)
+	})
+}
+
 /** @returns {Promise<Element | null>} The "#server-info" element. */
 function insertServerInfoPanel() {
 	return waitForElement('.leaflet-top.leaflet-right').then(el => {
@@ -226,9 +240,24 @@ function disablePanAndZoom(element) {
 	})
 }
 
-/**
- * @param {HTMLElement} parent - The "leaflet-top leaflet-right" element.
- */
+/** @param {HTMLElement} parent - The "leaflet-bottom leaflet-right" element. */
+function addNationClaimsPanel(parent) {
+	const panel = addElement(parent, htmlCode.nationClaims, '#nation-claims')
+	addElement(panel, '<div id="nation-claims-title">Nation Claims Customizer</div>', '#nation-claims-title')
+
+	for (let i = 1; i <= 10; i++) {
+		const colInput = htmlCode.nationClaimsColorInput.replace('{index}', i) 
+		const txtInput = htmlCode.nationClaimsTextInput.replace('{index}', i)
+
+		const id = `nation-claims-entry${i}`
+		addElement(panel, `<div class="nation-claims-entry" id="${id}">${colInput}${txtInput}</div>`, `#${id}`)
+	}
+
+	addElement(panel, '<div><button id="nation-claims-apply">Apply</button><div>', '#nation-claims-apply')
+	return panel
+}
+
+/** @param {HTMLElement} parent - The "leaflet-top leaflet-right" element. */
 function addServerInfoPanel(parent) {
 	const panel = addElement(parent, htmlCode.serverInfo, '#server-info')
 	addElement(panel, '<div id="server-info-title">Server Info</div>', '#server-info-title')
@@ -289,9 +318,7 @@ function renderServerInfo(element, info) {
 	element.querySelector("#thunder").innerHTML = serverInfoEntry(`⛈️ Thunder`, info.status.isThundering ? 'Yes' : 'No')
 }
 
-/**
- * @param {HTMLElement} parent - The "leaflet-top leaflet-left" element.
- */
+/** @param {HTMLElement} parent - The "leaflet-top leaflet-left" element. */
 function addMainMenu(parent) {
 	const sidebar = addElement(parent, htmlCode.sidebar, '#sidebar')
 
@@ -463,9 +490,8 @@ function addScrollNormalizer(mapEl) {
 function removeScrollNormalizer(mapEl) {
 	mapEl.removeEventListener('wheel', scrollListener)
 
-	document.dispatchEvent(new CustomEvent('EMCDYNMAPPLUS_ADJUST_SCROLL', {
-        detail: { pxPerZoomLevel: 60 }
-    }))
+	const eventData = { detail: { pxPerZoomLevel: 60 } }
+	document.dispatchEvent(new CustomEvent('EMCDYNMAPPLUS_ADJUST_SCROLL', eventData))
 }
 
 /**

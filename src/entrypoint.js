@@ -65,6 +65,7 @@ async function init(manifest) {
 
     await insertSidebarMenu()
 	await updateServerInfo(await insertServerInfoPanel())
+	await tryInsertNationClaimsPanel() // inserts the claim color customizer if nation claims mode is active
     await editUILayout()
     initToggleOptions() // brightness and dark mode
 	checkForUpdate(manifest)
@@ -80,9 +81,8 @@ function triggerScrollEvent(deltaY) {
     const zoomMultiplier = Math.floor(Math.abs(deltaY) / (scrollLineDelta * scrollThreshold))
     const pxPerZoomLevel = baseZoom + (zoomMultiplier * 30)
 
-    document.dispatchEvent(new CustomEvent('EMCDYNMAPPLUS_ADJUST_SCROLL', {
-        detail: { pxPerZoomLevel: deltaY < 0 ? pxPerZoomLevel : -pxPerZoomLevel }
-    }))
+	const eventData = { detail: { pxPerZoomLevel: deltaY < 0 ? pxPerZoomLevel : -pxPerZoomLevel } }
+    document.dispatchEvent(new CustomEvent('EMCDYNMAPPLUS_ADJUST_SCROLL', eventData))
 }
 
 const SERVERINFO_INTERVAL = 5_000
