@@ -1,5 +1,12 @@
 ![Release](https://img.shields.io/github/v/release/3meraldK/earthmc-dynmapcolor) ![Repo size](https://img.shields.io/github/repo-size/3meraldK/earthmc-dynmapcolor) ![Downloads](https://img.shields.io/github/downloads/3meraldK/earthmc-dynmapcolor/total)
 
+> [!IMPORTANT]
+> This fork is based on the original **earthmc-dynmap+** project by **3meraldK**, all credit goes to them!\
+> My version add new modes, features, fixes minor bugs and makes QoL changes to the default map behaviours.
+>
+> There are currently no releases as I intend to contribute back the the original.\
+> In the meantime, you can download temporary versions in [this](https://discord.com/channels/219863747248914433/1047061595861286912) thread or build manually via `bun run build`.
+
 # earthmc-dynmap+
 A web extension for all browsers. Designed specifically for EarthMC's dynamic map, coming with great multitude of useful and cosmetic features.
 
