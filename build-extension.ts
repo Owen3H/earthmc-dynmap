@@ -24,7 +24,7 @@ function addDirIgnore(archive: archiver.Archiver, srcDir: string, destDir: strin
 	}
 }
 
-const EXT_NAME = 'earthmc-dynmap'
+const EXT_NAME = 'emc-dynmapplus'
 const outfile = path.join('dist', EXT_NAME+".zip")
 
 const output = createWriteStream(outfile)

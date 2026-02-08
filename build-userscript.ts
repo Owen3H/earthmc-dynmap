@@ -1,5 +1,6 @@
 import { readFileSync, writeFileSync } from 'fs'
 import { build, type BuildOptions } from 'esbuild'
+import * as path from 'path'
 
 type Manifest = {
     [key: string]: any
@@ -32,9 +33,12 @@ const HEADER = `// ==UserScript==
 // ==/UserScript==
 `
 
+const outdir = 'dist'
+const outfile = path.join(outdir, 'emc-dynmapplus.user.js')
+
 const buildOpts: BuildOptions = {
     entryPoints: ['resources/interceptor.js', ...contentScripts.js],
-    outdir: 'dist',
+    outdir: outdir,
     bundle: true,
     write: false,
     format: 'cjs',
@@ -50,7 +54,6 @@ const buildOpts: BuildOptions = {
     },
 }
 
-const outfile = 'dist/emcdynmapplus.user.js'
 build(buildOpts).then(res => {
     const contentCode = res.outputFiles.map(f => f.text).join('\n')
 
