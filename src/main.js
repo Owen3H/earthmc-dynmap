@@ -19,7 +19,7 @@ let cachedAlliances = null
 let cachedApiNations = null
 
 /** @typedef {typeof MAP_MODES[number]} MapMode */
-const MAP_MODES = ["default", "overclaim", "nationclaims", "meganations", "alliances"]
+const MAP_MODES = /** @type {const} */ (["default", "overclaim", "nationclaims", "meganations", "alliances"])
 const BORDER_CHUNK_COORDS = { 
 	L: -33280, R: 33088,
 	U: -16640, D: 16512
@@ -33,8 +33,9 @@ const EXTRA_BORDER_OPTS = {
 	markup: false,
 }
 
-const archiveDate = () => parseInt(localStorage['emcdynmapplus-archive-date'])
+/** @type {() => MapMode} */
 const currentMapMode = () => localStorage['emcdynmapplus-mapmode'] ?? 'meganations'
+const archiveDate = () => parseInt(localStorage['emcdynmapplus-archive-date'])
 
 function switchMapMode() {
 	// Get the current stored mode, defaulting to the first mode in the list
@@ -279,7 +280,8 @@ function addCountryBordersLayer(data, borders) {
 
 /**
  * @param {{tooltip: string, popup: string, points: MultiPolygonPoints}} marker
- * @param {MapMode} mapMode
+ * @param {MapMode} mapMode - The currently selected map mode.
+ * 
  * @returns {{residentList: string[], residentNum: number, isCapital: bool, area: number}}
  */
 function modifyDescription(marker, mapMode) {
@@ -579,7 +581,7 @@ async function getAlliances() {
 /**
  * Gets all alliances the input nation exists within / is related to.
  * @param {string} nationName - The name of the nation to get related alliances.
- * @param {string} mapMode - The currently selected map mode.
+ * @param {MapMode} mapMode - The currently selected map mode.
  */
 function getNationAlliances(nationName, mapMode) {
 	if (cachedAlliances == null) return []

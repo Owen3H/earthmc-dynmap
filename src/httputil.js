@@ -1,4 +1,4 @@
-/** ANYTHING RELATED TO NETWORKING */
+/** ANYTHING RELATED TO NETWORKING BELONGS IN HERE */
 console.log('emcdynmapplus: loaded httputil')
 
 const PROJECT_URL = `https://github.com/3meraldK/earthmc-dynmap`

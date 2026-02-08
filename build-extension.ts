@@ -31,7 +31,7 @@ const output = createWriteStream(outfile)
 const archive = archiver.create('zip', { zlib: { level: 9 } })
 archive.pipe(output)
 
-addDirIgnore(archive, 'src', EXT_NAME+'/src', ['types.js']) // Types are just for developing
+addDirIgnore(archive, 'src', EXT_NAME+'/src', ['types.d.ts']) // Types are just for developing
 archive.directory('resources', EXT_NAME+'/resources')
 archive.file('manifest.json', { name: EXT_NAME+'/manifest.json' })
 archive.file('README.md', { name: EXT_NAME+'/README.md' })
