@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync } from 'fs'
 import { build, type BuildOptions } from 'esbuild'
 import * as path from 'path'
-import './src/types' // they are global anyway but vscode shits itself sometimes
+import './src/types.d.ts' // they are global anyway but vscode shits itself sometimes
 
 const STYLE_CSS = readFileSync('resources/style.css', 'utf8')
 const BORDERS: Borders = JSON.parse(readFileSync('resources/borders.json', 'utf8'))

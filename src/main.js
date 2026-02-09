@@ -195,6 +195,9 @@ async function modifyMarkers(data) {
 		.map(obj => [obj.input?.toLowerCase(), obj.color])
 	)
 
+	const useOpaque = localStorage['emcdynmapplus-nation-claims-opaque-colors'] == 'true' ? true : false
+	const showExcluded = localStorage['emcdynmapplus-nation-claims-show-excluded'] == 'true' ? true : false
+
 	const start = performance.now()
 	for (const marker of data[0].markers) {
 		if (marker.type != 'polygon' && marker.type != 'icon') continue
@@ -209,7 +212,7 @@ async function modifyMarkers(data) {
 
 		if (mapMode == 'default' || mapMode == 'archive') continue
 		if (mapMode == 'nationclaims') {
-			colorTownNationClaims(marker, parsedInfo.nationName, claimsCustomizerInfo)
+			colorTownNationClaims(marker, parsedInfo.nationName, claimsCustomizerInfo, useOpaque, showExcluded)
 			continue
 		}
 
@@ -474,19 +477,17 @@ function colorTown(marker, townInfo, mapMode) {
  * @param {string} nationName
  * @param {Map<string|null, string|null>} claimsCustomizerInfo
  */
-function colorTownNationClaims(marker, nationName, claimsCustomizerInfo) {
+function colorTownNationClaims(marker, nationName, claimsCustomizerInfo, useOpaque, showExcluded) {
 	//const strippedName = nationName?.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase()
 	const nationColorInput = claimsCustomizerInfo.get(nationName?.toLowerCase())
 	if (!nationColorInput) {
-		const showExcluded = localStorage['emcdynmapplus-nation-claims-show-excluded'] == 'true' ? true : false
+		if (useOpaque) marker.fillOpacity = marker.opacity = 0.5
 		if (!showExcluded) marker.fillOpacity = marker.opacity = 0 // Make town invisible if not part of a nation in claims customizer.
-	
+
 		return colorMarker(marker, '#000000', '#000000', 1)
 	}
-	
-	const useOpaqueColors = localStorage['emcdynmapplus-nation-claims-opaque-colors'] == 'true' ? true : false
-	if (useOpaqueColors) marker.fillOpacity = marker.opacity = 1 // 100% opacity similar to manual player drawn claim maps
 
+	if (useOpaque) marker.fillOpacity = marker.opacity = 1 // 100% opacity similar to manual player drawn claim maps
 	return colorMarker(marker, nationColorInput, nationColorInput, 1.5)
 }
 
