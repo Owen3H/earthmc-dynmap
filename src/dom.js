@@ -287,19 +287,21 @@ function addNationClaimsPanel(parent) {
 	/** @type {HTMLElement} */
 	const panel = appendHTML(parent, htmlCode.nationClaims)
 	appendHTML(panel, '<div id="nation-claims-title">Nation Claims Customizer</div>')
-
+	
+	const entriesContainer = appendHTML(panel, '<div id="nation-claims-entry-container"></div>')
 	for (let i = 1; i <= 10; i++) {
 		const colInput = htmlCode.nationClaimsColorInput.replace('{index}', i) 
 		const txtInput = htmlCode.nationClaimsTextInput.replace('{index}', i)
 
 		const id = `nation-claims-entry${i}`
-		appendHTML(panel, `<div class="nation-claims-entry" id="${id}">${colInput}${txtInput}</div>`)
+		appendHTML(entriesContainer, `<div class="nation-claims-entry" id="${id}">${colInput}${txtInput}</div>`)
 	}
 
-	const optDiv = appendHTML(panel, '<div class="nation-claims-checkbox-option"></div>')
+	const optDiv1 = appendHTML(panel, '<div class="nation-claims-checkbox-option"></div>')
+	const optDiv2 = appendHTML(panel, '<div class="nation-claims-checkbox-option"></div>')
 
 	/** @type {HTMLElement} */
-	const showExcludedCheckbox = appendHTML(optDiv, 
+	const showExcludedCheckbox = appendHTML(optDiv1, 
 		htmlCode.options.checkbox.replace('{option}', 'show-excluded') + 
 		htmlCode.options.label.replace('{option}', 'show-excluded').replace('{optionText}', 'Show irrelevant towns')
 	)
@@ -309,7 +311,7 @@ function addNationClaimsPanel(parent) {
 	)
 
 	/** @type {HTMLElement} */
-	const useOpaqueCheckbox = appendHTML(optDiv,
+	const useOpaqueCheckbox = appendHTML(optDiv2,
 		htmlCode.options.checkbox.replace('{option}', 'use-opaque-colors') + 
 		htmlCode.options.label.replace('{option}', 'use-opaque-colors').replace('{optionText}', 'Use opaque colors')
 	)
@@ -319,7 +321,7 @@ function addNationClaimsPanel(parent) {
 	)
 
 	/** @type {HTMLElement} */
-	const applyBtn = appendHTML(panel, '<button id="nation-claims-apply">Apply</button>', { 
+	const applyBtn = appendHTML(panel, '<button class="sidebar-button" id="nation-claims-apply">Apply</button>', { 
 		selector: '#nation-claims-apply', 
 		wrap: true
 	})
@@ -453,7 +455,7 @@ function addOptions(sidebar) {
 		decreaseBrightness: addCheckboxOption(optionsMenu, i++, 'toggle-darkened', 'Decrease brightness', 'darkened'),
 		darkMode: addCheckboxOption(optionsMenu, i++, 'toggle-darkmode', 'Toggle dark mode', 'darkmode'),
 		serverInfo: addCheckboxOption(optionsMenu, i++, 'toggle-serverinfo', 'Display server info', 'serverinfo'),
-		showCapitalStars: addCheckboxOption(optionsMenu, i++, 'toggle-capital-stars', 'Show capital stars', 'show-capital-stars')
+		showCapitalStars: addCheckboxOption(optionsMenu, i++, 'toggle-capital-stars', 'Show capital stars', 'capital-stars')
 	}
 
 	checkboxes.normalizeScroll.addEventListener('change', e => toggleScrollNormalize(e.target.checked))

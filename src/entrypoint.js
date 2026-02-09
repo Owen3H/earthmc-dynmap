@@ -68,7 +68,7 @@ async function init(manifest) {
 
 	console.log("emcdynmapplus: Initializing UI elements..")
 
-    insertSidebarMenu()
+    await insertSidebarMenu()
 	updateServerInfo(await insertServerInfoPanel())
     editUILayout()
     initToggleOptions() // brightness and dark mode
