@@ -18,7 +18,7 @@ const htmlCode = {
         menu: '<div id="options-menu"></div>',
         option: '<div class="option"></div>',
         label: '<label for="{option}">{optionText}</label>',
-        checkbox: '<input id="{option}" type="checkbox" name="{option}">'
+        checkbox: '<input id="{option}" type="checkbox">'
     },
 	nationClaims: '<div class="leaflet-control-layers leaflet-control" id="nation-claims"></div>',
 	nationClaimsColorInput: '<input type="color" id="nation-color-entry{index}"></input>',
@@ -70,13 +70,43 @@ function showAlert(message) {
 /**
  * Adds element to parent and uses selector to query select an element on parent.
  * @param {HTMLElement} parent
- * @param {HTMLElement} element
+ * @param {string} elementHTML
  * @param {string} selector
  * @param {boolean} all
  */
-function addElement(parent, element, selector, all = false) {
-	parent.insertAdjacentHTML('beforeend', element)
-	return (!all) ? parent.querySelector(selector) : parent.querySelectorAll(selector)
+function addElement(parent, elementHTML, selector, all = false) {
+	parent.insertAdjacentHTML('beforeend', elementHTML)
+	return all ? parent.querySelectorAll(selector) : parent.querySelector(selector) 
+}
+
+/**
+ * Append HTML to a parent and return elements.
+ * @param {HTMLElement} parent - where to append
+ * @param {string} html - HTML string to insert
+ * @param {Object} [options]
+ * @param {string} [options.selector] - optional query selector *inside* inserted nodes. null = self
+ * @param {boolean} [options.all=false] - return all matching nodes
+ * @param {boolean} [options.wrap=false] - wrap HTML in a container div before appending
+ */
+function appendHTML(parent, html, { selector, all = false, wrap = false } = {}) {
+	const templ = document.createElement('template')
+	templ.innerHTML = html.trim()
+
+	let nodes = Array.from(templ.content.children)
+	if (!wrap) parent.append(...nodes)
+	else {
+		const container = document.createElement('div')
+		container.append(...nodes)
+		parent.appendChild(container)
+		nodes = [container]
+	}
+	
+	if (!selector) return all ? nodes : nodes[0] || null
+	const found = wrap
+		? nodes[0].querySelectorAll(selector)
+		: nodes.flatMap(n => Array.from(n.querySelectorAll(selector)))
+
+	return all ? found : found[0] || null
 }
 
 /**
@@ -200,7 +230,7 @@ async function editUILayout() {
 /** @returns {Promise<Element | null>} The "#nation-claims" element. */
 function tryInsertNationClaimsPanel() {
 	const mode = localStorage['emcdynmapplus-mapmode']
-	if (mode != 'nationclaims') return
+	if (mode != 'nationclaims') return null
 
 	return waitForElement('.leaflet-bottom.leaflet-right').then(el => {
 		disablePanAndZoom(el)
@@ -240,20 +270,71 @@ function disablePanAndZoom(element) {
 	})
 }
 
+/** @param {HTMLElement} panel - The "#nation-claims" element. */
+function loadNationClaims(panel) {
+	const entries = JSON.parse(localStorage['emcdynmapplus-nation-claims-info'] || '[]')
+	entries.forEach((entry, i) => {
+		const color = panel.querySelector(`#nation-color-entry${i+1}`)
+		const text = panel.querySelector(`#nation-text-entry${i+1}`)
+		if (color) color.value = entry.color || ''
+		if (text) text.value = entry.input || ''
+	})
+}
+
 /** @param {HTMLElement} parent - The "leaflet-bottom leaflet-right" element. */
 function addNationClaimsPanel(parent) {
-	const panel = addElement(parent, htmlCode.nationClaims, '#nation-claims')
-	addElement(panel, '<div id="nation-claims-title">Nation Claims Customizer</div>', '#nation-claims-title')
+	/** @type {HTMLElement} */
+	const panel = appendHTML(parent, htmlCode.nationClaims)
+	appendHTML(panel, '<div id="nation-claims-title">Nation Claims Customizer</div>')
 
 	for (let i = 1; i <= 10; i++) {
 		const colInput = htmlCode.nationClaimsColorInput.replace('{index}', i) 
 		const txtInput = htmlCode.nationClaimsTextInput.replace('{index}', i)
 
 		const id = `nation-claims-entry${i}`
-		addElement(panel, `<div class="nation-claims-entry" id="${id}">${colInput}${txtInput}</div>`, `#${id}`)
+		appendHTML(panel, `<div class="nation-claims-entry" id="${id}">${colInput}${txtInput}</div>`)
 	}
 
-	addElement(panel, '<div><button id="nation-claims-apply">Apply</button><div>', '#nation-claims-apply')
+	const optDiv = appendHTML(panel, '<div class="nation-claims-checkbox-option"></div>')
+
+	/** @type {HTMLElement} */
+	const hideStarsCheckbox = appendHTML(optDiv, 
+		htmlCode.options.checkbox.replace('{option}', 'hide-capital-stars') + 
+		htmlCode.options.label.replace('{option}', 'hide-capital-stars').replace('{optionText}', 'Hide capital stars')
+	)
+	hideStarsCheckbox.addEventListener('change', e =>
+		localStorage['emcdynmapplus-nation-claims-hide-stars'] = e.target.checked
+	)
+
+	/** @type {HTMLElement} */
+	const useOpaqueCheckbox = appendHTML(optDiv,
+		htmlCode.options.checkbox.replace('{option}', 'use-opaque-colors') + 
+		htmlCode.options.label.replace('{option}', 'use-opaque-colors').replace('{optionText}', 'Use opaque colors')
+	)
+	useOpaqueCheckbox.addEventListener('change', e =>
+		localStorage['emcdynmapplus-nation-claims-use-opaque'] = e.target.checked
+	)
+
+	/** @type {HTMLElement} */
+	const applyBtn = appendHTML(panel, '<button id="nation-claims-apply">Apply</button>', { 
+		selector: '#nation-claims-apply', 
+		wrap: true
+	})
+	applyBtn.addEventListener('click', () => {
+		const entries = []
+		for (let i = 1; i <= 10; i++) {
+			const colorInput = panel.querySelector(`#nation-color-entry${i}`)
+			const textInput = panel.querySelector(`#nation-text-entry${i}`)
+			entries.push({
+				color: colorInput?.value || null,
+				input: textInput?.value || null
+			})
+		}
+
+		localStorage['emcdynmapplus-nation-claims-info'] = JSON.stringify(entries)
+		location.reload()
+	})
+
 	return panel
 }
 
@@ -360,22 +441,22 @@ function addOptions(sidebar) {
 	const optionsMenu = addElement(sidebar, htmlCode.options.menu, '#options-menu')
 	optionsMenu.style.display = 'none'
 	optionsButton.addEventListener('click', _ => {
-		optionsMenu.style.display = (optionsMenu.style.display == 'none') ? 'unset' : 'none'
+		optionsMenu.style.display = (optionsMenu.style.display == 'none') ? 'grid' : 'none'
 	})
 
-	const checkbox = {
-		decreaseBrightness: addCheckboxOption(0, 'toggle-darkened', 'Decrease brightness', 'darkened'),
-		darkMode: addCheckboxOption(1, 'toggle-darkmode', 'Toggle dark mode', 'darkmode'),
-		serverInfo: addCheckboxOption(2, 'toggle-serverinfo', 'Display server info', 'serverinfo'),
-		normalizeScroll: addCheckboxOption(3, 'toggle-normalize-scroll', 'Normalize scroll inputs', 'normalize-scroll'),
+	const checkboxes = {
+		decreaseBrightness: addCheckboxOption(optionsMenu, 0, 'toggle-darkened', 'Decrease brightness', 'darkened'),
+		darkMode: addCheckboxOption(optionsMenu, 1, 'toggle-darkmode', 'Toggle dark mode', 'darkmode'),
+		serverInfo: addCheckboxOption(optionsMenu, 2, 'toggle-serverinfo', 'Display server info', 'serverinfo'),
+		normalizeScroll: addCheckboxOption(optionsMenu, 3, 'toggle-normalize-scroll', 'Normalize scroll inputs', 'normalize-scroll'),
 		//loadBorders: addCheckboxOption(4, 'toggle-load-borders', 'Load country borders', 'load-borders')
 	}
 
-	checkbox.decreaseBrightness.addEventListener('change', e => decreaseBrightness(e.target.checked))
-	checkbox.darkMode.addEventListener('change', e => toggleDarkMode(e.target.checked))
-	checkbox.serverInfo.addEventListener('change', e => toggleServerInfo(e.target.checked))
-	checkbox.normalizeScroll.addEventListener('change', e => toggleScrollNormalize(e.target.checked))
-	//checkbox.loadBorders.addEventListener('change', e => toggleBorders(e.target.checked))
+	checkboxes.decreaseBrightness.addEventListener('change', e => decreaseBrightness(e.target.checked))
+	checkboxes.darkMode.addEventListener('change', e => toggleDarkMode(e.target.checked))
+	checkboxes.serverInfo.addEventListener('change', e => toggleServerInfo(e.target.checked))
+	checkboxes.normalizeScroll.addEventListener('change', e => toggleScrollNormalize(e.target.checked))
+	//checkboxes.loadBorders.addEventListener('change', e => toggleBorders(e.target.checked))
 }
 
 /**
@@ -385,9 +466,8 @@ function addOptions(sidebar) {
  * @param {string} optionText - The text to display next to the checkbox
  * @param {string} variable - The variable name in storage used to keep the 'checked' state 
  */
-function addCheckboxOption(index, optionId, optionText, variable) {
-	const optionsMenu = document.querySelector('#options-menu')
-	const option = addElement(optionsMenu, htmlCode.options.option, '.option', true)[index]
+function addCheckboxOption(menu, index, optionId, optionText, variable) {
+	const option = addElement(menu, htmlCode.options.option, '.option', true)[index]
 	option.insertAdjacentHTML('beforeend', htmlCode.options.label
 		.replace('{option}', optionId)
 		.replace('{optionText}', optionText))

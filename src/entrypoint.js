@@ -63,11 +63,15 @@ async function init(manifest) {
 	localStorage['emcdynmapplus-serverinfo'] ??= 'true'
 	localStorage['emcdynmapplus-normalize-scroll'] ??= 'true'
 
-    await insertSidebarMenu()
-	await updateServerInfo(await insertServerInfoPanel())
-	await tryInsertNationClaimsPanel() // inserts the claim color customizer if nation claims mode is active
-    await editUILayout()
+    insertSidebarMenu()
+	updateServerInfo(await insertServerInfoPanel())
+    editUILayout()
     initToggleOptions() // brightness and dark mode
+
+	// inserts the claim color customizer if 'nationclaims' mode is active
+	const panel = await tryInsertNationClaimsPanel()
+	if (panel) loadNationClaims(panel)
+
 	checkForUpdate(manifest)
 }
 

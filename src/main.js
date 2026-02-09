@@ -37,6 +37,9 @@ const EXTRA_BORDER_OPTS = {
 const currentMapMode = () => localStorage['emcdynmapplus-mapmode'] ?? 'meganations'
 const archiveDate = () => parseInt(localStorage['emcdynmapplus-archive-date'])
 
+/** @type {() => Array<{color: string | null, input: string | null}>} */
+const nationClaimsInfo = () => JSON.parse(localStorage['emcdynmapplus-nation-claims-info'] || '[]')
+
 function switchMapMode() {
 	// Get the current stored mode, defaulting to the first mode in the list
 	const currentMode = localStorage['emcdynmapplus-mapmode'] || MAP_MODES[0]
@@ -164,7 +167,8 @@ async function modifyMarkers(data) {
         cachedAlliances = await getAlliances()
     }
 
-	if (mapMode == 'overclaim' && cachedApiNations == null) {
+	const isNationMode = mapMode == 'overclaim' || mapMode == 'nationclaims'
+	if (isNationMode && cachedApiNations == null) {
 		const nlist = await fetchJSON(`${OAPI_BASE}/${CURRENT_MAP}/nations`)
 		const apiNations = await queryConcurrent(`${OAPI_BASE}/${CURRENT_MAP}/nations`, nlist)
 		cachedApiNations = new Map(apiNations.map(n => [n.name.toLowerCase(), n]))
@@ -189,6 +193,10 @@ async function modifyMarkers(data) {
 		}
 	}
 	
+	// Get current local storage values
+	const storedNationClaimsInfo = nationClaimsInfo()
+	const claimsCustomizerInfo = new Map(storedNationClaimsInfo.map(obj => [obj.input?.toLowerCase(), obj.color]))
+
 	const date = archiveDate()
 
 	const start = performance.now()
@@ -210,6 +218,12 @@ async function modifyMarkers(data) {
 		marker.weight = 1.5
 
 		if (mapMode == 'default' || mapMode == 'archive') continue
+		if (mapMode == 'nationclaims') {
+			colorTownNationClaims(marker, claimsCustomizerInfo, mapMode)
+			continue
+		}
+		
+		// All other modes (alliances, meganations, overclaim)
 		colorTown(marker, parsedInfo, mapMode)
 	}
 	
@@ -335,7 +349,7 @@ function modifyDescription(marker, mapMode) {
 		.replace(/Councillors: <b>(.*)<\/b>/, `Councillors: <b>${councillorList}</b>`) // Lookup a councillor in the list
 	}
 	if (isCapital) {
-		// Add star that indicates a capital
+		// Prepend star indicating a capital
 		marker.popup = marker.popup.replace('<span style="font-size:120%;">', '<span style="font-size: 120%">★ ')
 	}
 
@@ -373,7 +387,7 @@ function modifyOldDescription(marker, curArchiveDate) {
 	const area = calcPolygonArea(marker.points)
 
 	// Modify description
-	if (isCapital) marker.popup = marker.popup.replace('120%">', '120%">★ ')
+	if (isCapital) marker.popup = marker.popup.replace('120%">', '120%">★ ') // Prepend star indicating a capital
 	if (curArchiveDate < 20220906) {
 		marker.popup = marker.popup.replace(/">hasUpkeep:.+?(?<=<br \/>)/, '; white-space:pre">')
 	}
@@ -452,6 +466,21 @@ function colorTown(marker, townInfo, mapMode) {
 	const { colours } = nationAlliances[0] // First alliance in related alliances
 	const newWeight = nationAlliances.length > 1 ? 1.5 : 0.75 // Use bolder weight if many related alliances
 	return colorMarker(marker, colours.fill, colours.outline, newWeight)
+}
+
+/**
+ * @param {{tooltip: string, popup: string, color: string, fillColor: string, weight: number }} marker
+ * @param {Map<string|null, string|null>} claimsCustomizerInfo
+ * @param {MapMode} mapMode - The currently selected map mode.
+ */
+function colorTownNationClaims(marker, claimsCustomizerInfo, mapMode) {
+	const nationName = marker.tooltip.match(/\(\b(?:Member|Capital)\b of (.*)\)\n/)?.[1]
+	//const strippedName = nationName?.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase()
+	
+	const color = claimsCustomizerInfo.get(nationName?.toLowerCase())
+	if (!color) return colorMarker(marker, '#000000', '#000000', 1)
+
+	return colorMarker(marker, color, color, 1.5)
 }
 
 /**
