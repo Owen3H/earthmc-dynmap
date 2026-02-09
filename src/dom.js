@@ -232,7 +232,7 @@ async function editUILayout() {
 /** @returns {Promise<Element | null>} The "#nation-claims" element. */
 function tryInsertNationClaimsPanel() {
 	const mode = localStorage['emcdynmapplus-mapmode']
-	if (mode != 'nationclaims' && mode != 'archive') return null
+	if (mode != 'nationclaims') return null
 
 	return waitForElement('.leaflet-bottom.leaflet-right').then(el => {
 		disablePanAndZoom(el)
