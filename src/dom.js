@@ -426,22 +426,27 @@ function addMainMenu(parent) {
 	archiveButton.addEventListener('click', _ => searchArchive(archiveInput.value))
 	//#endregion
 
+	const curMapMode = currentMapMode()
+
 	// Switch map mode button
 	const switchMapModeButton = addElement(sidebar, htmlCode.buttons.switchMapMode, '#switch-map-mode')
-	switchMapModeButton.addEventListener('click', _ => switchMapMode())
+	switchMapModeButton.addEventListener('click', _ => switchMapMode(curMapMode))
 
 	// Options button and checkboxes
-	addOptions(sidebar)
+	addOptions(sidebar, curMapMode)
 
 	// Current map mode label
 	const currentMapModeLabel = addElement(sidebar, htmlCode.currentMapModeLabel, '#current-map-mode-label')
-	currentMapModeLabel.textContent = currentMapModeLabel.textContent.replace('{currentMapMode}', currentMapMode())
+	currentMapModeLabel.textContent = currentMapModeLabel.textContent.replace('{currentMapMode}', curMapMode)
 
 	return sidebar
 }
 
-/** @param {HTMLElement} sidebar */
-function addOptions(sidebar) {
+/** 
+ * @param {HTMLElement} sidebar 
+ * @param {MapMode} curMapMode 
+*/
+function addOptions(sidebar, curMapMode) {
 	const optionsButton = addElement(sidebar, htmlCode.buttons.options, '#options-button')
 	const optionsMenu = addElement(sidebar, htmlCode.options.menu, '#options-menu')
 	optionsMenu.style.display = 'none'
@@ -455,14 +460,17 @@ function addOptions(sidebar) {
 		decreaseBrightness: addCheckboxOption(optionsMenu, i++, 'toggle-darkened', 'Decrease brightness', 'darkened'),
 		darkMode: addCheckboxOption(optionsMenu, i++, 'toggle-darkmode', 'Toggle dark mode', 'darkmode'),
 		serverInfo: addCheckboxOption(optionsMenu, i++, 'toggle-serverinfo', 'Display server info', 'serverinfo'),
-		showCapitalStars: addCheckboxOption(optionsMenu, i++, 'toggle-capital-stars', 'Show capital stars', 'capital-stars')
 	}
 
 	checkboxes.normalizeScroll.addEventListener('change', e => toggleScrollNormalize(e.target.checked))
 	checkboxes.decreaseBrightness.addEventListener('change', e => toggleDarkened(e.target.checked))
 	checkboxes.darkMode.addEventListener('change', e => toggleDarkMode(e.target.checked))
 	checkboxes.serverInfo.addEventListener('change', e => toggleServerInfo(e.target.checked))
-	checkboxes.showCapitalStars.addEventListener('change', e => toggleShowCapitalStars(e.target.checked))
+	
+	if (curMapMode != 'archive') {
+		const showCapitalStars = addCheckboxOption(optionsMenu, i++, 'toggle-capital-stars', 'Show capital stars', 'capital-stars')
+		showCapitalStars.addEventListener('change', e => toggleShowCapitalStars(e.target.checked))
+	}
 }
 
 /**
@@ -473,12 +481,14 @@ function addOptions(sidebar) {
  * @param {string} variable - The variable name in storage used to keep the 'checked' state 
  */
 function addCheckboxOption(menu, index, optionId, optionText, variable) {
+	/** @type {HTMLElement} */
 	const option = addElement(menu, htmlCode.options.option, '.option', true)[index]
 	option.insertAdjacentHTML('beforeend', htmlCode.options.label
 		.replace('{option}', optionId)
 		.replace('{optionText}', optionText))
 	
 	// Initialize checkbox state
+	/** @type {HTMLInputElement} */
 	const checkbox = addElement(option, htmlCode.options.checkbox.replace('{option}', optionId), '#' + optionId)
 	checkbox.checked = (localStorage['emcdynmapplus-' + variable] == 'true')
 	return checkbox

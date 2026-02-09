@@ -40,9 +40,8 @@ const archiveDate = () => parseInt(localStorage['emcdynmapplus-archive-date'])
 /** @type {() => Array<{color: string | null, input: string | null}>} */
 const nationClaimsInfo = () => JSON.parse(localStorage['emcdynmapplus-nation-claims-info'] || '[]')
 
-function switchMapMode() {
-	// Get the current stored mode, defaulting to the first mode in the list
-	const currentMode = localStorage['emcdynmapplus-mapmode'] || MAP_MODES[0]
+/** @param {MapMode} currentMode */
+function switchMapMode(currentMode) {
 	const nextModeIndex = (MAP_MODES.indexOf(currentMode) + 1) % MAP_MODES.length
 	const nextMode = MAP_MODES[nextModeIndex]
 
