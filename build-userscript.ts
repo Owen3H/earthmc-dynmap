@@ -1,21 +1,7 @@
 import { readFileSync, writeFileSync } from 'fs'
 import { build, type BuildOptions } from 'esbuild'
 import * as path from 'path'
-
-type Manifest = {
-    [key: string]: any
-    name: string
-    version: string
-    description: string
-    author: string
-    content_scripts: Array<{
-        matches: string[],
-        js: string[]
-    }>
-}
-
-type Border = { x: Array<number>, y: Array<number>, z: Array<number> }
-type Borders = { [key: string]: Border }
+import './src/types' // they are global anyway but vscode shits itself sometimes
 
 const STYLE_CSS = readFileSync('resources/style.css', 'utf8')
 const BORDERS: Borders = JSON.parse(readFileSync('resources/borders.json', 'utf8'))

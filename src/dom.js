@@ -155,10 +155,8 @@ function onAnchorUpdate(anchorParent, getAnchor, callback) {
 }
 
 function initToggleOptions() {
-	const darkened = localStorage['emcdynmapplus-darkened']
-	if (darkened == 'true') {
-		waitForElement('.leaflet-tile-pane').then(_ => decreaseBrightness(true))
-	}
+	const darkened = localStorage['emcdynmapplus-darkened'] == 'true' ? true : false
+	waitForElement('.leaflet-tile-pane').then(_ => toggleDarkened(darkened))
 
     const darkPref = localStorage['emcdynmapplus-darkmode']
     const systemDark = window.matchMedia?.('(prefers-color-scheme: dark)')?.matches
@@ -175,6 +173,9 @@ function initToggleOptions() {
 	const formattedDate = archiveDate.slice(0, 4) + '-' + archiveDate.slice(4, 6) + '-' + archiveDate.slice(6, 8)
 	waitForElement('#archive-input').then(dateInputEl => dateInputEl.value = formattedDate)
 
+	const showCapitalStars = localStorage['emcdynmapplus-capital-stars'] == 'true' ? true : false
+	waitForElement('.leaflet-pane.leaflet-marker-pane').then(_ => toggleShowCapitalStars(showCapitalStars))
+	
 	const normalizeScroll = localStorage['emcdynmapplus-normalize-scroll'] == 'true' ? true : false
 	toggleScrollNormalize(normalizeScroll)
 }
@@ -230,7 +231,7 @@ async function editUILayout() {
 /** @returns {Promise<Element | null>} The "#nation-claims" element. */
 function tryInsertNationClaimsPanel() {
 	const mode = localStorage['emcdynmapplus-mapmode']
-	if (mode != 'nationclaims') return null
+	if (mode != 'nationclaims' && mode != 'archive') return null
 
 	return waitForElement('.leaflet-bottom.leaflet-right').then(el => {
 		disablePanAndZoom(el)
@@ -298,12 +299,13 @@ function addNationClaimsPanel(parent) {
 	const optDiv = appendHTML(panel, '<div class="nation-claims-checkbox-option"></div>')
 
 	/** @type {HTMLElement} */
-	const hideStarsCheckbox = appendHTML(optDiv, 
-		htmlCode.options.checkbox.replace('{option}', 'hide-capital-stars') + 
-		htmlCode.options.label.replace('{option}', 'hide-capital-stars').replace('{optionText}', 'Hide capital stars')
+	const showExcludedCheckbox = appendHTML(optDiv, 
+		htmlCode.options.checkbox.replace('{option}', 'show-excluded') + 
+		htmlCode.options.label.replace('{option}', 'show-excluded').replace('{optionText}', 'Show irrelevant towns')
 	)
-	hideStarsCheckbox.addEventListener('change', e =>
-		localStorage['emcdynmapplus-nation-claims-hide-stars'] = e.target.checked
+	showExcludedCheckbox.checked = localStorage['emcdynmapplus-nation-claims-show-excluded'] == 'true' ? true : false
+	showExcludedCheckbox.addEventListener('change', e =>
+		localStorage['emcdynmapplus-nation-claims-show-excluded'] = e.target.checked
 	)
 
 	/** @type {HTMLElement} */
@@ -311,8 +313,9 @@ function addNationClaimsPanel(parent) {
 		htmlCode.options.checkbox.replace('{option}', 'use-opaque-colors') + 
 		htmlCode.options.label.replace('{option}', 'use-opaque-colors').replace('{optionText}', 'Use opaque colors')
 	)
+	useOpaqueCheckbox.checked = localStorage['emcdynmapplus-nation-claims-opaque-colors'] == 'true' ? true : false
 	useOpaqueCheckbox.addEventListener('change', e =>
-		localStorage['emcdynmapplus-nation-claims-use-opaque'] = e.target.checked
+		localStorage['emcdynmapplus-nation-claims-opaque-colors'] = e.target.checked
 	)
 
 	/** @type {HTMLElement} */
@@ -444,19 +447,20 @@ function addOptions(sidebar) {
 		optionsMenu.style.display = (optionsMenu.style.display == 'none') ? 'grid' : 'none'
 	})
 
+	let i = 0
 	const checkboxes = {
-		decreaseBrightness: addCheckboxOption(optionsMenu, 0, 'toggle-darkened', 'Decrease brightness', 'darkened'),
-		darkMode: addCheckboxOption(optionsMenu, 1, 'toggle-darkmode', 'Toggle dark mode', 'darkmode'),
-		serverInfo: addCheckboxOption(optionsMenu, 2, 'toggle-serverinfo', 'Display server info', 'serverinfo'),
-		normalizeScroll: addCheckboxOption(optionsMenu, 3, 'toggle-normalize-scroll', 'Normalize scroll inputs', 'normalize-scroll'),
-		//loadBorders: addCheckboxOption(4, 'toggle-load-borders', 'Load country borders', 'load-borders')
+		normalizeScroll: addCheckboxOption(optionsMenu, i++, 'toggle-normalize-scroll', 'Normalize scroll inputs', 'normalize-scroll'),
+		decreaseBrightness: addCheckboxOption(optionsMenu, i++, 'toggle-darkened', 'Decrease brightness', 'darkened'),
+		darkMode: addCheckboxOption(optionsMenu, i++, 'toggle-darkmode', 'Toggle dark mode', 'darkmode'),
+		serverInfo: addCheckboxOption(optionsMenu, i++, 'toggle-serverinfo', 'Display server info', 'serverinfo'),
+		showCapitalStars: addCheckboxOption(optionsMenu, i++, 'toggle-capital-stars', 'Show capital stars', 'show-capital-stars')
 	}
 
-	checkboxes.decreaseBrightness.addEventListener('change', e => decreaseBrightness(e.target.checked))
+	checkboxes.normalizeScroll.addEventListener('change', e => toggleScrollNormalize(e.target.checked))
+	checkboxes.decreaseBrightness.addEventListener('change', e => toggleDarkened(e.target.checked))
 	checkboxes.darkMode.addEventListener('change', e => toggleDarkMode(e.target.checked))
 	checkboxes.serverInfo.addEventListener('change', e => toggleServerInfo(e.target.checked))
-	checkboxes.normalizeScroll.addEventListener('change', e => toggleScrollNormalize(e.target.checked))
-	//checkboxes.loadBorders.addEventListener('change', e => toggleBorders(e.target.checked))
+	checkboxes.showCapitalStars.addEventListener('change', e => toggleShowCapitalStars(e.target.checked))
 }
 
 /**
@@ -505,7 +509,7 @@ function addLocateMenu(sidebar) {
  * @param {boolean} boxTicked 
  * @param {number} percentage - The amount to decrease brightness by.
  */
-function decreaseBrightness(boxTicked, percentage = 45) {
+function toggleDarkened(boxTicked, percentage = 45) {
 	const element = document.querySelector('.leaflet-tile-pane')
 	localStorage['emcdynmapplus-darkened'] = boxTicked
 	element.style.filter = boxTicked ? `brightness(${100-percentage}%)` : ''
@@ -526,6 +530,14 @@ function toggleServerInfo(boxTicked) {
 }
 
 /** @param {boolean} boxTicked */
+function toggleShowCapitalStars(boxTicked) {
+	localStorage['emcdynmapplus-capital-stars'] = boxTicked
+	const iconContainer = document.querySelector('.leaflet-pane.leaflet-marker-pane')
+	iconContainer.setAttribute('style', `visibility: ${boxTicked ? 'visible' : 'hidden'}`)
+}
+
+//#region Dark Mode
+/** @param {boolean} boxTicked */
 function toggleDarkMode(boxTicked) {
 	localStorage['emcdynmapplus-darkmode'] = boxTicked
 	return boxTicked ? loadDarkMode() : unloadDarkMode()
@@ -545,7 +557,9 @@ function unloadDarkMode() {
 	if (darkModeEl) darkModeEl.remove()
 	waitForElement('.leaflet-map-pane').then(el => el.style.filter = '')
 }
+//#endregion
 
+//#region Scroll normalization
 let scrollListener = null
 
 /** @param {boolean} boxTicked */
@@ -573,7 +587,9 @@ function removeScrollNormalizer(mapEl) {
 	const eventData = { detail: { pxPerZoomLevel: 60 } }
 	document.dispatchEvent(new CustomEvent('EMCDYNMAPPLUS_ADJUST_SCROLL', eventData))
 }
+//#endregion
 
+//#region Entity locator
 /**
  * Runs appropriate locator func based on selectValue, passing inputValue as the argument. 
  * @param {string} selectValue
@@ -653,3 +669,4 @@ async function getTownSpawn(town) {
 	const spawn = data[0].coordinates.spawn
 	return { x: Math.round(spawn.x), z: Math.round(spawn.z) }
 }
+//#endregion

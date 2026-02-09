@@ -50,18 +50,23 @@ function injectScript(resource) {
 	})
 }
 
+/** @param {Manifest} manifest */
 async function init(manifest) {
 	const isUserscript = typeof IS_USERSCRIPT !== 'undefined' && IS_USERSCRIPT
 	if (isUserscript) {
 		GM_addStyle(STYLE_CSS)
 	}
 
-    console.log("emcdynmapplus: Initializing UI elements..")
-
     localStorage['emcdynmapplus-mapmode'] ??= 'meganations'
+	localStorage['emcdynmapplus-normalize-scroll'] ??= 'true'
     localStorage['emcdynmapplus-darkened'] ??= 'true'
 	localStorage['emcdynmapplus-serverinfo'] ??= 'true'
-	localStorage['emcdynmapplus-normalize-scroll'] ??= 'true'
+	localStorage['emcdynmapplus-capital-stars'] ??= 'true'
+
+	localStorage['emcdynmapplus-nation-claims-opaque-colors'] ??= 'true'
+	localStorage['emcdynmapplus-nation-claims-show-excluded'] ??= 'true'
+
+	console.log("emcdynmapplus: Initializing UI elements..")
 
     insertSidebarMenu()
 	updateServerInfo(await insertServerInfoPanel())
@@ -92,9 +97,7 @@ function triggerScrollEvent(deltaY) {
 const SERVERINFO_INTERVAL = 5_000
 let serverInfoScheduler = null
 
-/**
- * @param {HTMLElement} element - The "#server-info" element.
- */
+/** @param {HTMLElement} element - The "#server-info" element. */
 async function updateServerInfo(element) {
 	const info = await fetchServerInfo()
 	if (info) renderServerInfo(element, info)
@@ -107,7 +110,7 @@ async function updateServerInfo(element) {
 	}
 }
 
-/** @returns {string} */
+/** @param {Manifest} manifest */
 function checkForUpdate(manifest) {
     const cachedVer = localStorage['emcdynmapplus-version']
     const latestVer = manifest.version

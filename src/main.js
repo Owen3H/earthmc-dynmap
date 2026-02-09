@@ -90,7 +90,7 @@ function calcPolygonArea(vertices) {
 
 /**
  * Computes total area of a marker, accounting for holes.
- * @param {{type: string, points: MultiPolygonPoints}} marker
+ * @param {SquaremapMarker} marker
  * @returns {number}
  */
 function calcMarkerArea(marker) {
@@ -167,16 +167,13 @@ async function modifyMarkers(data) {
         cachedAlliances = await getAlliances()
     }
 
-	const isNationMode = mapMode == 'overclaim' || mapMode == 'nationclaims'
-	if (isNationMode && cachedApiNations == null) {
+	if (mapMode == 'overclaim' && cachedApiNations == null) {
 		const nlist = await fetchJSON(`${OAPI_BASE}/${CURRENT_MAP}/nations`)
 		const apiNations = await queryConcurrent(`${OAPI_BASE}/${CURRENT_MAP}/nations`, nlist)
 		cachedApiNations = new Map(apiNations.map(n => [n.name.toLowerCase(), n]))
-		
-		//console.log("emcdynmapplus: queryConcurrent returned nation count: " + cachedApiNations.length)
 	}
 
-	data = addChunksLayer(data)
+	addChunksLayer(data)
 
 	const isUserscript = typeof IS_USERSCRIPT !== 'undefined' && IS_USERSCRIPT
 	const borders = isUserscript ? BORDERS : await fetch(chrome.runtime.getURL('resources/borders.json')).then(r => r.json())
@@ -186,30 +183,21 @@ async function modifyMarkers(data) {
 
 	if (!borders) showAlert("An unexpected error occurred fetching the borders resource file.")
 	else {
-		const dataWithBorders = addCountryBordersLayer(data, borders)
-		if (dataWithBorders) {
-			data = dataWithBorders
-			//console.log("emcdynmapplus: added country borders layer to marker data")
-		}
+		addCountryBordersLayer(data, borders)
 	}
 	
 	// Get current local storage values
+	const date = archiveDate()
+	const isSquaremap = mapMode != 'archive' || date >= 20240701
+
 	const storedNationClaimsInfo = nationClaimsInfo()
 	const claimsCustomizerInfo = new Map(storedNationClaimsInfo.map(obj => [obj.input?.toLowerCase(), obj.color]))
-
-	const date = archiveDate()
 
 	const start = performance.now()
 	for (const marker of data[0].markers) {
 		if (marker.type != 'polygon' && marker.type != 'icon') continue
 		
-		let parsedInfo = {}
-		if (mapMode != 'archive' || date >= 20240701) {
-			parsedInfo = modifyDescription(marker, mapMode)
-		} else {
-			parsedInfo = modifyOldDescription(marker, date)
-		}
-
+		const parsedInfo = isSquaremap ? modifyDescription(marker, mapMode) : modifyDynmapDescription(marker, date)
 		if (marker.type != 'polygon') continue
 
 		// Universal properties
@@ -217,12 +205,13 @@ async function modifyMarkers(data) {
 		marker.fillOpacity = 0.33
 		marker.weight = 1.5
 
-		if (mapMode == 'default' || mapMode == 'archive') continue
-		if (mapMode == 'nationclaims') {
-			colorTownNationClaims(marker, claimsCustomizerInfo, mapMode)
+		if (mapMode == 'default') continue
+		if (mapMode == 'nationclaims' || mapMode == 'archive') {
+			// TODO: Is it worth supporting nation claim customizer in archive mode?
+			colorTownNationClaims(marker, parsedInfo.nationName, claimsCustomizerInfo)
 			continue
 		}
-		
+
 		// All other modes (alliances, meganations, overclaim)
 		colorTown(marker, parsedInfo, mapMode)
 	}
@@ -253,8 +242,6 @@ function addChunksLayer(data) {
 		'control': true,
 		'markers': [makePolyline(chunkLines, 0.33, '#000000')]
 	}
-
-	return data
 }
 
 /**
@@ -283,8 +270,6 @@ function addCountryBordersLayer(data, borders) {
 			'control': true,
 			'markers': [makePolyline(points)]
 		}
-		
-		return data
 	} catch (e) {
 		showAlert(`Could not set up a layer of country borders. You may need to clear this website's data. If problem persists, contact the developer.`)
 		console.error(e)
@@ -293,15 +278,16 @@ function addCountryBordersLayer(data, borders) {
 }
 
 /**
- * @param {{tooltip: string, popup: string, points: MultiPolygonPoints}} marker
+ * Modifies a town description of a Squaremap marker.
+ * @param {SquaremapMarker} marker
  * @param {MapMode} mapMode - The currently selected map mode.
  * 
- * @returns {{residentList: string[], residentNum: number, isCapital: bool, area: number}}
+ * @returns {ParsedMarkerInfo}
  */
 function modifyDescription(marker, mapMode) {
 	const town = marker.tooltip.match(/<b>(.*)<\/b>/)[1]
-	const isCapital = marker.tooltip.match(/\(Capital of (.*)\)/) != null
 	const nation = marker.tooltip.match(/\(\b(?:Member|Capital)\b of (.*)\)\n/)?.[1]
+	const isCapital = marker.tooltip.match(/\(Capital of (.*)\)/) != null
 	const mayor = marker.popup.match(/Mayor: <b>(.*)<\/b>/)?.[1]
 
 	const residents = marker.popup.match(/<\/summary>\n    \t(.*)\n   \t<\/details>/)?.[1]
@@ -370,16 +356,21 @@ function modifyDescription(marker, mapMode) {
 		}
 	}
 
-	return { residentList: residents.split(', '), residentNum, isCapital, area }
+	return {
+		townName: fixedTownName, 
+		nationName: fixedNationName,
+		residentNum, residentList: residents.split(', '), 
+		isCapital, area, mayor
+	}
 }
 
 /**
- * Modifies town descriptions for Dynmap archives
- * @param {{tooltip: string, popup: string, points: Polygon}} marker 
+ * Modifies a town description of a Dynmap archive marker.
+ * @param {DynmapMarker} marker 
  * @param {number} curArchiveDate - Date as a number in the format YYYYDDMM
- * @returns {{residentList: string[], residentNum: number, isCapital: bool, area: number}}
+ * @returns {ParsedMarkerInfo}
  */
-function modifyOldDescription(marker, curArchiveDate) {
+function modifyDynmapDescription(marker, curArchiveDate) {
 	const residents = marker.popup.match(/Members <span style="font-weight:bold">(.*)<\/span><br \/>Flags/)?.[1]
 	const residentList = residents?.split(', ') ?? []
 	const residentNum = residentList.length
@@ -415,12 +406,29 @@ function modifyOldDescription(marker, curArchiveDate) {
 			.replace('<br>Flags', '</div><br>Flags')
 	}
 
-	return { residentList, residentNum, isCapital, area }
+	return {
+		...parseTownNation(marker.popup), // aka "desc" for dynmap
+		residentList, residentNum, 
+		isCapital, area,
+	}
+}
+
+function parseTownNation(html) {
+	// strip all HTML tags and leading star
+	let clean = html.replace(/<[^>]+>/g, '').trim()
+	clean = clean.replace(/^★\s*/, '')
+
+	const match = clean.match(/^(.+?)\s*\((.+?)\)/)
+
+	const townName = match?.[1]?.trim() || null
+	const nationName = match?.[2]?.trim() || null
+
+	return { townName, nationName }
 }
 
 /** 
  * Sets the colours of a marker with optional weight and returns it back.
- * @param {{tooltip: string, popup: string, color: string, fillColor: string, weight: number }} marker 
+ * @param {Marker} marker 
  */
 const colorMarker = (marker, fill, outline, weight=null) => {
 	marker.fillColor = fill
@@ -432,8 +440,8 @@ const DEFAULT_BLUE = '#3fb4ff'
 const DEFAULT_GREEN = '#89c500'
 
 /**
- * @param {{tooltip: string, popup: string, color: string, fillColor: string, weight: number }} marker
- * @param {{residentList: string[], residentNum: number, isCapital: bool, area: number}} townInfo
+ * @param {Marker} marker
+ * @param {ParsedMarkerInfo} townInfo
  * @param {MapMode} mapMode - The currently selected map mode.
  */
 function colorTown(marker, townInfo, mapMode) {
@@ -441,7 +449,7 @@ function colorTown(marker, townInfo, mapMode) {
 	const isRuin = !!mayor?.match(/NPC[0-9]+/)
 	if (isRuin) return colorMarker(marker, '#000000', '#000000')
 
-	const nationName = marker.tooltip.match(/\(\b(?:Member|Capital)\b of (.*)\)\n/)?.[1]
+	const { nationName } = townInfo
 
 	if (mapMode == 'meganations') {
 		const isDefaultCol = marker.color == DEFAULT_BLUE && marker.fillColor == DEFAULT_BLUE
@@ -469,18 +477,25 @@ function colorTown(marker, townInfo, mapMode) {
 }
 
 /**
- * @param {{tooltip: string, popup: string, color: string, fillColor: string, weight: number }} marker
+ * @param {Marker} marker
+ * @param {string} nationName
  * @param {Map<string|null, string|null>} claimsCustomizerInfo
- * @param {MapMode} mapMode - The currently selected map mode.
  */
-function colorTownNationClaims(marker, claimsCustomizerInfo, mapMode) {
-	const nationName = marker.tooltip.match(/\(\b(?:Member|Capital)\b of (.*)\)\n/)?.[1]
+function colorTownNationClaims(marker, nationName, claimsCustomizerInfo) {
 	//const strippedName = nationName?.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase()
 	
-	const color = claimsCustomizerInfo.get(nationName?.toLowerCase())
-	if (!color) return colorMarker(marker, '#000000', '#000000', 1)
+	const nationColorInput = claimsCustomizerInfo.get(nationName?.toLowerCase())
+	if (!nationColorInput) {
+		const showExcluded = localStorage['emcdynmapplus-nation-claims-show-excluded'] == 'true' ? true : false
+		if (!showExcluded) marker.fillOpacity = marker.opacity = 0 // Make town invisible if not part of a nation in claims customizer.
+	
+		return colorMarker(marker, '#000000', '#000000', 1)
+	}
+	
+	const useOpaqueColors = localStorage['emcdynmapplus-nation-claims-opaque-colors'] == 'true' ? true : false
+	if (useOpaqueColors) marker.fillOpacity = marker.opacity = 1 // 100% opacity similar to manual player drawn claim maps
 
-	return colorMarker(marker, color, color, 1.5)
+	return colorMarker(marker, nationColorInput, nationColorInput, 1.5)
 }
 
 /**
@@ -630,6 +645,10 @@ function getNationAlliances(nationName, mapMode) {
 }
 
 const getArchiveURL = (date, markersURL) => `https://web.archive.org/web/${date}id_/${markersURL}`
+
+/**
+ * @param {Object} markers - The old markers response JSON data
+ */
 async function getArchive(data) {
 	const loadingMessage = addElement(document.body, htmlCode.alertMsg.replace('{message}', 'Loading archive, please wait...'), '.message')
 	const date = archiveDate()
@@ -663,10 +682,10 @@ async function getArchive(data) {
 }
 
 /**
- * @param {Object} markers - The old markers response JSON data
+ * @param {Object} markerset - The towny markerset of the old markers response JSON data
  */
-function convertOldMarkersStructure(markers) {
-	return Object.entries(markers.areas).filter(([key]) => !key.includes('_Shop')).map(([_, v]) => ({
+function convertOldMarkersStructure(markerset) {
+	return Object.entries(markerset.areas).filter(([key]) => !key.includes('_Shop')).map(([_, v]) => ({
 		fillColor: v.fillcolor,
 		color: v.color,
 		popup: v.desc ?? `<div><b>${v.label}</b></div>`,
