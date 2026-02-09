@@ -274,6 +274,7 @@ function disablePanAndZoom(element) {
 
 /** @param {HTMLElement} panel - The "#nation-claims" element. */
 function loadNationClaims(panel) {
+	/** @type {Array<{color: string|null, input: string|null>}} */
 	const entries = JSON.parse(localStorage['emcdynmapplus-nation-claims-info'] || '[]')
 	entries.forEach((entry, i) => {
 		const color = panel.querySelector(`#nation-color-entry${i+1}`)
@@ -408,23 +409,21 @@ function renderServerInfo(element, info) {
 /** @param {HTMLElement} parent - The "leaflet-top leaflet-left" element. */
 function addMainMenu(parent) {
 	const sidebar = addElement(parent, htmlCode.sidebar)
-
-	// Locator button and input box
-	addLocateMenu(sidebar)
+	addLocateMenu(sidebar) // Locator button and input box
 
 	//#region Archive search and date input
 	const archiveContainer = addElement(sidebar, htmlCode.sidebarOption, '.sidebar-option', true)[1]
 	const archiveButton = addElement(archiveContainer, htmlCode.buttons.searchArchive)
 	const archiveInput = addElement(archiveContainer, htmlCode.archiveInput)
 	
-	// TODO: Does this even work when input is type="date" ?
+	archiveButton.addEventListener('click', _ => searchArchive(archiveInput.value))
+
+	// TODO: Typing in a bogus date will cause infinite "Loading archive..."
 	archiveInput.addEventListener('keyup', e => { if (e.key == 'Enter') searchArchive(archiveInput.value) })
 	archiveInput.addEventListener('change', _ => {
 		const URLDate = archiveInput.value.replaceAll('-', '')
 		localStorage['emcdynmapplus-archive-date'] = URLDate
 	})
-
-	archiveButton.addEventListener('click', _ => searchArchive(archiveInput.value))
 	//#endregion
 
 	const curMapMode = currentMapMode()

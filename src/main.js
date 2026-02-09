@@ -190,7 +190,10 @@ async function modifyMarkers(data) {
 	const isSquaremap = mapMode != 'archive' || date >= 20240701
 
 	const storedNationClaimsInfo = nationClaimsInfo()
-	const claimsCustomizerInfo = new Map(storedNationClaimsInfo.map(obj => [obj.input?.toLowerCase(), obj.color]))
+	const claimsCustomizerInfo = new Map(storedNationClaimsInfo
+		.filter(obj => obj.input != null)
+		.map(obj => [obj.input?.toLowerCase(), obj.color])
+	)
 
 	const start = performance.now()
 	for (const marker of data[0].markers) {
@@ -204,9 +207,8 @@ async function modifyMarkers(data) {
 		marker.fillOpacity = 0.33
 		marker.weight = 1.5
 
-		if (mapMode == 'default') continue
-		if (mapMode == 'nationclaims' || mapMode == 'archive') {
-			// TODO: Is it worth supporting nation claim customizer in archive mode?
+		if (mapMode == 'default' || mapMode == 'archive') continue
+		if (mapMode == 'nationclaims') {
 			colorTownNationClaims(marker, parsedInfo.nationName, claimsCustomizerInfo)
 			continue
 		}
@@ -405,24 +407,16 @@ function modifyDynmapDescription(marker, curArchiveDate) {
 			.replace('<br>Flags', '</div><br>Flags')
 	}
 
+	// strip all HTML tags and leading star
+	const clean = marker.popup.replace(/<[^>]+>/g, '').trim().replace(/^★\s*/, '')
+	const [, town, nation] = clean.match(/^(.+?)\s*\((.+?)\)/)
+
 	return {
-		...parseTownNation(marker.popup), // aka "desc" for dynmap
+		townName: town?.trim() || null,
+		nationName: nation?.trim() || null,
 		residentList, residentNum, 
 		isCapital, area,
 	}
-}
-
-function parseTownNation(html) {
-	// strip all HTML tags and leading star
-	let clean = html.replace(/<[^>]+>/g, '').trim()
-	clean = clean.replace(/^★\s*/, '')
-
-	const match = clean.match(/^(.+?)\s*\((.+?)\)/)
-
-	const townName = match?.[1]?.trim() || null
-	const nationName = match?.[2]?.trim() || null
-
-	return { townName, nationName }
 }
 
 /** 
@@ -482,7 +476,6 @@ function colorTown(marker, townInfo, mapMode) {
  */
 function colorTownNationClaims(marker, nationName, claimsCustomizerInfo) {
 	//const strippedName = nationName?.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase()
-	
 	const nationColorInput = claimsCustomizerInfo.get(nationName?.toLowerCase())
 	if (!nationColorInput) {
 		const showExcluded = localStorage['emcdynmapplus-nation-claims-show-excluded'] == 'true' ? true : false
