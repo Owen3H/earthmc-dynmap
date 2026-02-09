@@ -516,7 +516,7 @@ async function lookupPlayer(playerName, showOnlineStatus = true) {
 	if (players == null) return showAlert('Service is currently unavailable, please try later.')
 	if (players.length < 1) return showAlert('Error looking up this player. They have possibly opted-out.')
 
-	const lookup = addElement(leafletTL, htmlCode.playerLookup, '#player-lookup')
+	const lookup = addElement(leafletTL, htmlCode.playerLookup)
 
 	// Populate with placeholders
 	lookup.insertAdjacentHTML('beforeend', '<span class="close-container">X</span>')

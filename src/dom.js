@@ -6,7 +6,7 @@ const ARCHIVE_DATE = {
 	MAX: new Date().toLocaleDateString()
 }
 
-const htmlCode = {
+const htmlCode = /** @type {const} */ ({
 	// Used in this file
     buttons: {
         locate: '<button class="sidebar-button" id="locate-button">Locate</button>',
@@ -52,7 +52,7 @@ const htmlCode = {
     scrollableResidentList: '<div class="resident-list" id="scrollable-list">\t{list}</div>',
     partOfLabel: '<span id="part-of-label">Part of <b>{allianceList}</b></span>',
     alertMsg: '<div class="message" id="alert"><p id="alert-message">{message}</p></div>'
-}
+})
 
 /**
  * Shows an alert message in a box at the center of the screen.
@@ -74,15 +74,16 @@ function showAlert(message) {
  * @param {string} selector
  * @param {boolean} all
  */
-function addElement(parent, elementHTML, selector, all = false) {
+function addElement(parent, elementHTML, selector=null, all=false) {
 	parent.insertAdjacentHTML('beforeend', elementHTML)
+	if (!selector) return parent.lastElementChild
 	return all ? parent.querySelectorAll(selector) : parent.querySelector(selector) 
 }
 
 /**
- * Append HTML to a parent and return elements.
- * @param {HTMLElement} parent - where to append
- * @param {string} html - HTML string to insert
+ * Append HTML to a parent and return elements. This is slightly slower than addElement 
+ * but is more flexible and reduces confusing code in certain circumstances.
+
  * @param {Object} [options]
  * @param {string} [options.selector] - optional query selector *inside* inserted nodes. null = self
  * @param {boolean} [options.all=false] - return all matching nodes
@@ -285,20 +286,20 @@ function loadNationClaims(panel) {
 /** @param {HTMLElement} parent - The "leaflet-bottom leaflet-right" element. */
 function addNationClaimsPanel(parent) {
 	/** @type {HTMLElement} */
-	const panel = appendHTML(parent, htmlCode.nationClaims)
-	appendHTML(panel, '<div id="nation-claims-title">Nation Claims Customizer</div>')
+	const panel = addElement(parent, htmlCode.nationClaims)
+	addElement(panel, '<div id="nation-claims-title">Nation Claims Customizer</div>')
 	
-	const entriesContainer = appendHTML(panel, '<div id="nation-claims-entry-container"></div>')
+	const entriesContainer = addElement(panel, '<div id="nation-claims-entry-container"></div>')
 	for (let i = 1; i <= 10; i++) {
 		const colInput = htmlCode.nationClaimsColorInput.replace('{index}', i) 
 		const txtInput = htmlCode.nationClaimsTextInput.replace('{index}', i)
 
 		const id = `nation-claims-entry${i}`
-		appendHTML(entriesContainer, `<div class="nation-claims-entry" id="${id}">${colInput}${txtInput}</div>`)
+		addElement(entriesContainer, `<div class="nation-claims-entry" id="${id}">${colInput}${txtInput}</div>`)
 	}
 
-	const optDiv1 = appendHTML(panel, '<div class="nation-claims-checkbox-option"></div>')
-	const optDiv2 = appendHTML(panel, '<div class="nation-claims-checkbox-option"></div>')
+	const optDiv1 = addElement(panel, '<div class="nation-claims-checkbox-option"></div>')
+	const optDiv2 = addElement(panel, '<div class="nation-claims-checkbox-option"></div>')
 
 	/** @type {HTMLElement} */
 	const showExcludedCheckbox = appendHTML(optDiv1, 
@@ -345,18 +346,18 @@ function addNationClaimsPanel(parent) {
 
 /** @param {HTMLElement} parent - The "leaflet-top leaflet-right" element. */
 function addServerInfoPanel(parent) {
-	const panel = addElement(parent, htmlCode.serverInfo, '#server-info')
-	addElement(panel, '<div id="server-info-title">Server Info</div>', '#server-info-title')
-	addElement(panel, '<div class="server-info-entry" id="vote-party">Votes until VP: Loading..</div>', '#vote-party')
+	const panel = addElement(parent, htmlCode.serverInfo)
+	addElement(panel, '<div id="server-info-title">Server Info</div>')
+	addElement(panel, '<div class="server-info-entry" id="vote-party">Votes until VP: Loading..</div>')
 	addElement(panel, '<br>')
-	addElement(panel, '<div class="server-info-entry" id="online-players-count">Online Players: Loading..</div>', '#online-players-count')
-	addElement(panel, '<div class="server-info-entry" id="online-nomads-count">Online Nomads: Loading..</div>', '#online-nomads-count')
+	addElement(panel, '<div class="server-info-entry" id="online-players-count">Online Players: Loading..</div>')
+	addElement(panel, '<div class="server-info-entry" id="online-nomads-count">Online Nomads: Loading..</div>')
 	addElement(panel, '<br>')
-	addElement(panel, '<div class="server-info-entry" id="server-time">Server Time: Loading..</div>', '#server-time')
-	addElement(panel, '<div class="server-info-entry" id="new-day-at">New Day In: Loading..</div>', '#new-day-at')
+	addElement(panel, '<div class="server-info-entry" id="server-time">Server Time: Loading..</div>')
+	addElement(panel, '<div class="server-info-entry" id="new-day-at">New Day In: Loading..</div>')
 	addElement(panel, '<br>')
-	addElement(panel, '<div class="server-info-entry" id="storm">⚡ Storm: Loading..</div>', '#storm')
-	addElement(panel, '<div class="server-info-entry" id="thunder">⛈️ Thunder: Loading..</div>', '#thunder')
+	addElement(panel, '<div class="server-info-entry" id="storm">⚡ Storm: Loading..</div>')
+	addElement(panel, '<div class="server-info-entry" id="thunder">⛈️ Thunder: Loading..</div>')
 
 	return panel
 }
@@ -406,15 +407,15 @@ function renderServerInfo(element, info) {
 
 /** @param {HTMLElement} parent - The "leaflet-top leaflet-left" element. */
 function addMainMenu(parent) {
-	const sidebar = addElement(parent, htmlCode.sidebar, '#sidebar')
+	const sidebar = addElement(parent, htmlCode.sidebar)
 
 	// Locator button and input box
 	addLocateMenu(sidebar)
 
 	//#region Archive search and date input
 	const archiveContainer = addElement(sidebar, htmlCode.sidebarOption, '.sidebar-option', true)[1]
-	const archiveButton = addElement(archiveContainer, htmlCode.buttons.searchArchive, '#archive-button')
-	const archiveInput = addElement(archiveContainer, htmlCode.archiveInput, '#archive-input')
+	const archiveButton = addElement(archiveContainer, htmlCode.buttons.searchArchive)
+	const archiveInput = addElement(archiveContainer, htmlCode.archiveInput)
 	
 	// TODO: Does this even work when input is type="date" ?
 	archiveInput.addEventListener('keyup', e => { if (e.key == 'Enter') searchArchive(archiveInput.value) })
@@ -429,14 +430,14 @@ function addMainMenu(parent) {
 	const curMapMode = currentMapMode()
 
 	// Switch map mode button
-	const switchMapModeButton = addElement(sidebar, htmlCode.buttons.switchMapMode, '#switch-map-mode')
+	const switchMapModeButton = addElement(sidebar, htmlCode.buttons.switchMapMode)
 	switchMapModeButton.addEventListener('click', _ => switchMapMode(curMapMode))
 
 	// Options button and checkboxes
 	addOptions(sidebar, curMapMode)
 
 	// Current map mode label
-	const currentMapModeLabel = addElement(sidebar, htmlCode.currentMapModeLabel, '#current-map-mode-label')
+	const currentMapModeLabel = addElement(sidebar, htmlCode.currentMapModeLabel)
 	currentMapModeLabel.textContent = currentMapModeLabel.textContent.replace('{currentMapMode}', curMapMode)
 
 	return sidebar
@@ -447,8 +448,8 @@ function addMainMenu(parent) {
  * @param {MapMode} curMapMode 
 */
 function addOptions(sidebar, curMapMode) {
-	const optionsButton = addElement(sidebar, htmlCode.buttons.options, '#options-button')
-	const optionsMenu = addElement(sidebar, htmlCode.options.menu, '#options-menu')
+	const optionsButton = addElement(sidebar, htmlCode.buttons.options)
+	const optionsMenu = addElement(sidebar, htmlCode.options.menu)
 	optionsMenu.style.display = 'none'
 	optionsButton.addEventListener('click', _ => {
 		optionsMenu.style.display = (optionsMenu.style.display == 'none') ? 'grid' : 'none'
