@@ -23,12 +23,31 @@ declare global {
     export type MarkerPoints = Polygon[]
     export type MultiPolygonPoints = MarkerPoints[]
 
+    export interface Marker {
+        tooltip: string,
+        popup: string,
+        color: string,
+        fillColor: string,
+        weight: number,
+        type: string
+    }
+    
     export interface SquaremapMarker extends Marker {
         points: MultiPolygonPoints
     }
 
     export interface DynmapMarker extends Marker {
         points: Polygon
+    }
+
+    export interface ParsedMarker {
+        townName: string,
+        nationName: string,
+        residentList: string[],
+        residentNum: number,
+        isCapital: boolean,
+        area: number,
+        mayor?: string
     }
 
     // --------------------- ALLIANCE TYPES ---------------------
@@ -82,25 +101,6 @@ declare global {
     export interface ServerVoteParty {
         target: number
         numRemaining: number
-    }
-
-    export interface ParsedMarkerInfo {
-        townName: string,
-        nationName: string,
-        residentList: string[],
-        residentNum: number,
-        isCapital: boolean,
-        area: number,
-        mayor?: string
-    }
-
-    export interface Marker {
-        tooltip: string,
-        popup: string,
-        color: string,
-        fillColor: string,
-        weight: number,
-        type: string
     }
 }
 

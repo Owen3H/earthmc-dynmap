@@ -286,7 +286,7 @@ function addCountryBordersLayer(data, borders) {
  * @param {SquaremapMarker} marker
  * @param {MapMode} mapMode - The currently selected map mode.
  * 
- * @returns {ParsedMarkerInfo}
+ * @returns {ParsedMarker}
  */
 function modifyDescription(marker, mapMode) {
 	const town = marker.tooltip.match(/<b>(.*)<\/b>/)[1]
@@ -372,7 +372,7 @@ function modifyDescription(marker, mapMode) {
  * Modifies a town description of a Dynmap archive marker.
  * @param {DynmapMarker} marker 
  * @param {number} curArchiveDate - Date as a number in the format YYYYDDMM
- * @returns {ParsedMarkerInfo}
+ * @returns {ParsedMarker}
  */
 function modifyDynmapDescription(marker, curArchiveDate) {
 	const residents = marker.popup.match(/Members <span style="font-weight:bold">(.*)<\/span><br \/>Flags/)?.[1]
@@ -437,7 +437,7 @@ const DEFAULT_GREEN = '#89c500'
 
 /**
  * @param {Marker} marker
- * @param {ParsedMarkerInfo} townInfo
+ * @param {ParsedMarker} townInfo
  * @param {MapMode} mapMode - The currently selected map mode.
  */
 function colorTown(marker, townInfo, mapMode) {
