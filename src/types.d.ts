@@ -23,6 +23,14 @@ declare global {
     export type MarkerPoints = Polygon[]
     export type MultiPolygonPoints = MarkerPoints[]
 
+    export interface SquaremapMarker extends Marker {
+        points: MultiPolygonPoints
+    }
+
+    export interface DynmapMarker extends Marker {
+        points: Polygon
+    }
+
     // --------------------- ALLIANCE TYPES ---------------------
     export interface AllianceColours {
         fill: string
@@ -93,14 +101,6 @@ declare global {
         fillColor: string,
         weight: number,
         type: string
-    }
-
-    export interface SquaremapMarker extends Marker {
-        points: MultiPolygonPoints
-    }
-
-    export interface DynmapMarker extends Marker {
-        points: Polygon
     }
 }
 

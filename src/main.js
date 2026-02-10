@@ -643,7 +643,7 @@ const getArchiveURL = (date, markersURL) => `https://web.archive.org/web/${date}
  * @param {Object} markers - The old markers response JSON data
  */
 async function getArchive(data) {
-	const loadingMessage = addElement(document.body, htmlCode.alertMsg.replace('{message}', 'Loading archive, please wait...'), '.message')
+	const loadingMessage = addElement(document.body, htmlCode.alertMsg.replace('{message}', 'Loading archive, please wait...'))
 	const date = archiveDate()
 	
 	// markers.json URL changed over time

@@ -83,7 +83,6 @@ function addElement(parent, elementHTML, selector=null, all=false) {
 /**
  * Append HTML to a parent and return elements. This is slightly slower than addElement 
  * but is more flexible and reduces confusing code in certain circumstances.
-
  * @param {Object} [options]
  * @param {string} [options.selector] - optional query selector *inside* inserted nodes. null = self
  * @param {boolean} [options.all=false] - return all matching nodes
@@ -352,10 +351,10 @@ function addServerInfoPanel(parent) {
 	addElement(panel, '<div class="server-info-entry" id="vote-party">Votes until VP: Loading..</div>')
 	addElement(panel, '<br>')
 	addElement(panel, '<div class="server-info-entry" id="online-players-count">Online Players: Loading..</div>')
-	addElement(panel, '<div class="server-info-entry" id="online-nomads-count">Online Nomads: Loading..</div>')
+	addElement(panel, '<div class="server-info-entry" id="online-nomads-count">Online Townless: Loading..</div>')
 	addElement(panel, '<br>')
 	addElement(panel, '<div class="server-info-entry" id="server-time">Server Time: Loading..</div>')
-	addElement(panel, '<div class="server-info-entry" id="new-day-at">New Day In: Loading..</div>')
+	addElement(panel, '<div class="server-info-entry" id="new-day-in">New Day In: Loading..</div>')
 	addElement(panel, '<br>')
 	addElement(panel, '<div class="server-info-entry" id="storm">⚡ Storm: Loading..</div>')
 	addElement(panel, '<div class="server-info-entry" id="thunder">⛈️ Thunder: Loading..</div>')
@@ -377,31 +376,29 @@ const serverInfoEntry = (name, value) => {
  * @param {ServerInfo} info - The object containing server info.
  */
 function renderServerInfo(element, info) {
-	const opCount = info.stats?.numOnlinePlayers || 0
-	const nomadOpCount = info.stats.numOnlineNomads || 0
 	const vpRemaining = info.voteParty.numRemaining
+	const { numOnlinePlayers, numOnlineNomads } = info.stats
+	const { newDayTime, serverTimeOfDay } = info.timestamps
 
 	// Server Time
-	const serverTod = info.timestamps.serverTimeOfDay
-	const hours = Math.floor(serverTod / 3600)
-	const minutes = Math.floor((serverTod % 3600) / 60)
+	const hours = Math.floor(serverTimeOfDay / 3600)
+	const minutes = Math.floor((serverTimeOfDay % 3600) / 60)
 
 	const displayHour = hours % 12 || 12
 	const displayMin = minutes.toString().padStart(2, '0')
 	const timeStr = `${displayHour}:${displayMin} ${hours >= 12 ? 'PM' : 'AM'}`
 
 	// New Day In
-	const newDayTime = info.timestamps.newDayTime
-	let delta = newDayTime - serverTod
+	let delta = newDayTime - serverTimeOfDay
 	if (delta < 0) delta += 86_400 // 24hr
 	const newDayHr = Math.floor(delta / 3600)
 	const newDayMin = Math.floor((delta % 3600) / 60)
 
-	element.querySelector("#online-players-count").innerHTML = serverInfoEntry(`Online Players`, opCount)
-	element.querySelector("#online-nomads-count").innerHTML = serverInfoEntry(`Online Nomads`, nomadOpCount)
 	element.querySelector("#vote-party").innerHTML = serverInfoEntry(`Votes until VP`, vpRemaining > 0 ? vpRemaining : 0)
+	element.querySelector("#online-players-count").innerHTML = serverInfoEntry(`Online Players`, numOnlinePlayers || 0)
+	element.querySelector("#online-nomads-count").innerHTML = serverInfoEntry(`Online Townless`, numOnlineNomads || 0)
 	element.querySelector("#server-time").innerHTML = serverInfoEntry(`Server Time`, timeStr)
-	element.querySelector("#new-day-at").innerHTML = serverInfoEntry(`New Day In`, `${newDayHr}hrs ${newDayMin}m`)
+	element.querySelector("#new-day-in").innerHTML = serverInfoEntry(`New Day In`, `${newDayHr}hrs ${newDayMin}m`)
 	element.querySelector("#storm").innerHTML = serverInfoEntry(`⚡ Storm`, info.status.hasStorm ? 'Yes' : 'No')
 	element.querySelector("#thunder").innerHTML = serverInfoEntry(`⛈️ Thunder`, info.status.isThundering ? 'Yes' : 'No')
 }
