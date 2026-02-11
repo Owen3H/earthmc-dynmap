@@ -14,32 +14,35 @@ const OAPI_BASE = `https://api.${EMC_DOMAIN}/v3` // bump number here after migra
 const OAPI_REQ_PER_MIN = 180
 const OAPI_ITEMS_PER_REQ = 100
 
-/** Token bucket rate limiter */
+/**
+ * Token/leaky bucket implementation with localStorage caching.\
+ * Useful for rate limiting requests client side while persisting the bucket state through reloads.
+ */
 class TokenBucket {
-	constructor(capacity, refillRate, storageKey) {
-		this.capacity = capacity       // max tokens
-		this.refillRate = refillRate   // tokens per second
-		this.storageKey = storageKey
+	/** @param {TokenBucketOptions} opts */
+	constructor(opts) {
+		this.capacity = opts.capacity       // max tokens
+		this.refillRate = opts.refillRate   // token refill rate (per sec)
+		this.storageKey = opts.storageKey	// localStorage key
 
-		// load previous bucket state
-		const cachedBucket = localStorage.getItem(this.storageKey)
+		// load previous bucket state if available
+		const cachedBucket = localStorage[this.storageKey]
 		if (cachedBucket) {
+			/** @type {TokenBucketStored} */
 			const bucketData = JSON.parse(cachedBucket)
 			const elapsed = (Date.now() - bucketData.lastRefill) / 1000
-			const added = elapsed * this.refillRate
-			this.tokens = Math.min(capacity, bucketData.tokens + added)
-			this.lastRefill = Date.now()
+			const added = elapsed * opts.refillRate
+			this.tokens = Math.min(opts.capacity, bucketData.tokens + added)
 		} else {
-			this.tokens = capacity
-			this.lastRefill = Date.now()
+			this.tokens = opts.capacity
 		}
+
+		this.lastRefill = Date.now()
 	}
 
 	#save() {
-		localStorage.setItem(this.storageKey, JSON.stringify({
-			tokens: this.tokens,
-			lastRefill: this.lastRefill
-		}))
+		const bucketInfo = { tokens: this.tokens, lastRefill: this.lastRefill }
+		localStorage[this.storageKey] = JSON.stringify(bucketInfo)
 	}
 
 	refill() {
@@ -71,11 +74,11 @@ class TokenBucket {
 	})
 }
 
-const oapiBucket = new TokenBucket(
-	OAPI_REQ_PER_MIN,               // bucket capacity (max requests)
-	OAPI_REQ_PER_MIN / 60, 			// refill rate per sec
-	'emcdynmapplus-oapi-bucket'		// localStorage key
-)
+const oapiBucket = new TokenBucket({
+	capacity: OAPI_REQ_PER_MIN,
+	refillRate: OAPI_REQ_PER_MIN / 60,
+	storageKey: 'emcdynmapplus-oapi-bucket'
+})
 
 /**
  * Sends a request to a url, parsing the response as JSON unless we received 404.

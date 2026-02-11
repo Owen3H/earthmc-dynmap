@@ -102,6 +102,18 @@ declare global {
         target: number
         numRemaining: number
     }
+
+    // --------------------- MISC TYPES ---------------------
+    export interface TokenBucketOptions {
+        capacity: number
+        refillRate: number
+        storageKey: string
+    }
+
+    export interface TokenBucketStored {
+        tokens: number
+        lastRefill: number
+    }
 }
 
 export {}
