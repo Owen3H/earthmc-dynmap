@@ -2,6 +2,8 @@
   --max-menu-width: 210px;
   --player-lookup-width: 170px;
   --map-mode-btn-width: 130px;
+  /** TODO: Make this more robust. Probably not my best idea */
+  --screenshot-bg-image: url("https://raw.githubusercontent.com/Owen3H/earthmc-dynmap/refs/heads/main/resources/icon-screenshot.png");
 }
 
 /* Nation claims panel */
@@ -257,7 +259,6 @@ input[type="color"]::-webkit-color-swatch {
 }
 
 /* Alert */
-
 #alert {
 	position: absolute;
 	width: 300px;
@@ -291,7 +292,6 @@ input[type="color"]::-webkit-color-swatch {
 }
 
 /* Clickable nameplates */
-
 .leaflet-tooltip {
 	pointer-events: unset !important;
 }
@@ -338,7 +338,7 @@ div.leaflet-control-layers.link img {
 div.leaflet-control-layers.screenshot img {
 	width: 35px !important;
 	height: 35px !important;
-	background-image: url("https://raw.githubusercontent.com/Owen3H/earthmc-dynmap/refs/heads/main/resources/icon-screenshot.png") !important;
+	background-image: var(--screenshot-bg-image) !important;
 }
 
 #coords-container {
