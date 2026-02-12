@@ -16,6 +16,7 @@ const HEADER = `// ==UserScript==
 // @include     ${contentScripts.matches[0]}
 // @iconURL     https://raw.githubusercontent.com/3meraldK/earthmc-dynmap/main/icon.png
 // @grant       GM_addStyle
+// @grant       GM_getResourceURL
 // ==/UserScript==
 `
 
@@ -33,7 +34,6 @@ const buildOpts: BuildOptions = {
     define: {
         IS_USERSCRIPT: 'true',
         STYLE_CSS: JSON.stringify(STYLE_CSS),
-        BORDERS: JSON.stringify(BORDERS),
         MANIFEST: JSON.stringify(MANIFEST),
         window: 'unsafeWindow',
         'chrome.runtime.getURL': 'GM_getResourceURL',

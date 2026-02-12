@@ -12,6 +12,7 @@
 		"run_at": "document_start",
 		"matches": ["https://map.earthmc.net/*"],
 		"resources": [
+			"resources/icon-screenshot.png",
 			"resources/borders.json",
 			"resources/interceptor.js"
 		]

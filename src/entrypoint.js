@@ -71,7 +71,7 @@ async function init(manifest) {
     await insertSidebarMenu()
 	updateServerInfo(await insertServerInfoPanel())
     await editUILayout()
-	await insertScreenshotBtn()
+	await insertScreenshotBtn(chrome.runtime.getURL("resources/icon-screenshot.png"))
 	
 	// inserts the claim color customizer if 'nationclaims' mode is active
 	const panel = await tryInsertNationClaimsPanel()

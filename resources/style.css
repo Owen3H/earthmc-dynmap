@@ -338,7 +338,6 @@ div.leaflet-control-layers.link img {
 div.leaflet-control-layers.screenshot img {
 	width: 35px !important;
 	height: 35px !important;
-	background-image: url("https://raw.githubusercontent.com/Owen3H/earthmc-dynmap/refs/heads/main/resources/icon-screenshot.png") !important;
 }
 
 #coords-container {

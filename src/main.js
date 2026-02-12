@@ -174,8 +174,7 @@ async function modifyMarkers(data) {
 
 	addChunksLayer(data)
 
-	const isUserscript = typeof IS_USERSCRIPT !== 'undefined' && IS_USERSCRIPT
-	const borders = isUserscript ? BORDERS : await fetch(chrome.runtime.getURL('resources/borders.json')).then(r => r.json())
+	const borders = await fetch(chrome.runtime.getURL('resources/borders.json')).then(r => r.json())
 	for (const key in borders) {
 		borders[key] = { ...borders[key], ...EXTRA_BORDER_OPTS }
 	}

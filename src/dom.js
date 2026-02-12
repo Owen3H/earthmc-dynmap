@@ -184,14 +184,14 @@ function initToggleOptions() {
 	toggleScrollNormalize(normalizeScroll)
 }
 
-async function insertScreenshotBtn() {
+async function insertScreenshotBtn(screenshotIconURL) {
 	const linkBtn = await waitForElement(".leaflet-control-layers.link")
 	const linkBtnCloned = linkBtn?.cloneNode(true)
 	linkBtnCloned.className = 'leaflet-control-layers link screenshot leaflet-control'
 
 	const screenshotBtn = linkBtn?.parentElement?.insertBefore(linkBtnCloned, linkBtn.parentElement.children[0])
-	const imgDiv = screenshotBtn?.firstChild
-	imgDiv.setAttribute("href", "")
+	screenshotBtn?.firstChild.setAttribute("href", "")
+	screenshotBtn?.firstChild?.childNodes[0].style.setProperty("background-image", `url("${screenshotIconURL}")`, "important")
 	
 	screenshotBtn?.addEventListener('click', async e => {
 		e.preventDefault() // stop blank href from refreshing as we are adding our own button behaviour
