@@ -83,12 +83,16 @@ function addElement(parent, elementHTML, selector=null, all=false) {
 /**
  * Append HTML to a parent and return elements. This is slightly slower than addElement 
  * but is more flexible and reduces confusing code in certain circumstances.
+ * @param {Element} parent
+ * @param {string} html
  * @param {Object} [options]
  * @param {string} [options.selector] - optional query selector *inside* inserted nodes. null = self
  * @param {boolean} [options.all=false] - return all matching nodes
  * @param {boolean} [options.wrap=false] - wrap HTML in a container div before appending
  */
-function appendHTML(parent, html, { selector, all = false, wrap = false } = {}) {
+function appendHTML(parent, html, options = { selector: null, all: false, wrap: false }) {
+	const { selector, all, wrap } = options
+	
 	const templ = document.createElement('template')
 	templ.innerHTML = html.trim()
 
@@ -180,6 +184,79 @@ function initToggleOptions() {
 	toggleScrollNormalize(normalizeScroll)
 }
 
+async function insertScreenshotBtn() {
+	const linkBtn = await waitForElement(".leaflet-control-layers.link")
+	const linkBtnCloned = linkBtn?.cloneNode(true)
+	linkBtnCloned.className = 'leaflet-control-layers link screenshot leaflet-control'
+
+	const screenshotBtn = linkBtn?.parentElement?.insertBefore(linkBtnCloned, linkBtn.parentElement.children[0])
+	const imgDiv = screenshotBtn?.firstChild
+	imgDiv.setAttribute("href", "")
+	
+	screenshotBtn?.addEventListener('click', async e => {
+		e.preventDefault() // stop blank href from refreshing as we are adding our own button behaviour
+
+		try {
+			const canvas = await screenshot()
+			const blob = await new Promise(r => canvas.toBlob(r, 'image/png'))
+			await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
+			showAlert('Screenshot successful. Copied to clipboard!')
+		} catch (e) {
+			console.error(e)
+			showAlert('Failed to screenshot or copy to clipboard. Check the console.')
+		}
+	})
+}
+
+const screenshot = () => new Promise((resolve, reject) => {
+	const allTiles = Array.from(document.querySelectorAll('.leaflet-tile-loaded'))
+    if (!allTiles.length) return reject('No tiles found')
+
+    // Compute bounding box in viewport coords
+    let minX = Infinity, minY = Infinity
+	let maxX = -Infinity, maxY = -Infinity
+    
+	const tilesInfo = []
+    allTiles.forEach(img => {
+    	const rect = img.getBoundingClientRect()
+		tilesInfo.push({ img, rect })
+		minX = Math.min(minX, rect.left)
+		minY = Math.min(minY, rect.top)
+		maxX = Math.max(maxX, rect.right)
+		maxY = Math.max(maxY, rect.bottom)
+    })
+
+    const canvas = document.createElement('canvas')
+    canvas.width = Math.ceil(maxX - minX)
+    canvas.height = Math.ceil(maxY - minY)
+    
+	const ctx = canvas.getContext('2d')
+
+    // 2. Draw tiles with decreased brightness
+    ctx.filter = 'brightness(60%)'
+    tilesInfo.forEach(({ img, rect }) => ctx.drawImage(img, rect.left - minX, rect.top - minY, rect.width, rect.height))
+    ctx.filter = 'none' // reset filter for overlay
+
+    // 3. Draw overlay canvas (markers)
+    const overlayCanvas = document.querySelector('.leaflet-overlay-pane canvas.leaflet-zoom-animated')
+    if (overlayCanvas) {
+    	const overlayRect = overlayCanvas.getBoundingClientRect()
+		const scaleX = overlayRect.width / overlayCanvas.width
+		const scaleY = overlayRect.height / overlayCanvas.height
+
+		const offsetX = overlayRect.left - minX
+		const offsetY = overlayRect.top - minY
+
+		ctx.save()
+		ctx.translate(offsetX, offsetY)
+		ctx.scale(scaleX, scaleY)
+		ctx.drawImage(overlayCanvas, 0, 0)
+		ctx.restore()
+    }
+
+	return resolve(canvas)
+})
+	
 async function editUILayout() {
     const coordinates = await waitForElement('.leaflet-control-layers.coordinates')
 	const link = await waitForElement('.leaflet-control-layers.link')
@@ -195,24 +272,23 @@ async function editUILayout() {
 		}
 	})
 
-    // move the +- zoom control buttons to the bottom instead of top
+	// move the +- zoom control buttons to the bottom instead of top
     // and make sure the link and coordinates buttons align with it
-    waitForElement('.leaflet-bottom.leaflet-left').then(async el => {
-        if (link || coordinates) {
-            // Create a wrapper div
-            const wrapper = document.createElement('div')
-            wrapper.style.alignSelf = 'end'
+	const bottomLeft = document.querySelector(".leaflet-bottom.leaflet-left")
+	if (link || coordinates) {
+		// Create a wrapper div
+		const wrapper = document.createElement('div')
+		wrapper.id = 'coords-container'
 
-            // Move elements into wrapper
-            if (link) wrapper.appendChild(link)
-            if (coordinates) wrapper.appendChild(coordinates)
+		// Move elements into wrapper
+		if (link) wrapper.appendChild(link)
+		if (coordinates) wrapper.appendChild(coordinates)
 
-            el.appendChild(wrapper)
-        }
+		bottomLeft.appendChild(wrapper)
+	}
 
-        const zoomControl = await waitForElement('.leaflet-control-zoom')
-        if (zoomControl) el.insertBefore(zoomControl, el.firstChild)
-    })
+	const zoomControl = await waitForElement('.leaflet-control-zoom')
+	if (zoomControl) bottomLeft.insertBefore(zoomControl, bottomLeft.firstChild)
 
     // Fix nameplates appearing over popups
     waitForElement('.leaflet-nameplate-pane').then(el => el.style = '')

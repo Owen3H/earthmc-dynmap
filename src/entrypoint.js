@@ -70,13 +70,14 @@ async function init(manifest) {
 
     await insertSidebarMenu()
 	updateServerInfo(await insertServerInfoPanel())
-    editUILayout()
-    initToggleOptions() // brightness and dark mode
-
+    await editUILayout()
+	await insertScreenshotBtn()
+	
 	// inserts the claim color customizer if 'nationclaims' mode is active
 	const panel = await tryInsertNationClaimsPanel()
 	if (panel) loadNationClaims(panel)
-
+		
+	initToggleOptions()
 	checkForUpdate(manifest)
 }
 
