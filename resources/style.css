@@ -7,8 +7,10 @@
 /* Nation claims panel */
 #nation-claims {
 	padding: 10px;
-    width: 260px;
+	max-width: 30vw;
+	max-height: 50vh;
 	text-align: center;
+	overflow: auto;
 }
 
 #nation-claims-title {
@@ -17,18 +19,19 @@
 	margin-bottom: 5px;
 }
 
-/* Apply button at the bottom of the panel */
-#nation-claims-apply {
-	height: 25px;
-    width: 60px;
+/* Buttons at the bottom of the panel */
+#nation-claims-apply, #nation-claims-reset-all {
+	height: 30px;
+	max-width: 200px;
 	margin: 5px;
 }
 
 .nation-claims-entry {
-	margin-top: 5px;
 	display: inline-flex;
-	gap: 5px;
 	align-items: center;
+	margin-top: 5px;
+	margin-right: 10px;
+	gap: 5px;
 }
 
 .nation-claims-checkbox-option {
@@ -43,8 +46,8 @@ input[type="color"] {
 	position: relative;
     padding: 0;
 	/* Make a pill shape */
-	width: 40px;
-    height: 20px;
+	height: 18px;
+    width: 34px;
 	border: 2px solid white;
 	border-radius: 8px;
 }

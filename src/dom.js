@@ -22,7 +22,7 @@ const htmlCode = /** @type {const} */ ({
     },
 	nationClaims: '<div class="leaflet-control-layers leaflet-control" id="nation-claims"></div>',
 	nationClaimsColorInput: '<input type="color" id="nation-color-entry{index}"></input>',
-	nationClaimsTextInput: '<input type="text" id="nation-text-entry{index}" placeholder="Enter nation name..." style="margin-left: 5px"></input>',
+	nationClaimsTextInput: '<input type="text" id="nation-text-entry{index}" placeholder="Enter nation name..."></input>',
 	serverInfo: '<div class="leaflet-control-layers leaflet-control" id="server-info"></div>',
     sidebar: '<div class="leaflet-control-layers leaflet-control" id="sidebar"></div>',
     sidebarOption: '<div class="sidebar-option"></div>',
@@ -283,6 +283,8 @@ function loadNationClaims(panel) {
 	})
 }
 
+const MAX_CLAIM_COLOUR_INPUTS = 50
+
 /** @param {HTMLElement} parent - The "leaflet-bottom leaflet-right" element. */
 function addNationClaimsPanel(parent) {
 	/** @type {HTMLElement} */
@@ -290,7 +292,7 @@ function addNationClaimsPanel(parent) {
 	addElement(panel, '<div id="nation-claims-title">Nation Claims Customizer</div>')
 	
 	const entriesContainer = addElement(panel, '<div id="nation-claims-entry-container"></div>')
-	for (let i = 1; i <= 10; i++) {
+	for (let i = 1; i <= MAX_CLAIM_COLOUR_INPUTS; i++) {
 		const colInput = htmlCode.nationClaimsColorInput.replace('{index}', i) 
 		const txtInput = htmlCode.nationClaimsTextInput.replace('{index}', i)
 
@@ -322,13 +324,16 @@ function addNationClaimsPanel(parent) {
 	)
 
 	/** @type {HTMLElement} */
-	const applyBtn = appendHTML(panel, '<button class="sidebar-button" id="nation-claims-apply">Apply</button>', { 
-		selector: '#nation-claims-apply', 
-		wrap: true
-	})
+	const div = appendHTML(panel, '<div></div>')
+	div.style.setProperty('display', 'flex')
+	div.style.setProperty('justify-content', 'center')
+
+	/** @type {HTMLElement} */
+	const applyBtn = appendHTML(div, '<button class="sidebar-button" id="nation-claims-apply">Apply</button>')
+	applyBtn.style.setProperty("background", "#1f8934", "important")
 	applyBtn.addEventListener('click', () => {
 		const entries = []
-		for (let i = 1; i <= 10; i++) {
+		for (let i = 1; i <= MAX_CLAIM_COLOUR_INPUTS; i++) {
 			const colorInput = panel.querySelector(`#nation-color-entry${i}`)
 			const textInput = panel.querySelector(`#nation-text-entry${i}`)
 			entries.push({
@@ -339,6 +344,16 @@ function addNationClaimsPanel(parent) {
 
 		localStorage['emcdynmapplus-nation-claims-info'] = JSON.stringify(entries)
 		location.reload()
+	})
+
+	/** @type {HTMLElement} */
+	const resetAllBtn = appendHTML(div, '<button class="sidebar-button" id="nation-claims-reset-all">Reset All</button>')
+	resetAllBtn.style.setProperty("background", "#da4545", "important")
+	resetAllBtn.addEventListener('click', () => {
+		const entries = Array.from({ length: MAX_CLAIM_COLOUR_INPUTS }, () => ({ color: null, input: null }))
+		localStorage['emcdynmapplus-nation-claims-info'] = JSON.stringify(entries)
+		loadNationClaims(panel)
+		showAlert("Set all nation claim inputs to default.")
 	})
 
 	return panel
