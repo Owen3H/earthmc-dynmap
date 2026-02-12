@@ -174,13 +174,12 @@ async function modifyMarkers(data) {
 
 	addChunksLayer(data)
 
-	const borders = await fetch(chrome.runtime.getURL('resources/borders.json')).then(r => r.json())
-	for (const key in borders) {
-		borders[key] = { ...borders[key], ...EXTRA_BORDER_OPTS }
-	}
-
+	const borders = isUserscript() ? BORDERS : await fetch(chrome.runtime.getURL('resources/borders.json')).then(r => r.json())
 	if (!borders) showAlert("An unexpected error occurred fetching the borders resource file.")
 	else {
+		for (const key in borders) {
+			borders[key] = { ...borders[key], ...EXTRA_BORDER_OPTS }
+		}
 		addCountryBordersLayer(data, borders)
 	}
 	

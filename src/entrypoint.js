@@ -1,8 +1,12 @@
+/** @returns {boolean} */
+function isUserscript() {
+	return typeof IS_USERSCRIPT !== 'undefined' && IS_USERSCRIPT
+}
+
 /** THIS FILE IS RUN FIRST, ANY SETUP/INIT REQUIRED BELONGS HERE */
 (async function entrypoint() {
-	const isUserscript = typeof IS_USERSCRIPT !== 'undefined' && IS_USERSCRIPT
-	const manifest = isUserscript ? MANIFEST : chrome.runtime.getManifest()
-	if (!isUserscript) {
+	const manifest = isUserscript() ? MANIFEST : chrome.runtime.getManifest()
+	if (!isUserscript()) {
 		// Any scripts that need to be injected into the page context should be specified in manifest.json 
 		// under web_accessible_resources in order of least-dependent first.
 		const resources = manifest.web_accessible_resources[0].resources
@@ -71,7 +75,7 @@ async function init(manifest) {
     await insertSidebarMenu()
 	updateServerInfo(await insertServerInfoPanel())
     await editUILayout()
-	await insertScreenshotBtn(chrome.runtime.getURL("resources/icon-screenshot.png"))
+	await insertScreenshotBtn()
 	
 	// inserts the claim color customizer if 'nationclaims' mode is active
 	const panel = await tryInsertNationClaimsPanel()
