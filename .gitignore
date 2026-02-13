@@ -2,4 +2,4 @@ bun.lockb
 package-lock.json
 
 node_modules/
-dist/
+dist/emc-dynmapplus.zip

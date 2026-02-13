@@ -14,7 +14,8 @@ const HEADER = `// ==UserScript==
 // @description ${MANIFEST.description}
 // @author      ${MANIFEST.author}
 // @include     ${contentScripts.matches[0]}
-// @iconURL     https://raw.githubusercontent.com/3meraldK/earthmc-dynmap/main/icon.png
+// @icon        https://raw.githubusercontent.com/Owen3H/earthmc-dynmap/main/resources/icon48.png
+// @downloadURL https://raw.githubusercontent.com/Owen3H/earthmc-dynmap/main/master/emc-dynmapplus.user.js
 // @grant       GM_addStyle
 // ==/UserScript==
 `
