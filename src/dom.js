@@ -371,7 +371,8 @@ const MAX_CLAIM_COLOUR_INPUTS = 300
 function addNationClaimsPanel(parent) {
 	/** @type {HTMLElement} */
 	const panel = addElement(parent, htmlCode.nationClaims)
-	
+	panel.addEventListener('wheel', e => e.stopPropagation()) // stop squaremap overtaking scroll, we need to scroll the inputs
+
 	/** @type {HTMLElement} */
 	const hideBtn = addElement(panel, htmlCode.nationClaimsTitlebar, '#nation-claims-titlebar a')
 	hideBtn.addEventListener('click', e => {
