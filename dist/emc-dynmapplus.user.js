@@ -1,10 +1,11 @@
 // ==UserScript==
-// @name        EarthMC Dynmap+ (Updated)
-// @version     1.16
+// @name        EarthMC Dynmap+ (Owen3H Fork)
+// @version     2.0
 // @description Extension to enrich the EarthMC map experience
 // @author      3meraldK
 // @include     https://map.earthmc.net/*
-// @iconURL     https://raw.githubusercontent.com/3meraldK/earthmc-dynmap/main/icon.png
+// @icon        https://raw.githubusercontent.com/Owen3H/earthmc-dynmap/main/resources/icon48.png
+// @downloadURL https://raw.githubusercontent.com/Owen3H/earthmc-dynmap/main/dist/emc-dynmapplus.user.js
 // @grant       GM_addStyle
 // ==/UserScript==
 
@@ -1183,7 +1184,7 @@ function auroraNationBonus(numNationResidents) {
 }
 
 // <define:MANIFEST>
-var define_MANIFEST_default = { manifest_version: 3, name: "EarthMC Dynmap+ (Updated)", version: "1.16", author: "3meraldK", description: "Extension to enrich the EarthMC map experience", icons: { "48": "resources/icon48.png", "128": "resources/icon128.png" }, web_accessible_resources: [{ run_at: "document_start", matches: ["https://map.earthmc.net/*"], resources: ["resources/borders.json", "resources/interceptor.js"] }], content_scripts: [{ matches: ["https://map.earthmc.net/*"], css: ["resources/style.css"], js: ["src/httputil.js", "src/dom.js", "src/main.js", "src/entrypoint.js"] }] };
+var define_MANIFEST_default = { manifest_version: 3, name: "EarthMC Dynmap+ (Owen3H Fork)", version: "2.0", author: "3meraldK", description: "Extension to enrich the EarthMC map experience", icons: { "48": "resources/icon48.png", "128": "resources/icon128.png" }, web_accessible_resources: [{ run_at: "document_start", matches: ["https://map.earthmc.net/*"], resources: ["resources/borders.json", "resources/interceptor.js"] }], content_scripts: [{ matches: ["https://map.earthmc.net/*"], css: ["resources/style.css"], js: ["src/httputil.js", "src/dom.js", "src/main.js", "src/entrypoint.js"] }] };
 
 // src/entrypoint.js
 function isUserscript() {

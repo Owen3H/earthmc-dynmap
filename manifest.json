@@ -1,7 +1,7 @@
 {
 	"manifest_version": 3,
-	"name": "EarthMC Dynmap+ (Updated)",
-	"version": "1.16",
+	"name": "EarthMC Dynmap+ (Owen3H Fork)",
+	"version": "2.0",
 	"author": "3meraldK",
 	"description": "Extension to enrich the EarthMC map experience",
 	"icons": {
