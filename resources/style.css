@@ -1,54 +1,63 @@
 :root {
-  --max-menu-width: 210px;
-  --player-lookup-width: 170px;
-  --map-mode-btn-width: 130px;
-  /** TODO: Make this more robust. Probably not my best idea */
-  --screenshot-bg-image: url("https://raw.githubusercontent.com/Owen3H/earthmc-dynmap/refs/heads/main/resources/icon-screenshot.png");
+	--max-menu-width: 210px;
+  	--player-lookup-width: 170px;
+	--map-mode-btn-width: 130px;
+	/** TODO: Make these more robust. Probably not my best idea */
+	--screenshot-bg-image: url("https://raw.githubusercontent.com/Owen3H/earthmc-dynmap/refs/heads/main/resources/icon-screenshot.png");
+	--hide-icon: url("https://raw.githubusercontent.com/Owen3H/earthmc-dynmap/refs/heads/main/resources/hide.png");
 }
 
 #nation-claims {
-    padding: 10px 20px 10px 20px;
-    max-width: max-content;
-	/* Position in the center of the screen */
-	position: absolute;
-    text-align: center;
-    transform: translate(-50%, -50%);
+	min-width: 45vw;
+    width: 45vw;
+	max-width: max-content;
+	padding: 10px 20px 10px 20px;
+	/* Position in the center of the screen, 10px from the top */
+    position: fixed;
+	text-align: center;
+    top: 10px;
     left: 50%;
-    top: 50%;
+    transform: translateX(-50%);
 }
 
 #nation-claims-titlebar {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+	justify-content: space-between;
+	gap: 20px;
+	font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
 	font-size: x-large;
     font-weight: 700;
-	margin-bottom: 10px;
 	line-height: 5px;
-    display: flex;
-    align-items: center;
-    flex-direction: row;
-	gap: 10px;
 }
 
 /* Button to close nation claims panel */
-#nation-claims-titlebar > button {
+#nation-claims-titlebar > a {
 	font-size: small;
-	font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
     /* background: rgb(174, 14, 14); */
 	padding: 4px 8px 4px 8px;
-	border: 1px solid white;
-	border-radius: 2px;
+	border-radius: 3px;
+}
+
+#nation-claims-titlebar img {
 	width: 30px;
-	background-image: url("")
+	background-image: var(--hide-icon);
+	background-repeat: no-repeat;
+    background-position: 50% 50%;
+	background-color: transparent;
 }
 
 /* Container that holds the input/colour entries */
 #nation-claims-entry-container {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: 10px;
-	min-height: 30vh;
-    max-height: 60vh;
+	min-height: 40vh;
+    max-height: calc(80vh - 10px);
     overflow-y: auto;
 	margin-bottom: 5px;
+	margin-top: 10px;
+	gap: 10px;
 }
 
 /* Container of the buttons at the bottom of the nation claims panel */
@@ -65,6 +74,16 @@
 	margin: 5px;
 }
 
+#nation-claims-apply {
+	background-color: rgb(31, 137, 52) !important;
+	flex-grow: 1;
+}
+
+#nation-claims-reset-all {
+	background-color: rgb(218, 69, 69) !important;
+	flex-grow: 1;
+}
+
 .nation-claims-entry {
     display: flex;
     align-items: center;
@@ -77,7 +96,11 @@
 	align-items: center;
 	margin: 5px;
 	font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-	font-size: 12px;
+	font-size: 12.5px;
+}
+
+.nation-claims-checkbox-option > input[type="checkbox"] {
+	min-height: 15px;
 }
 
 input[type="color"] {
@@ -213,13 +236,16 @@ input[type="color"]::-webkit-color-swatch {
 
 .sidebar-button {
 	height: 30px;
-	flex-grow: 1;
 	font-kerning: none;
     font-weight: 500;
     font-size: 12px;
     font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
     border: 1px solid;
     border-radius: 3px;
+}
+
+#archive-button {
+	flex-grow: 1;
 }
 
 #archive-input {

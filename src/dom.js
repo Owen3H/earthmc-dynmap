@@ -23,6 +23,11 @@ const htmlCode = /** @type {const} */ ({
 	nationClaims: '<div class="leaflet-control-layers leaflet-control" id="nation-claims"></div>',
 	nationClaimsColorInput: '<input type="color" id="nation-color-entry{index}"></input>',
 	nationClaimsTextInput: '<input type="text" id="nation-text-entry{index}" placeholder="Enter nation name..."></input>',
+	nationClaimsTitlebar:
+		'<div id="nation-claims-titlebar">' +
+		'<p>Nation Claims Customizer</p>' +
+		'<div class="leaflet-control-layers link leaflet-control"><a href=""><img src="images/clear.png"></a></div>' +
+		'</div>',
 	serverInfo: '<div class="leaflet-control-layers leaflet-control" id="server-info"></div>',
     sidebar: '<div class="leaflet-control-layers leaflet-control" id="sidebar"></div>',
     sidebarOption: '<div class="sidebar-option"></div>',
@@ -40,9 +45,6 @@ const htmlCode = /** @type {const} */ ({
 			color: #dedede;
 		}
 		div.leaflet-control-layers.link img {
-			filter: invert(1);
-		}
-		#nation-claims-titlebar > button {
 			filter: invert(1);
 		}
 		</style>
@@ -369,9 +371,18 @@ const MAX_CLAIM_COLOUR_INPUTS = 300
 function addNationClaimsPanel(parent) {
 	/** @type {HTMLElement} */
 	const panel = addElement(parent, htmlCode.nationClaims)
-	addElement(panel, '<div id="nation-claims-titlebar"><button>X</button><p>Nation Claims Customizer</p></div>')
 	
-	const entriesContainer = addElement(panel, '<div id="nation-claims-entry-container"></div>')
+	/** @type {HTMLElement} */
+	const hideBtn = addElement(panel, htmlCode.nationClaimsTitlebar, '#nation-claims-titlebar a')
+	hideBtn.addEventListener('click', e => {
+		e.preventDefault()
+		contentContainer.style.display = contentContainer.style.display === 'none' ? '' : 'none'
+	})
+	
+	// Container for everything except the titlebar. This container is hidden by clicking the eye icon.
+	const contentContainer = addElement(panel, '<div id="nation-claims-content"></div>')
+	
+	const entriesContainer = addElement(contentContainer, '<div id="nation-claims-entry-container"></div>')
 	for (let i = 1; i <= MAX_CLAIM_COLOUR_INPUTS; i++) {
 		const colInput = htmlCode.nationClaimsColorInput.replace('{index}', i) 
 		const txtInput = htmlCode.nationClaimsTextInput.replace('{index}', i)
@@ -380,8 +391,8 @@ function addNationClaimsPanel(parent) {
 		addElement(entriesContainer, `<div class="nation-claims-entry" id="${id}">${colInput}${txtInput}</div>`)
 	}
 
-	const optDiv1 = addElement(panel, '<div class="nation-claims-checkbox-option"></div>')
-	const optDiv2 = addElement(panel, '<div class="nation-claims-checkbox-option"></div>')
+	const optDiv1 = addElement(contentContainer, '<div class="nation-claims-checkbox-option"></div>')
+	const optDiv2 = addElement(contentContainer, '<div class="nation-claims-checkbox-option"></div>')
 
 	/** @type {HTMLElement} */
 	const showExcludedCheckbox = appendHTML(optDiv1, 
@@ -404,16 +415,15 @@ function addNationClaimsPanel(parent) {
 	)
 
 	/** @type {HTMLElement} */
-	const div = appendHTML(panel, '<div id="nation-claims-btn-container"></div>')
+	const div = appendHTML(contentContainer, '<div id="nation-claims-btn-container"></div>')
 
 	/** @type {HTMLElement} */
 	const applyBtn = appendHTML(div, '<button class="sidebar-button" id="nation-claims-apply">Apply</button>')
-	applyBtn.style.setProperty("background", "#1f8934", "important")
 	applyBtn.addEventListener('click', () => {
 		const entries = []
 		for (let i = 1; i <= MAX_CLAIM_COLOUR_INPUTS; i++) {
-			const colorInput = panel.querySelector(`#nation-color-entry${i}`)
-			const textInput = panel.querySelector(`#nation-text-entry${i}`)
+			const colorInput = entriesContainer.querySelector(`#nation-color-entry${i}`)
+			const textInput = entriesContainer.querySelector(`#nation-text-entry${i}`)
 			entries.push({
 				color: colorInput?.value || null,
 				input: textInput?.value || null
@@ -426,7 +436,6 @@ function addNationClaimsPanel(parent) {
 
 	/** @type {HTMLElement} */
 	const resetAllBtn = appendHTML(div, '<button class="sidebar-button" id="nation-claims-reset-all">Reset All</button>')
-	resetAllBtn.style.setProperty("background", "#da4545", "important")
 	resetAllBtn.addEventListener('click', () => {
 		const entries = Array.from({ length: MAX_CLAIM_COLOUR_INPUTS }, () => ({ color: null, input: null }))
 		localStorage['emcdynmapplus-nation-claims-info'] = JSON.stringify(entries)
