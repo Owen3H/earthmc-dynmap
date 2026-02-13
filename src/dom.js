@@ -32,7 +32,7 @@ const htmlCode = /** @type {const} */ ({
     currentMapModeLabel: '<div class="sidebar-option" id="current-map-mode-label">Map Mode: {currentMapMode}</div>',
     alertBox: '<div id="alert"><p id="alert-message">{message}</p><button id="alert-close">Dismiss</button></div>',
 	darkMode: `<style id="dark-mode">
-		.leaflet-control, #alert, .sidebar-input,
+		.leaflet-control, .sidebar-input, #alert,
 		.sidebar-button, .leaflet-bar > a, .leaflet-tooltip-top,
 		.leaflet-popup-content-wrapper, .leaflet-popup-tip,
 		.leaflet-bar > a.leaflet-disabled {
@@ -41,7 +41,11 @@ const htmlCode = /** @type {const} */ ({
 		}
 		div.leaflet-control-layers.link img {
 			filter: invert(1);
-		}</style>
+		}
+		#nation-claims-titlebar > button {
+			filter: invert(1);
+		}
+		</style>
 	`,
 
     // Used in main.js
@@ -309,7 +313,7 @@ function tryInsertNationClaimsPanel() {
 	const mode = localStorage['emcdynmapplus-mapmode']
 	if (mode != 'nationclaims') return null
 
-	return waitForElement('.leaflet-bottom.leaflet-right').then(el => {
+	return waitForElement('.leaflet-control-container').then(el => {
 		disablePanAndZoom(el)
 		return addNationClaimsPanel(el)
 	})
@@ -359,13 +363,13 @@ function loadNationClaims(panel) {
 	})
 }
 
-const MAX_CLAIM_COLOUR_INPUTS = 50
+const MAX_CLAIM_COLOUR_INPUTS = 300
 
 /** @param {HTMLElement} parent - The "leaflet-bottom leaflet-right" element. */
 function addNationClaimsPanel(parent) {
 	/** @type {HTMLElement} */
 	const panel = addElement(parent, htmlCode.nationClaims)
-	addElement(panel, '<div id="nation-claims-title">Nation Claims Customizer</div>')
+	addElement(panel, '<div id="nation-claims-titlebar"><button>X</button><p>Nation Claims Customizer</p></div>')
 	
 	const entriesContainer = addElement(panel, '<div id="nation-claims-entry-container"></div>')
 	for (let i = 1; i <= MAX_CLAIM_COLOUR_INPUTS; i++) {
@@ -400,9 +404,7 @@ function addNationClaimsPanel(parent) {
 	)
 
 	/** @type {HTMLElement} */
-	const div = appendHTML(panel, '<div></div>')
-	div.style.setProperty('display', 'flex')
-	div.style.setProperty('justify-content', 'center')
+	const div = appendHTML(panel, '<div id="nation-claims-btn-container"></div>')
 
 	/** @type {HTMLElement} */
 	const applyBtn = appendHTML(div, '<button class="sidebar-button" id="nation-claims-apply">Apply</button>')
