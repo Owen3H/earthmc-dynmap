@@ -1,0 +1,36 @@
+#!/bin/sh
+# This file was made by a clanker.
+
+# pre-push hook — runs all scripts in "pre-push" array from package.json
+
+# --- Step 1: Ensure Bash is available on Windows ---
+if ! command -v bash >/dev/null 2>&1; then
+    # Temporarily add Git Bash to PATH
+    export PATH="$PATH:/c/Program Files/Git/usr/bin"
+fi
+
+# --- Step 2: Go to repo root ---
+REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)"
+[ -z "$REPO_ROOT" ] && { echo "Cannot detect repository root"; exit 1; }
+cd "$REPO_ROOT" || exit 1
+
+# --- Step 3: Find Bun ---
+BUN="$(command -v bun 2>/dev/null || where bun 2>/dev/null)"
+[ -z "$BUN" ] && { echo "Bun not found. Add it to PATH."; exit 1; }
+
+# --- Step 4: Read pre-push scripts from package.json ---
+PRE_PUSH_SCRIPTS=$("$BUN" run -c "import pkg from './package.json'; console.log((pkg['pre-push']||[]).join(' '))")
+[ -z "$PRE_PUSH_SCRIPTS" ] && { echo "No pre-push scripts found. Skipping."; exit 0; }
+
+# --- Step 5: Run each script in order ---
+for script in $PRE_PUSH_SCRIPTS; do
+    echo "Running pre-push script: $script"
+    "$BUN" run "$script"
+    if [ $? -ne 0 ]; then
+        echo "Script $script failed. Aborting push."
+        exit 1
+    fi
+done
+
+echo "All pre-push scripts succeeded. Proceeding with push."
+exit 0

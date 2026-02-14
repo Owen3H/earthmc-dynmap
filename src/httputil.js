@@ -105,7 +105,7 @@ const postJSON = (url, body) => fetchJSON(url, { body: JSON.stringify(body), met
  * Fetches an info object from the Official API base endpoint.
  * @returns {Promise<ServerInfo>}
  */
-const fetchServerInfo = async () => fetchJSON(`${OAPI_BASE}/${CURRENT_MAP}`)
+const fetchServerInfo = () => fetchJSON(`${OAPI_BASE}/${CURRENT_MAP}`)
 
 /**
  * Sends multiple requests and concatenates the results to circumvent 

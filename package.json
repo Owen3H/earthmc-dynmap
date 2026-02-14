@@ -3,15 +3,17 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "userscript": "bunx build-userscript.ts",
-    "extension": "bunx build-extension.ts",
-    "build": "bun run userscript && bun run extension"
+    "prepare": "git config core.hooksPath .git-hooks",
+    "gen-userscript": "bunx build-userscript.ts",
+    "gen-extension": "bunx build-extension.ts",
+    "build": "bun run gen-userscript && bun run gen-extension"
   },
+  "pre-push": ["build"],
   "devDependencies": {
-    "typescript": "latest",
-    "@types/node": "latest",
     "@types/archiver": "latest",
+    "@types/node": "latest",
     "archiver": "^7.0.1",
-    "esbuild": "^0.27.2"
+    "esbuild": "^0.27.2",
+    "typescript": "latest"
   }
 }
