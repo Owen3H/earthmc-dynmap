@@ -36,4 +36,4 @@ archive.directory('resources', EXT_NAME+'/resources')
 archive.file('manifest.json', { name: EXT_NAME+'/manifest.json' })
 archive.file('README.md', { name: EXT_NAME+'/README.md' })
 
-archive.finalize().then(() => console.log(`Successfully compiled extension. Output at: ${outfile}`))
+archive.finalize().then(() => console.log(`Successfully generated extension. Output at: ${outfile}`))

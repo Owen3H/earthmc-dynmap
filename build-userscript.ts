@@ -45,5 +45,5 @@ build(buildOpts).then(res => {
     const contentCode = res.outputFiles.map(f => f.text).join('\n')
 
     writeFileSync(outfile, `${HEADER}\n${contentCode}`)
-    console.log(`Successfully compiled userscript. Output at: ${outfile}`)
+    console.log(`Successfully generated userscript. Output at: ${outfile}`)
 })

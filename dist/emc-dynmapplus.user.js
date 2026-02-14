@@ -145,15 +145,13 @@ var oapiBucket = new TokenBucket({
   storageKey: "emcdynmapplus-oapi-bucket"
 });
 async function fetchJSON(url, options = null) {
+  if (url.includes(OAPI_BASE)) await oapiBucket.take();
   const response = await fetch(url, options);
   if (!response.ok && response.status != 304) return null;
   return response.json();
 }
 var postJSON = (url, body) => fetchJSON(url, { body: JSON.stringify(body), method: "POST" });
-var fetchServerInfo = async () => {
-  await oapiBucket.take();
-  return fetchJSON(`${OAPI_BASE}/${CURRENT_MAP}`);
-};
+var fetchServerInfo = async () => fetchJSON(`${OAPI_BASE}/${CURRENT_MAP}`);
 async function queryConcurrent(url, arr) {
   const chunks = chunkArr(arr, OAPI_ITEMS_PER_REQ);
   const promises = chunks.map(async (chunk) => {
