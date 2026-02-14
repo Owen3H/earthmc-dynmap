@@ -8,7 +8,7 @@
 }
 
 #nation-claims {
-	min-width: 45vw;
+	min-width: min-content;
     width: 45vw;
 	max-width: max-content;
 	padding: 10px 20px 10px 20px;
@@ -53,11 +53,12 @@
     display: grid;
     grid-template-columns: repeat(3, 1fr);
 	min-height: 40vh;
-    max-height: calc(80vh - 10px);
+    max-height: calc(100vh - 200px);
     overflow-y: auto;
 	margin-bottom: 5px;
 	margin-top: 10px;
-	gap: 10px;
+	row-gap: 10px;
+	column-gap: 20px;
 }
 
 /* Container of the buttons at the bottom of the nation claims panel */
