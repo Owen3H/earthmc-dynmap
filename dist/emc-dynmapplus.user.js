@@ -209,6 +209,11 @@ var htmlCode = (
     archiveInput: `<input class="sidebar-input" id="archive-input" type="date" min="${ARCHIVE_DATE.MIN}" max="${ARCHIVE_DATE.MAX}">`,
     currentMapModeLabel: '<div class="sidebar-option" id="current-map-mode-label">Map Mode: {currentMapMode}</div>',
     alertBox: '<div id="alert"><p id="alert-message">{message}</p><button id="alert-close">Dismiss</button></div>',
+    /** Inserted into document <head> */
+    customFonts: `<link rel="preconnect" href="https://fonts.googleapis.com">
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+		<link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap" rel="stylesheet">
+	`,
     darkMode: `<style id="dark-mode">
 		.leaflet-control, .sidebar-input, #alert,
 		.sidebar-button, .leaflet-bar > a, .leaflet-tooltip-top,
@@ -633,6 +638,9 @@ function toggleShowCapitalStars(boxTicked) {
 function toggleDarkMode(boxTicked) {
   localStorage["emcdynmapplus-darkmode"] = boxTicked;
   return boxTicked ? loadDarkMode() : unloadDarkMode();
+}
+function loadCustomFonts() {
+  document.head.insertAdjacentHTML("beforeend", htmlCode.customFonts);
 }
 function loadDarkMode() {
   document.documentElement.style.colorScheme = "dark";
@@ -1239,7 +1247,7 @@ async function init(manifest) {
 }\r
 \r
 #nation-claims {\r
-	min-width: 45vw;\r
+	min-width: min-content;\r
     width: 45vw;\r
 	max-width: max-content;\r
 	padding: 10px 20px 10px 20px;\r
@@ -1257,10 +1265,10 @@ async function init(manifest) {
     align-items: center;\r
 	justify-content: space-between;\r
 	gap: 20px;\r
-	font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;\r
-	font-size: x-large;\r
-    font-weight: 700;\r
 	line-height: 5px;\r
+	font-family: "Inter", 'Open Sans', sans-serif;\r
+	font-size: large;\r
+    font-weight: 700;\r
 }\r
 \r
 /* Button to close nation claims panel */\r
@@ -1284,11 +1292,12 @@ async function init(manifest) {
     display: grid;\r
     grid-template-columns: repeat(3, 1fr);\r
 	min-height: 40vh;\r
-    max-height: calc(80vh - 10px);\r
+    max-height: calc(100vh - 200px);\r
     overflow-y: auto;\r
 	margin-bottom: 5px;\r
 	margin-top: 10px;\r
-	gap: 10px;\r
+	row-gap: 10px;\r
+	column-gap: 20px;\r
 }\r
 \r
 /* Container of the buttons at the bottom of the nation claims panel */\r
@@ -1326,7 +1335,7 @@ async function init(manifest) {
 	display: inline-block;\r
 	align-items: center;\r
 	margin: 5px;\r
-	font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;\r
+	font-family: "Inter", 'Open Sans', sans-serif;\r
 	font-size: 12.5px;\r
 }\r
 \r
@@ -1338,7 +1347,7 @@ input[type="color"] {\r
 	position: relative;\r
     padding: 0;\r
 	/* Make a pill shape */\r
-	height: 18px;\r
+	height: 19px;\r
     width: 34px;\r
 	border: 2px solid white;\r
 	border-radius: 8px;\r
@@ -1360,7 +1369,7 @@ input[type="color"]::-webkit-color-swatch {\r
 	max-width: var(--max-menu-width);\r
 	padding: 10px;\r
 	text-align: right;\r
-	font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;\r
+	font-family: "Inter", 'Open Sans', sans-serif;\r
 }\r
 \r
 #server-info-title {\r
@@ -1381,7 +1390,7 @@ input[type="color"]::-webkit-color-swatch {\r
 #player-lookup-loading {\r
 	font-size: larger;\r
 	font-weight: 500;\r
-	font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;\r
+	font-family: "Inter", 'Open Sans', sans-serif;\r
 	padding: 5px;\r
 	/* ensure it stays on the left below the menu */\r
 	clear: both !important;\r
@@ -1392,7 +1401,7 @@ input[type="color"]::-webkit-color-swatch {\r
 #player-lookup {\r
 	width: var(--player-lookup-width);\r
 	font-size: larger;\r
-	font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;\r
+	font-family: "Inter", 'Open Sans', sans-serif;\r
 	padding: 8px;\r
 	box-sizing: border-box;\r
 	/* ensure it stays on the left below the menu */\r
@@ -1470,7 +1479,7 @@ input[type="color"]::-webkit-color-swatch {\r
 	font-kerning: none;\r
     font-weight: 500;\r
     font-size: 12px;\r
-    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;\r
+    font-family: "Inter", 'Open Sans', sans-serif;\r
     border: 1px solid;\r
     border-radius: 3px;\r
 }\r
@@ -1508,7 +1517,7 @@ input[type="color"]::-webkit-color-swatch {\r
 }\r
 \r
 #options-menu {\r
-	font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;\r
+	font-family: "Inter", 'Open Sans', sans-serif;\r
 	width: inherit;\r
     margin-top: 5px;\r
 	gap: 1px;\r
@@ -1520,7 +1529,7 @@ input[type="color"]::-webkit-color-swatch {\r
 	margin: 5px 5px 5px 5px;\r
 	font-size: 16px;\r
 	font-weight: bold;\r
-	font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;\r
+	font-family: "Inter", 'Open Sans', sans-serif;\r
 	text-align: center;\r
 }\r
 \r
@@ -1555,7 +1564,7 @@ input[type="color"]::-webkit-color-swatch {\r
 #alert {\r
 	position: absolute;\r
 	width: 300px;\r
-	font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;\r
+	font-family: "Inter", 'Open Sans', sans-serif;\r
 	top: 50%;\r
 	left: 50%;\r
 	transform: translate(-50%, -50%);\r
@@ -1575,7 +1584,7 @@ input[type="color"]::-webkit-color-swatch {\r
 \r
 #alert-close {\r
 	font-size: 14px;\r
-	font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;\r
+	font-family: "Inter", 'Open Sans', sans-serif;\r
     background: #e12a2a52;\r
 	border-radius: 2px;\r
     border: 1px solid;\r
@@ -1617,7 +1626,7 @@ input[type="color"]::-webkit-color-swatch {\r
 \r
 /* Make coords easier to read and nicer to look at */\r
 .leaflet-control-layers.coordinates {\r
-	font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;\r
+	font-family: "Inter", 'Open Sans', sans-serif;\r
 	font-weight: 500 !important;\r
 }\r
 \r
@@ -1648,6 +1657,7 @@ div.leaflet-control-layers.screenshot img {\r
   localStorage["emcdynmapplus-nation-claims-opaque-colors"] ?? (localStorage["emcdynmapplus-nation-claims-opaque-colors"] = "true");
   localStorage["emcdynmapplus-nation-claims-show-excluded"] ?? (localStorage["emcdynmapplus-nation-claims-show-excluded"] = "true");
   console.log("emcdynmapplus: Initializing UI elements..");
+  loadCustomFonts();
   await insertSidebarMenu();
   updateServerInfo(await insertServerInfoPanel());
   await editUILayout();

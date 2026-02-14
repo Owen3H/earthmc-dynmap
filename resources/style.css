@@ -26,10 +26,10 @@
     align-items: center;
 	justify-content: space-between;
 	gap: 20px;
-	font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-	font-size: x-large;
-    font-weight: 700;
 	line-height: 5px;
+	font-family: "Inter", 'Open Sans', sans-serif;
+	font-size: large;
+    font-weight: 700;
 }
 
 /* Button to close nation claims panel */
@@ -96,7 +96,7 @@
 	display: inline-block;
 	align-items: center;
 	margin: 5px;
-	font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+	font-family: "Inter", 'Open Sans', sans-serif;
 	font-size: 12.5px;
 }
 
@@ -108,7 +108,7 @@ input[type="color"] {
 	position: relative;
     padding: 0;
 	/* Make a pill shape */
-	height: 18px;
+	height: 19px;
     width: 34px;
 	border: 2px solid white;
 	border-radius: 8px;
@@ -130,7 +130,7 @@ input[type="color"]::-webkit-color-swatch {
 	max-width: var(--max-menu-width);
 	padding: 10px;
 	text-align: right;
-	font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+	font-family: "Inter", 'Open Sans', sans-serif;
 }
 
 #server-info-title {
@@ -151,7 +151,7 @@ input[type="color"]::-webkit-color-swatch {
 #player-lookup-loading {
 	font-size: larger;
 	font-weight: 500;
-	font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+	font-family: "Inter", 'Open Sans', sans-serif;
 	padding: 5px;
 	/* ensure it stays on the left below the menu */
 	clear: both !important;
@@ -162,7 +162,7 @@ input[type="color"]::-webkit-color-swatch {
 #player-lookup {
 	width: var(--player-lookup-width);
 	font-size: larger;
-	font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+	font-family: "Inter", 'Open Sans', sans-serif;
 	padding: 8px;
 	box-sizing: border-box;
 	/* ensure it stays on the left below the menu */
@@ -240,7 +240,7 @@ input[type="color"]::-webkit-color-swatch {
 	font-kerning: none;
     font-weight: 500;
     font-size: 12px;
-    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+    font-family: "Inter", 'Open Sans', sans-serif;
     border: 1px solid;
     border-radius: 3px;
 }
@@ -278,7 +278,7 @@ input[type="color"]::-webkit-color-swatch {
 }
 
 #options-menu {
-	font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+	font-family: "Inter", 'Open Sans', sans-serif;
 	width: inherit;
     margin-top: 5px;
 	gap: 1px;
@@ -290,7 +290,7 @@ input[type="color"]::-webkit-color-swatch {
 	margin: 5px 5px 5px 5px;
 	font-size: 16px;
 	font-weight: bold;
-	font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+	font-family: "Inter", 'Open Sans', sans-serif;
 	text-align: center;
 }
 
@@ -325,7 +325,7 @@ input[type="color"]::-webkit-color-swatch {
 #alert {
 	position: absolute;
 	width: 300px;
-	font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+	font-family: "Inter", 'Open Sans', sans-serif;
 	top: 50%;
 	left: 50%;
 	transform: translate(-50%, -50%);
@@ -345,7 +345,7 @@ input[type="color"]::-webkit-color-swatch {
 
 #alert-close {
 	font-size: 14px;
-	font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+	font-family: "Inter", 'Open Sans', sans-serif;
     background: #e12a2a52;
 	border-radius: 2px;
     border: 1px solid;
@@ -387,7 +387,7 @@ input[type="color"]::-webkit-color-swatch {
 
 /* Make coords easier to read and nicer to look at */
 .leaflet-control-layers.coordinates {
-	font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+	font-family: "Inter", 'Open Sans', sans-serif;
 	font-weight: 500 !important;
 }
 
