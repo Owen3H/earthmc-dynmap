@@ -15,12 +15,17 @@ window.fetch = async (...args) => {
         markersIntercepted = true
     }
 
+    const start = performance.now()
+
 	const data = await response.clone().json().catch(e => { console.error(e); return null })
 	if (!data) return response // prevent modifying response if we had bad data to begin with
 
     if (isSettings) {
-        console.log(`intercepted: ${response.url}\n\tmodifying body to include player heads`)
-        return new Response(JSON.stringify(modifySettings(data)))
+        const modified = JSON.stringify(modifySettings(data))
+        const elapsed = (performance.now() - start)
+        
+        console.log(`intercepted: ${response.url}\n\tmodified body to include player heads. took ${elapsed.toFixed(2)}ms`)
+        return new Response(modified)
     }
 
     const eventDetail = { url: response.url, data, wasModified: false }
@@ -39,7 +44,9 @@ window.fetch = async (...args) => {
     // An error likely occurred during modification
     if (!eventDetail.wasModified) return null
 	
-	console.log(`intercepted: ${response.url}\n\tinjected custom html into response body`)
+    const elapsed = (performance.now() - start)
+	console.log(`intercepted: ${response.url}\n\tinjected custom html into response body. took ${elapsed.toFixed(2)}ms`)
+    
     return new Response(JSON.stringify(eventDetail.data), {
         status: response.status,
         statusText: response.statusText,
