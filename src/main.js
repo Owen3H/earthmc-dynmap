@@ -15,7 +15,7 @@ waitForElement('.leaflet-nameplate-pane').then(element => {
 /** @type {Array<CachedAlliance>} */
 let cachedAlliances = null
 
-/** @type {Map<string, string>} */
+/** @type {Map<string, any>} */
 let cachedApiNations = null
 
 /** @typedef {typeof MAP_MODES[number]} MapMode */
@@ -434,32 +434,36 @@ const DEFAULT_BLUE = '#3fb4ff'
 const DEFAULT_GREEN = '#89c500'
 
 /**
- * @param {Marker} marker
- * @param {ParsedMarker} townInfo
+ * @param {Marker} rawMarker
+ * @param {ParsedMarker} parsedMarker
  * @param {MapMode} mapMode - The currently selected map mode.
  */
-function colorTown(marker, townInfo, mapMode) {
-	const mayor = marker.popup.match(/Mayor: <b>(.*)<\/b>/)?.[1]
+function colorTown(rawMarker, parsedMarker, mapMode) {
+	const mayor = rawMarker.popup.match(/Mayor: <b>(.*)<\/b>/)?.[1]
 	const isRuin = !!mayor?.match(/NPC[0-9]+/)
-	if (isRuin) return colorMarker(marker, '#000000', '#000000')
+	if (isRuin) return colorMarker(rawMarker, '#000000', '#000000')
 
-	const { nationName } = townInfo
+	const { nationName } = parsedMarker
 
 	if (mapMode == 'meganations') {
-		const isDefaultCol = marker.color == DEFAULT_BLUE && marker.fillColor == DEFAULT_BLUE
-		marker.color = isDefaultCol ? '#363636' : DEFAULT_GREEN
-		marker.fillColor = isDefaultCol ? hashCode(nationName) : marker.fillColor
+		const isDefaultCol = rawMarker.color == DEFAULT_BLUE && rawMarker.fillColor == DEFAULT_BLUE
+		rawMarker.color = isDefaultCol ? '#363636' : DEFAULT_GREEN
+		rawMarker.fillColor = isDefaultCol ? hashCode(nationName) : rawMarker.fillColor
 	}
 	else if (mapMode == 'overclaim') {
 		const nation = nationName ? cachedApiNations.get(nationName.toLowerCase()) : null
-		const overclaimInfo = !!nation
-			? checkOverclaimed(townInfo.area, townInfo.residentNum, nation.stats.numResidents)
-			: checkOverclaimedNationless(townInfo.area, townInfo.residentNum)
+		const overclaimInfo = !nation
+			? checkOverclaimedNationless(parsedMarker.area, parsedMarker.residentNum)
+			: checkOverclaimed(parsedMarker.area, parsedMarker.residentNum, nation.stats.numResidents)
+
+		if (parsedMarker.townName == "Mainz") {
+			console.log(overclaimInfo)
+		}
 
 		const colour = overclaimInfo.isOverclaimed ? '#ff0000' : '#00ff00'
-		colorMarker(marker, colour, colour, overclaimInfo.isOverclaimed ? 2 : 0.5)
+		colorMarker(rawMarker, colour, colour, overclaimInfo.isOverclaimed ? 2 : 0.5)
 	}
-	else colorMarker(marker, '#000000', '#000000', 1) // 'alliances' mode
+	else colorMarker(rawMarker, '#000000', '#000000', 1) // 'alliances' mode
 
 	// Properties for alliances and meganations
 	const nationAlliances = getNationAlliances(nationName, mapMode)
@@ -467,7 +471,7 @@ function colorTown(marker, townInfo, mapMode) {
 	
 	const { colours } = nationAlliances[0] // First alliance in related alliances
 	const newWeight = nationAlliances.length > 1 ? 1.5 : 0.75 // Use bolder weight if many related alliances
-	return colorMarker(marker, colours.fill, colours.outline, newWeight)
+	return colorMarker(rawMarker, colours.fill, colours.outline, newWeight)
 }
 
 /**
@@ -708,8 +712,9 @@ function checkOverclaimedNationless(claimedChunks, numResidents) {
 
 /**
  * Calculate the claim limit for a town with a nation and report overclaimed status.
- * @param {number} claimedChunks 
- * @param {number} numNationResidents 
+ * @param {number} claimedChunks
+ * @param {number} numResidents
+ * @param {number} numNationResidents
  */
 function checkOverclaimed(claimedChunks, numResidents, numNationResidents) {
     const resLimit = numResidents * CHUNKS_PER_RES
@@ -719,7 +724,7 @@ function checkOverclaimed(claimedChunks, numResidents, numNationResidents) {
     const isOverclaimed = claimedChunks > totalClaimLimit
 	
 	return { 
-		isOverclaimed, 
+		isOverclaimed,
 		chunksOverclaimed: isOverclaimed ? claimedChunks - totalClaimLimit : 0,
 		nationBonus: bonus,
 		resLimit, totalClaimLimit
