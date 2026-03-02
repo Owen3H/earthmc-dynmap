@@ -379,16 +379,22 @@ function addNationClaimsPanel(parent) {
 	panel.addEventListener('wheel', e => e.stopPropagation()) // stop squaremap overtaking scroll, we need to scroll the inputs
 
 	/** @type {HTMLElement} */
-	const hideBtn = addElement(panel, htmlCode.nationClaimsTitlebar, '#nation-claims-titlebar a')
-	hideBtn.addEventListener('click', e => {
+	const toggleShowBtn = addElement(panel, htmlCode.nationClaimsTitlebar, '#nation-claims-titlebar a')
+	toggleShowBtn.addEventListener('click', e => {
 		e.preventDefault()
+
+		const contentContainer = panel.querySelector('#nation-claims-content')
 		contentContainer.style.display = contentContainer.style.display === 'none' ? '' : 'none'
 	})
-	
+
 	// Container for everything except the titlebar. This container is hidden by clicking the eye icon.
+	/** @type {HTMLElement} */
 	const contentContainer = addElement(panel, '<div id="nation-claims-content"></div>')
-	
+	contentContainer.style.display = 'none'
+
+	/** @type {HTMLElement} */
 	const entriesContainer = addElement(contentContainer, '<div id="nation-claims-entry-container"></div>')
+	
 	for (let i = 1; i <= MAX_CLAIM_COLOUR_INPUTS; i++) {
 		const colInput = htmlCode.nationClaimsColorInput.replace('{index}', i) 
 		const txtInput = htmlCode.nationClaimsTextInput.replace('{index}', i)
@@ -426,15 +432,13 @@ function addNationClaimsPanel(parent) {
 	/** @type {HTMLElement} */
 	const applyBtn = appendHTML(div, '<button class="sidebar-button" id="nation-claims-apply">Apply</button>')
 	applyBtn.addEventListener('click', () => {
-		const entries = []
-		for (let i = 1; i <= MAX_CLAIM_COLOUR_INPUTS; i++) {
-			const colorInput = entriesContainer.querySelector(`#nation-color-entry${i}`)
-			const textInput = entriesContainer.querySelector(`#nation-text-entry${i}`)
-			entries.push({
-				color: colorInput?.value || null,
-				input: textInput?.value || null
-			})
-		}
+		const colorInputs = entriesContainer.querySelectorAll('[id^="nation-color-entry"]')
+		const textInputs  = entriesContainer.querySelectorAll('[id^="nation-text-entry"]')
+
+		const entries = Array.from({ length: MAX_CLAIM_COLOUR_INPUTS }, (_, i) => ({
+			color: colorInputs[i]?.value ?? null,
+			input: textInputs[i]?.value ?? null,
+		}))
 
 		localStorage['emcdynmapplus-nation-claims-info'] = JSON.stringify(entries)
 		location.reload()
