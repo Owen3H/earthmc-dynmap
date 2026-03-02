@@ -49,6 +49,10 @@
 	background-color: transparent;
 }
 
+#nation-claims-titlebar img.active {
+    background-image: var(--hide-icon);
+}
+
 /* Container that holds the input/colour entries */
 #nation-claims-entry-container {
     display: grid;
@@ -411,8 +415,11 @@ div.leaflet-control-layers.screenshot img {
 	align-self: end;
 }
 
-/* .hidden {
-	visibility: hidden;
-	overflow: hidden;
-	height: 0;
-} */
+.crisp-edges {
+	image-rendering: optimizeSpeed;             /* Legal fallback	*/
+	image-rendering: -moz-crisp-edges;          /* Firefox        	*/
+	image-rendering: -o-crisp-edges;            /* Opera			*/
+	image-rendering: -webkit-optimize-contrast; /* Chrome + Safari	*/
+	image-rendering: optimize-contrast;         /* CSS3 Proposed	*/
+	image-rendering: crisp-edges;               /* CSS4 Proposed  	*/
+}

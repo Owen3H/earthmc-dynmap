@@ -26,7 +26,7 @@ const htmlCode = /** @type {const} */ ({
 	nationClaimsTitlebar:
 		'<div id="nation-claims-titlebar">' +
 		'<p>Nation Claims Customizer</p>' +
-		'<div class="leaflet-control-layers link leaflet-control"><a href=""><img src="images/clear.png"></a></div>' +
+		'<div class="leaflet-control-layers link leaflet-control"><a href=""><img class="crisp-edges" src="images/clear.png"></a></div>' +
 		'</div>',
 	serverInfo: '<div class="leaflet-control-layers leaflet-control" id="server-info"></div>',
     sidebar: '<div class="leaflet-control-layers leaflet-control" id="sidebar"></div>',
@@ -381,15 +381,13 @@ function addNationClaimsPanel(parent) {
 	/** @type {HTMLElement} */
 	const titlebar = addElement(panel, htmlCode.nationClaimsTitlebar, '#nation-claims-titlebar')
 	const toggleShowBtn = titlebar.querySelector('a')
-	const showIcon = toggleShowBtn.querySelector('img')
+	const btnImg = toggleShowBtn.querySelector('img')
 	toggleShowBtn.addEventListener('click', e => {
 		e.preventDefault()
 
 		const contentContainer = panel.querySelector('#nation-claims-content')
-
-		const hidden = contentContainer.style.display === 'none'
-		contentContainer.style.setProperty('display', hidden ? '' : 'none')
-		showIcon.style.setProperty("background-image", hidden ? "var(--show-icon)" : "var(--hide-icon)")
+		contentContainer.style.display = contentContainer.style.display == 'none' ? '' : 'none'
+		btnImg.classList.toggle('active') // toggles the appropriate show or hide icon
 	})
 
 	// Container for everything except the titlebar. This container is hidden by clicking the eye icon.
