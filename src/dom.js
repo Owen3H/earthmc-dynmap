@@ -379,12 +379,17 @@ function addNationClaimsPanel(parent) {
 	panel.addEventListener('wheel', e => e.stopPropagation()) // stop squaremap overtaking scroll, we need to scroll the inputs
 
 	/** @type {HTMLElement} */
-	const toggleShowBtn = addElement(panel, htmlCode.nationClaimsTitlebar, '#nation-claims-titlebar a')
+	const titlebar = addElement(panel, htmlCode.nationClaimsTitlebar, '#nation-claims-titlebar')
+	const toggleShowBtn = titlebar.querySelector('a')
+	const showIcon = toggleShowBtn.querySelector('img')
 	toggleShowBtn.addEventListener('click', e => {
 		e.preventDefault()
 
 		const contentContainer = panel.querySelector('#nation-claims-content')
-		contentContainer.style.display = contentContainer.style.display === 'none' ? '' : 'none'
+
+		const hidden = contentContainer.style.display === 'none'
+		contentContainer.style.setProperty('display', hidden ? '' : 'none')
+		showIcon.style.setProperty("background-image", hidden ? "var(--show-icon)" : "var(--hide-icon)")
 	})
 
 	// Container for everything except the titlebar. This container is hidden by clicking the eye icon.
