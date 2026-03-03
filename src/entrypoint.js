@@ -16,6 +16,8 @@ function isUserscript() {
 		}
 	}
 
+	injectExternalStylesheets() // jquery, google fonts etc
+
 	document.addEventListener('EMCDYNMAPPLUS_INTERCEPT', async e => {
 		const { url, data } = e.detail
 		try {
@@ -42,7 +44,6 @@ function isUserscript() {
  * Injects a file into the page context given the path to it. 
  * This is similar to adding \<script src="main.js"></script> to an HTML file.
  * @param {string} resource - The path/filename to/of the file to inject.
- * @param {string} local - Whether the file should be injected locally (text) or external (src).
  * @returns {Promise<void>}
  */
 function injectScript(resource) {
@@ -72,8 +73,6 @@ async function init(manifest) {
 
 	console.log("emcdynmapplus: Initializing UI elements..")
 
-	loadCustomFonts()
-    
 	await insertSidebarMenu()
 	updateServerInfo(await insertServerInfoPanel())
     await editUILayout()
@@ -81,8 +80,16 @@ async function init(manifest) {
 	
 	// inserts the claim color customizer if 'nationclaims' mode is active
 	const panel = await tryInsertNationClaimsPanel()
-	if (panel) loadNationClaims(panel)
-		
+	if (panel) {
+		loadNationClaims(panel)
+		$('#nation-claims').draggable({ handle: '#nation-claims-titlebar' })
+		$('#nation-claims').resizable({ 
+			minWidth: 440, 
+			minHeight: 200,
+			alsoResize: '#nation-claims-content'
+		})
+	}
+
 	initToggleOptions()
 	checkForUpdate(manifest)
 }

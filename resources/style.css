@@ -95,6 +95,7 @@
     align-items: center;
     gap: 5px;
     width: 100%; /* ensure it doesn’t overflow horizontally */
+	box-sizing: border-box;
 }
 
 .nation-claims-checkbox-option {

@@ -20,6 +20,8 @@
 		"matches": ["https://map.earthmc.net/*"],
 		"css": ["resources/style.css"],
 		"js": [
+			"resources/jquery-3.7.0.min.js",
+      		"resources/jquery-ui.min.js",
 			"src/httputil.js",
 			"src/dom.js",
 			"src/main.js",

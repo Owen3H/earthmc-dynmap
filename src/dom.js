@@ -37,9 +37,10 @@ const htmlCode = /** @type {const} */ ({
     currentMapModeLabel: '<div class="sidebar-option" id="current-map-mode-label">Map Mode: {currentMapMode}</div>',
     alertBox: '<div id="alert"><p id="alert-message">{message}</p><button id="alert-close">Dismiss</button></div>',
 	/** Inserted into document <head> */
+	jqueryUI: `<link rel="stylesheet" href="https://code.jquery.com/ui/1.13.3/themes/base/jquery-ui.css">`,
 	customFonts: `<link rel="preconnect" href="https://fonts.googleapis.com">
 		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-		<link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap" rel="stylesheet">
+		<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap">
 	`,
 	darkMode: `<style id="dark-mode">
 		.leaflet-control, .sidebar-input, #alert,
@@ -667,10 +668,6 @@ function toggleDarkMode(boxTicked) {
 	return boxTicked ? loadDarkMode() : unloadDarkMode()
 }
 
-function loadCustomFonts() {
-	document.head.insertAdjacentHTML('beforeend', htmlCode.customFonts)
-}
-
 function loadDarkMode() {
 	// tell browser not to apply its auto dark mode.
 	// this fixes some inverted elements when both are enabled.
@@ -686,6 +683,11 @@ function unloadDarkMode() {
 	waitForElement('.leaflet-map-pane').then(el => el.style.filter = '')
 }
 //#endregion
+
+function injectExternalStylesheets() {
+	document.head.insertAdjacentHTML('beforeend', htmlCode.jqueryUI)
+	document.head.insertAdjacentHTML('beforeend', htmlCode.customFonts)
+}
 
 //#region Scroll normalization
 let scrollListener = null
