@@ -1,22 +1,29 @@
 {
 	"manifest_version": 3,
-	"name": "EarthMC Dynmap+",
-	"version": "1.16",
+	"name": "EarthMC Dynmap+ (Owen3H Fork)",
+	"version": "2.0",
 	"author": "3meraldK",
 	"description": "Extension to enrich the EarthMC map experience",
-
 	"icons": {
-		"48": "icon.png"
+		"48": "resources/icon48.png",
+		"128": "resources/icon128.png"
 	},
-
-    "web_accessible_resources": [{
-        "resources": ["main.js"],
-        "matches": ["https://map.earthmc.net/*"]
-    }],
-
+	"web_accessible_resources": [{
+		"run_at": "document_start",
+		"matches": ["https://map.earthmc.net/*"],
+		"resources": [
+			"resources/borders.json",
+			"resources/interceptor.js"
+		]
+	}],
 	"content_scripts": [{
 		"matches": ["https://map.earthmc.net/*"],
-		"js": ["content.js"],
-		"css": ["style.css"]
+		"css": ["resources/style.css"],
+		"js": [
+			"src/httputil.js",
+			"src/dom.js",
+			"src/main.js",
+			"src/entrypoint.js"
+		]
 	}]
 }

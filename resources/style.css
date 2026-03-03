@@ -1,0 +1,425 @@
+:root {
+	--max-menu-width: 210px;
+  	--player-lookup-width: 170px;
+	--map-mode-btn-width: 130px;
+	/** TODO: Make these more robust. Probably not my best idea */
+	--screenshot-bg-image: url("https://raw.githubusercontent.com/Owen3H/earthmc-dynmap/refs/heads/main/resources/icon-screenshot.png");
+	--show-icon: url("https://raw.githubusercontent.com/Owen3H/earthmc-dynmap/refs/heads/main/resources/icon-show.png");
+	--hide-icon: url("https://raw.githubusercontent.com/Owen3H/earthmc-dynmap/refs/heads/main/resources/icon-hide.png");
+}
+
+#nation-claims {
+	min-width: min-content;
+    width: 45vw;
+	max-width: max-content;
+	padding: 10px 20px 10px 20px;
+	/* Position in the center of the screen, 10px from the top */
+    position: fixed;
+	text-align: center;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+#nation-claims-titlebar {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+	justify-content: center;
+	gap: 10px;
+	line-height: 5px;
+	font-family: "Inter", 'Open Sans', sans-serif;
+	font-size: large;
+    font-weight: 700;
+}
+
+/* Button to show/hide the nation claims panel */
+#nation-claims-titlebar > a {
+	font-size: small;
+    /* background: rgb(174, 14, 14); */
+	padding: 4px 8px 4px 8px;
+	border-radius: 3px;
+}
+
+#nation-claims-titlebar img {
+	width: 30px;
+	background-image: var(--show-icon);
+	background-repeat: no-repeat;
+    background-position: 50% 50%;
+	background-color: transparent;
+}
+
+#nation-claims-titlebar img.active {
+    background-image: var(--hide-icon);
+}
+
+/* Container that holds the input/colour entries */
+#nation-claims-entry-container {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+	min-height: 40vh;
+    max-height: calc(100vh - 200px);
+    overflow-y: auto;
+	margin-bottom: 5px;
+	margin-top: 10px;
+	row-gap: 10px;
+	column-gap: 20px;
+}
+
+/* Container of the buttons at the bottom of the nation claims panel */
+#nation-claims-btn-container {
+	display: flex;
+    justify-content: center;
+	margin-top: 5px;
+}
+
+/* Buttons at the bottom of the nation claims panel */
+#nation-claims-apply, #nation-claims-reset-all {
+	height: 30px;
+	max-width: 200px;
+	margin: 5px;
+}
+
+#nation-claims-apply {
+	background-color: rgb(31, 137, 52) !important;
+	flex-grow: 1;
+}
+
+#nation-claims-reset-all {
+	background-color: rgb(218, 69, 69) !important;
+	flex-grow: 1;
+}
+
+.nation-claims-entry {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    width: 100%; /* ensure it doesn’t overflow horizontally */
+}
+
+.nation-claims-checkbox-option {
+	display: inline-block;
+	align-items: center;
+	margin: 5px;
+	font-family: "Inter", 'Open Sans', sans-serif;
+	font-size: 12.5px;
+}
+
+.nation-claims-checkbox-option > input[type="checkbox"] {
+	min-height: 15px;
+}
+
+input[type="color"] {
+	position: relative;
+    padding: 0;
+	/* Make a pill shape */
+	height: 19px;
+    width: 34px;
+	border: 2px solid white;
+	border-radius: 8px;
+}
+input[type="color"]::-moz-color-swatch {
+  	border: none;
+}
+input[type="color"]::-webkit-color-swatch-wrapper {
+	padding: 0;
+	border-radius: 0;
+}
+input[type="color"]::-webkit-color-swatch {
+  	border: none;
+}
+
+/* Server info */
+#server-info {
+	width: 190px;
+	max-width: var(--max-menu-width);
+	padding: 10px;
+	text-align: right;
+	font-family: "Inter", 'Open Sans', sans-serif;
+}
+
+#server-info-title {
+	font-weight: 700;
+	font-size: large;
+	text-align: center;
+}
+
+/* A single div with a var like Online Players: 98 */
+.server-info-entry {
+	font-weight: 400;
+	font-size: medium;
+	text-align: center;
+}
+
+/* Player popup */
+
+#player-lookup-loading {
+	font-size: larger;
+	font-weight: 500;
+	font-family: "Inter", 'Open Sans', sans-serif;
+	padding: 5px;
+	/* ensure it stays on the left below the menu */
+	clear: both !important;
+	display: block !important;
+	width: auto;
+}
+
+#player-lookup {
+	width: var(--player-lookup-width);
+	font-size: larger;
+	font-family: "Inter", 'Open Sans', sans-serif;
+	padding: 8px;
+	box-sizing: border-box;
+	/* ensure it stays on the left below the menu */
+	clear: both !important;
+	display: block !important;
+	float: left !important;
+}
+
+#player-lookup > .close-container {
+	position: relative;
+	cursor: pointer;
+	font-size: medium;
+	bottom: 6px;
+	left: calc(var(--player-lookup-width) - 35px);
+	padding-top: 1.5px;
+	padding-bottom: 2px;
+	padding-left: 8px;
+	padding-right: 8px;
+	background: rgb(174, 14, 14);
+	border: white 1px solid;
+	border-radius: 0px 3px 0px 0px;
+}
+
+#player-lookup > .close-container:hover {
+	background-color: rgba(127, 127, 125, 0.5);
+}
+
+#player-lookup-online {
+	position: absolute;
+	top: 5px;
+	left: 5px;
+}
+
+#player-lookup-avatar {
+	margin: 5px auto auto auto;
+	display: block;
+	width: 32px;
+	box-shadow: 0 0 10px 1px #131313;
+}
+
+#player-lookup-name {
+	line-height: 30px;
+}
+
+/* Main sidebar */
+#sidebar {
+	width: auto;
+	max-width: 210px;
+	padding: 5px;
+	float: left !important;
+}
+
+.option {
+	display: flex;
+	justify-content: space-between;
+	padding-top: 2px;
+	padding-left: 5px;
+	padding-right: 5px;
+}
+
+.sidebar-option {
+	width: inherit;
+	height: fit-content;
+	display: flex;
+	align-items: stretch;
+	margin-bottom: 10px;
+}
+
+.sidebar-input {
+	width: 100%;
+}
+
+.sidebar-button {
+	height: 30px;
+	font-kerning: none;
+    font-weight: 500;
+    font-size: 12px;
+    font-family: "Inter", 'Open Sans', sans-serif;
+    border: 1px solid;
+    border-radius: 3px;
+}
+
+#archive-button {
+	flex-grow: 1;
+}
+
+#archive-input {
+	width: inherit;
+	max-width: 100px;
+	border-radius: 0px 3px 4px 0px;
+    border-right: white 1px solid;
+    border-top: white 1px solid;
+}
+
+#locate-menu {
+	display: grid;
+}
+
+#locate-select {
+	text-align: center;
+}
+
+#locate-button {
+	width: inherit;
+}
+
+#switch-map-mode {
+	width: var(--map-mode-btn-width);
+}
+
+#options-button {
+	width: calc(var(--max-menu-width) - var(--map-mode-btn-width));
+}
+
+#options-menu {
+	font-family: "Inter", 'Open Sans', sans-serif;
+	width: inherit;
+    margin-top: 5px;
+	gap: 1px;
+}
+
+#current-map-mode-label {
+	display: block;
+	box-sizing: border-box;
+	margin: 5px 5px 5px 5px;
+	font-size: 16px;
+	font-weight: bold;
+	font-family: "Inter", 'Open Sans', sans-serif;
+	text-align: center;
+}
+
+/* Town popup */
+
+#scrollable-list {
+	overflow: auto;
+	max-height: 200px;
+}
+
+#clamped-board {
+	max-width: 400px;
+	text-overflow: ellipsis;
+	overflow: hidden;
+	display: inline-block;
+}
+
+.resident-list {
+	white-space: pre-wrap;
+}
+
+#part-of-label {
+	font-size: 85%;
+}
+
+.resident-clickable:hover {
+	background-color: rgba(127, 127, 125, 0.5);
+	cursor: pointer;
+}
+
+/* Alert */
+#alert {
+	position: absolute;
+	width: 300px;
+	font-family: "Inter", 'Open Sans', sans-serif;
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%);
+	z-index: 1000;
+	background-color: white;
+	color: #131313d4;
+	backdrop-filter: blur(5px);
+	font-size: large;
+	box-sizing: border-box;
+	padding: 8px;
+	text-align: center;
+}
+
+#alert-message {
+	margin-block: 0;
+}
+
+#alert-close {
+	font-size: 14px;
+	font-family: "Inter", 'Open Sans', sans-serif;
+    background: #e12a2a52;
+	border-radius: 2px;
+    border: 1px solid;
+	padding: 4px 8px 4px 8px;
+	margin-bottom: 7.5px;
+    margin-top: 15px;
+}
+
+/* Clickable nameplates */
+.leaflet-tooltip {
+	pointer-events: unset !important;
+}
+
+.leaflet-tooltip:hover {
+	background-color: rgba(127, 127, 127, 0.5);
+	cursor: pointer;
+}
+
+.leaflet-control {
+	float: inline-end !important; /** sidebar and player lookup are float: left !important */
+	clear: none !important;
+	backdrop-filter: blur(5px);
+}
+
+.leaflet-control-layers {
+	border: none !important;
+	border-radius: 3px !important;
+	background: #ffffffa6 !important; /** htmlCode.darkMode will override this if enabled */
+}
+
+.leaflet-bottom.leaflet-left {
+	display: flex;
+	flex-direction: row;
+}
+
+.leaflet-popup {
+	backdrop-filter: blur(2px);
+}
+
+/* Make coords easier to read and nicer to look at */
+.leaflet-control-layers.coordinates {
+	font-family: "Inter", 'Open Sans', sans-serif;
+	font-weight: 500 !important;
+}
+
+/* Fix blurry link icon */
+div.leaflet-control-layers.link img {
+	width: 35px !important;
+	height: 35px !important;
+	background-size: 23px, 22.5px !important;
+}
+
+div.leaflet-control-layers.screenshot img {
+	width: 35px !important;
+	height: 35px !important;
+	background-image: var(--screenshot-bg-image) !important;
+}
+
+#coords-container {
+	display: flex;
+	flex-direction: row;
+	align-self: end;
+}
+
+.crisp-edges {
+	image-rendering: optimizeSpeed;             /* Legal fallback	*/
+	image-rendering: -moz-crisp-edges;          /* Firefox        	*/
+	image-rendering: -o-crisp-edges;            /* Opera			*/
+	image-rendering: -webkit-optimize-contrast; /* Chrome + Safari	*/
+	image-rendering: optimize-contrast;         /* CSS3 Proposed	*/
+	image-rendering: crisp-edges;               /* CSS4 Proposed  	*/
+}

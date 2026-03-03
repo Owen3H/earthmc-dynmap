@@ -1,0 +1,17 @@
+{
+  "name": "earthmc-dynmap-plus",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "userscript": "bunx build-userscript.ts",
+    "extension": "bunx build-extension.ts",
+    "build": "bun run userscript && bun run extension"
+  },
+  "devDependencies": {
+    "typescript": "latest",
+    "@types/node": "latest",
+    "@types/archiver": "latest",
+    "archiver": "^7.0.1",
+    "esbuild": "^0.27.2"
+  }
+}
