@@ -408,9 +408,9 @@ function modifyDynmapDescription(marker, curArchiveDate) {
 			.replace('<br>Flags', '</div><br>Flags')
 	}
 
-	// strip all HTML tags and leading star
+	// Strip all HTML tags and leading star so we can get town and nation names.
 	const clean = marker.popup.replace(/<[^>]+>/g, '').trim().replace(/^★\s*/, '')
-	const [, town, nation] = clean.match(/^(.+?)\s*\((.+?)\)/)
+	const [, town, nation] = (clean.match(/^(.+?)\s*\((.+?)\)/) || [])
 
 	return {
 		townName: town?.trim() || null,
