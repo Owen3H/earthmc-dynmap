@@ -23,15 +23,18 @@ unsafeWindow.fetch = async (...args) => {
     if (markersIntercepted) return null;
     markersIntercepted = true;
   }
+  const start = performance.now();
   const data = await response.clone().json().catch((e) => {
     console.error(e);
     return null;
   });
   if (!data) return response;
   if (isSettings) {
+    const modified = JSON.stringify(modifySettings(data));
+    const elapsed2 = performance.now() - start;
     console.log(`intercepted: ${response.url}
-	modifying body to include player heads`);
-    return new Response(JSON.stringify(modifySettings(data)));
+	modified body to include player heads. took ${elapsed2.toFixed(2)}ms`);
+    return new Response(modified);
   }
   const eventDetail = { url: response.url, data, wasModified: false };
   document.dispatchEvent(new CustomEvent("EMCDYNMAPPLUS_INTERCEPT", { detail: eventDetail }));
@@ -44,8 +47,9 @@ unsafeWindow.fetch = async (...args) => {
     }, { once: true });
   });
   if (!eventDetail.wasModified) return null;
+  const elapsed = performance.now() - start;
   console.log(`intercepted: ${response.url}
-	injected custom html into response body`);
+	injected custom html into response body. took ${elapsed.toFixed(2)}ms`);
   return new Response(JSON.stringify(eventDetail.data), {
     status: response.status,
     statusText: response.statusText,
@@ -200,7 +204,7 @@ var htmlCode = (
     nationClaims: '<div class="leaflet-control-layers leaflet-control" id="nation-claims"></div>',
     nationClaimsColorInput: '<input type="color" id="nation-color-entry{index}"></input>',
     nationClaimsTextInput: '<input type="text" id="nation-text-entry{index}" placeholder="Enter nation name..."></input>',
-    nationClaimsTitlebar: '<div id="nation-claims-titlebar"><p>Nation Claims Customizer</p><div class="leaflet-control-layers link leaflet-control"><a href=""><img src="images/clear.png"></a></div></div>',
+    nationClaimsTitlebar: '<div id="nation-claims-titlebar"><p>Nation Claims Customizer</p><div class="leaflet-control-layers link leaflet-control"><a href=""><img class="crisp-edges" src="images/clear.png"></a></div></div>',
     serverInfo: '<div class="leaflet-control-layers leaflet-control" id="server-info"></div>',
     sidebar: '<div class="leaflet-control-layers leaflet-control" id="sidebar"></div>',
     sidebarOption: '<div class="sidebar-option"></div>',
@@ -438,12 +442,17 @@ var MAX_CLAIM_COLOUR_INPUTS = 300;
 function addNationClaimsPanel(parent) {
   const panel = addElement(parent, htmlCode.nationClaims);
   panel.addEventListener("wheel", (e) => e.stopPropagation());
-  const hideBtn = addElement(panel, htmlCode.nationClaimsTitlebar, "#nation-claims-titlebar a");
-  hideBtn.addEventListener("click", (e) => {
+  const titlebar = addElement(panel, htmlCode.nationClaimsTitlebar, "#nation-claims-titlebar");
+  const toggleShowBtn = titlebar.querySelector("a");
+  const btnImg = toggleShowBtn.querySelector("img");
+  toggleShowBtn.addEventListener("click", (e) => {
     e.preventDefault();
-    contentContainer.style.display = contentContainer.style.display === "none" ? "" : "none";
+    const contentContainer2 = panel.querySelector("#nation-claims-content");
+    contentContainer2.style.display = contentContainer2.style.display == "none" ? "" : "none";
+    btnImg.classList.toggle("active");
   });
   const contentContainer = addElement(panel, '<div id="nation-claims-content"></div>');
+  contentContainer.style.display = "none";
   const entriesContainer = addElement(contentContainer, '<div id="nation-claims-entry-container"></div>');
   for (let i = 1; i <= MAX_CLAIM_COLOUR_INPUTS; i++) {
     const colInput = htmlCode.nationClaimsColorInput.replace("{index}", i);
@@ -474,15 +483,12 @@ function addNationClaimsPanel(parent) {
   const div = appendHTML(contentContainer, '<div id="nation-claims-btn-container"></div>');
   const applyBtn = appendHTML(div, '<button class="sidebar-button" id="nation-claims-apply">Apply</button>');
   applyBtn.addEventListener("click", () => {
-    const entries = [];
-    for (let i = 1; i <= MAX_CLAIM_COLOUR_INPUTS; i++) {
-      const colorInput = entriesContainer.querySelector(`#nation-color-entry${i}`);
-      const textInput = entriesContainer.querySelector(`#nation-text-entry${i}`);
-      entries.push({
-        color: colorInput?.value || null,
-        input: textInput?.value || null
-      });
-    }
+    const colorInputs = entriesContainer.querySelectorAll('[id^="nation-color-entry"]');
+    const textInputs = entriesContainer.querySelectorAll('[id^="nation-text-entry"]');
+    const entries = Array.from({ length: MAX_CLAIM_COLOUR_INPUTS }, (_, i) => ({
+      color: colorInputs[i]?.value ?? null,
+      input: textInputs[i]?.value ?? null
+    }));
     localStorage["emcdynmapplus-nation-claims-info"] = JSON.stringify(entries);
     location.reload();
   });
@@ -989,7 +995,7 @@ function modifyDynmapDescription(marker, curArchiveDate) {
     ).replace("<br>Flags", "</div><br>Flags");
   }
   const clean = marker.popup.replace(/<[^>]+>/g, "").trim().replace(/^★\s*/, "");
-  const [, town, nation] = clean.match(/^(.+?)\s*\((.+?)\)/);
+  const [, town, nation] = clean.match(/^(.+?)\s*\((.+?)\)/) || [];
   return {
     townName: town?.trim() || null,
     nationName: nation?.trim() || null,
@@ -1006,26 +1012,26 @@ var colorMarker = (marker, fill, outline, weight = null) => {
 };
 var DEFAULT_BLUE = "#3fb4ff";
 var DEFAULT_GREEN = "#89c500";
-function colorTown(marker, townInfo, mapMode) {
-  const mayor = marker.popup.match(/Mayor: <b>(.*)<\/b>/)?.[1];
+function colorTown(rawMarker, parsedMarker, mapMode) {
+  const mayor = rawMarker.popup.match(/Mayor: <b>(.*)<\/b>/)?.[1];
   const isRuin = !!mayor?.match(/NPC[0-9]+/);
-  if (isRuin) return colorMarker(marker, "#000000", "#000000");
-  const { nationName } = townInfo;
+  if (isRuin) return colorMarker(rawMarker, "#000000", "#000000");
+  const { nationName } = parsedMarker;
   if (mapMode == "meganations") {
-    const isDefaultCol = marker.color == DEFAULT_BLUE && marker.fillColor == DEFAULT_BLUE;
-    marker.color = isDefaultCol ? "#363636" : DEFAULT_GREEN;
-    marker.fillColor = isDefaultCol ? hashCode(nationName) : marker.fillColor;
+    const isDefaultCol = rawMarker.color == DEFAULT_BLUE && rawMarker.fillColor == DEFAULT_BLUE;
+    rawMarker.color = isDefaultCol ? "#363636" : DEFAULT_GREEN;
+    rawMarker.fillColor = isDefaultCol ? hashCode(nationName) : rawMarker.fillColor;
   } else if (mapMode == "overclaim") {
     const nation = nationName ? cachedApiNations.get(nationName.toLowerCase()) : null;
-    const overclaimInfo = !!nation ? checkOverclaimed(townInfo.area, townInfo.residentNum, nation.stats.numResidents) : checkOverclaimedNationless(townInfo.area, townInfo.residentNum);
+    const overclaimInfo = !nation ? checkOverclaimedNationless(parsedMarker.area, parsedMarker.residentNum) : checkOverclaimed(parsedMarker.area, parsedMarker.residentNum, nation.stats.numResidents);
     const colour = overclaimInfo.isOverclaimed ? "#ff0000" : "#00ff00";
-    colorMarker(marker, colour, colour, overclaimInfo.isOverclaimed ? 2 : 0.5);
-  } else colorMarker(marker, "#000000", "#000000", 1);
+    colorMarker(rawMarker, colour, colour, overclaimInfo.isOverclaimed ? 2 : 0.5);
+  } else colorMarker(rawMarker, "#000000", "#000000", 1);
   const nationAlliances = getNationAlliances(nationName, mapMode);
   if (nationAlliances.length == 0) return;
   const { colours } = nationAlliances[0];
   const newWeight = nationAlliances.length > 1 ? 1.5 : 0.75;
-  return colorMarker(marker, colours.fill, colours.outline, newWeight);
+  return colorMarker(rawMarker, colours.fill, colours.outline, newWeight);
 }
 function colorTownNationClaims(marker, nationName, claimsCustomizerInfo, useOpaque, showExcluded) {
   const nationColorInput = claimsCustomizerInfo.get(nationName?.toLowerCase());
@@ -1243,7 +1249,8 @@ async function init(manifest) {
 	--map-mode-btn-width: 130px;\r
 	/** TODO: Make these more robust. Probably not my best idea */\r
 	--screenshot-bg-image: url("https://raw.githubusercontent.com/Owen3H/earthmc-dynmap/refs/heads/main/resources/icon-screenshot.png");\r
-	--hide-icon: url("https://raw.githubusercontent.com/Owen3H/earthmc-dynmap/refs/heads/main/resources/hide.png");\r
+	--show-icon: url("https://raw.githubusercontent.com/Owen3H/earthmc-dynmap/refs/heads/main/resources/icon-show.png");\r
+	--hide-icon: url("https://raw.githubusercontent.com/Owen3H/earthmc-dynmap/refs/heads/main/resources/icon-hide.png");\r
 }\r
 \r
 #nation-claims {\r
@@ -1263,15 +1270,15 @@ async function init(manifest) {
     display: flex;\r
     flex-direction: row;\r
     align-items: center;\r
-	justify-content: space-between;\r
-	gap: 20px;\r
+	justify-content: center;\r
+	gap: 10px;\r
 	line-height: 5px;\r
 	font-family: "Inter", 'Open Sans', sans-serif;\r
 	font-size: large;\r
     font-weight: 700;\r
 }\r
 \r
-/* Button to close nation claims panel */\r
+/* Button to show/hide the nation claims panel */\r
 #nation-claims-titlebar > a {\r
 	font-size: small;\r
     /* background: rgb(174, 14, 14); */\r
@@ -1281,10 +1288,14 @@ async function init(manifest) {
 \r
 #nation-claims-titlebar img {\r
 	width: 30px;\r
-	background-image: var(--hide-icon);\r
+	background-image: var(--show-icon);\r
 	background-repeat: no-repeat;\r
     background-position: 50% 50%;\r
 	background-color: transparent;\r
+}\r
+\r
+#nation-claims-titlebar img.active {\r
+    background-image: var(--hide-icon);\r
 }\r
 \r
 /* Container that holds the input/colour entries */\r
@@ -1647,6 +1658,15 @@ div.leaflet-control-layers.screenshot img {\r
 	display: flex;\r
 	flex-direction: row;\r
 	align-self: end;\r
+}\r
+\r
+.crisp-edges {\r
+	image-rendering: optimizeSpeed;             /* Legal fallback	*/\r
+	image-rendering: -moz-crisp-edges;          /* Firefox        	*/\r
+	image-rendering: -o-crisp-edges;            /* Opera			*/\r
+	image-rendering: -webkit-optimize-contrast; /* Chrome + Safari	*/\r
+	image-rendering: optimize-contrast;         /* CSS3 Proposed	*/\r
+	image-rendering: crisp-edges;               /* CSS4 Proposed  	*/\r
 }`);
   }
   localStorage["emcdynmapplus-mapmode"] ?? (localStorage["emcdynmapplus-mapmode"] = "meganations");

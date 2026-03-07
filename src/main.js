@@ -456,10 +456,6 @@ function colorTown(rawMarker, parsedMarker, mapMode) {
 			? checkOverclaimedNationless(parsedMarker.area, parsedMarker.residentNum)
 			: checkOverclaimed(parsedMarker.area, parsedMarker.residentNum, nation.stats.numResidents)
 
-		if (parsedMarker.townName == "Mainz") {
-			console.log(overclaimInfo)
-		}
-
 		const colour = overclaimInfo.isOverclaimed ? '#ff0000' : '#00ff00'
 		colorMarker(rawMarker, colour, colour, overclaimInfo.isOverclaimed ? 2 : 0.5)
 	}
