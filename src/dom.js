@@ -214,27 +214,27 @@ async function insertScreenshotBtn() {
 			showAlert('Screenshot successful. Copied to clipboard!')
 		} catch (e) {
 			console.error(e)
-			showAlert('Failed to screenshot or copy to clipboard. Check the console.')
+			showAlert('Failed to screenshot/copy to clipboard. Check the console.')
 		}
 	})
 }
 
+/** @returns {Promise<HTMLCanvasElement>} */
 const screenshot = () => new Promise((resolve, reject) => {
 	const allTiles = Array.from(document.querySelectorAll('.leaflet-tile-loaded'))
-    if (!allTiles.length) return reject('No tiles found')
+    if (!allTiles.length) return reject(new Error('No tiles found'))
 
     // Compute bounding box in viewport coords
     let minX = Infinity, minY = Infinity
 	let maxX = -Infinity, maxY = -Infinity
     
+	/** @type {Array<{ img: Element, rect: DOMRectReadOnly }>} */
 	const tilesInfo = []
     allTiles.forEach(img => {
     	const rect = img.getBoundingClientRect()
 		tilesInfo.push({ img, rect })
-		minX = Math.min(minX, rect.left)
-		minY = Math.min(minY, rect.top)
-		maxX = Math.max(maxX, rect.right)
-		maxY = Math.max(maxY, rect.bottom)
+		minX, minY = Math.min(minX, rect.left), Math.min(minY, rect.top)
+		maxX, maxY = Math.max(maxX, rect.right), Math.max(maxY, rect.bottom)
     })
 
     const canvas = document.createElement('canvas')
@@ -243,20 +243,20 @@ const screenshot = () => new Promise((resolve, reject) => {
     
 	const ctx = canvas.getContext('2d')
 
-    // 2. Draw tiles with decreased brightness
+    // Draw tiles with decreased brightness
     ctx.filter = 'brightness(60%)'
     tilesInfo.forEach(({ img, rect }) => ctx.drawImage(img, rect.left - minX, rect.top - minY, rect.width, rect.height))
-    ctx.filter = 'none' // reset filter for overlay
+    ctx.filter = 'none'
 
-    // 3. Draw overlay canvas (markers)
     const overlayCanvas = document.querySelector('.leaflet-overlay-pane canvas.leaflet-zoom-animated')
     if (overlayCanvas) {
     	const overlayRect = overlayCanvas.getBoundingClientRect()
-		const scaleX = overlayRect.width / overlayCanvas.width
-		const scaleY = overlayRect.height / overlayCanvas.height
 
 		const offsetX = overlayRect.left - minX
 		const offsetY = overlayRect.top - minY
+		
+		const scaleX = overlayRect.width / overlayCanvas.width
+		const scaleY = overlayRect.height / overlayCanvas.height
 
 		ctx.save()
 		ctx.translate(offsetX, offsetY)
