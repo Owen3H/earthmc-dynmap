@@ -202,13 +202,11 @@ async function insertScreenshotBtn() {
 
 	const screenshotBtn = linkBtn?.parentElement?.insertBefore(linkBtnCloned, linkBtn.parentElement.children[0])
 	screenshotBtn?.firstChild.setAttribute("href", "")
-	//screenshotBtn?.firstChild?.childNodes[0].style.setProperty("background-image", `url("${screenshotIconURL}")`, "important")
-	
 	screenshotBtn?.addEventListener('click', async e => {
 		e.preventDefault() // stop blank href from refreshing as we are adding our own button behaviour
 
 		try {
-			const canvas = await screenshot()
+			const canvas = await screenshotViewport()
 			const blob = await new Promise(r => canvas.toBlob(r, 'image/png'))
 			await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
 			showAlert('Screenshot successful. Copied to clipboard!')
@@ -219,55 +217,77 @@ async function insertScreenshotBtn() {
 	})
 }
 
+const nextFrame = () => new Promise(r => requestAnimationFrame(r))
+
 /** @returns {Promise<HTMLCanvasElement>} */
-const screenshot = () => new Promise((resolve, reject) => {
-	const allTiles = Array.from(document.querySelectorAll('.leaflet-tile-loaded'))
-    if (!allTiles.length) return reject(new Error('No tiles found'))
+const screenshotViewport = async () => {
+	const tiles = Array.from(document.querySelectorAll('.leaflet-tile'))
+	if (!tiles.length) throw new Error('No tiles found')
 
-    // Compute bounding box in viewport coords
-    let minX = Infinity, minY = Infinity
-	let maxX = -Infinity, maxY = -Infinity
-    
-	/** @type {Array<{ img: Element, rect: DOMRectReadOnly }>} */
-	const tilesInfo = []
-    allTiles.forEach(img => {
-    	const rect = img.getBoundingClientRect()
-		tilesInfo.push({ img, rect })
-		minX, minY = Math.min(minX, rect.left), Math.min(minY, rect.top)
-		maxX, maxY = Math.max(maxX, rect.right), Math.max(maxY, rect.bottom)
-    })
+	// wait for all tiles to finish loading
+	await Promise.all(tiles.map(img => {
+		if (img.complete && img.naturalWidth !== 0) return Promise.resolve()
+		return new Promise(resolve => {
+			img.addEventListener('load', resolve, { once: true })
+			img.addEventListener('error', resolve, { once: true })
+		})
+	}))
 
-    const canvas = document.createElement('canvas')
-    canvas.width = Math.ceil(maxX - minX)
-    canvas.height = Math.ceil(maxY - minY)
-    
-	const ctx = canvas.getContext('2d')
+	// wait a couple frames to let transforms settle
+	await nextFrame()
+	await nextFrame()
 
-    // Draw tiles with decreased brightness
-    ctx.filter = 'brightness(60%)'
-    tilesInfo.forEach(({ img, rect }) => ctx.drawImage(img, rect.left - minX, rect.top - minY, rect.width, rect.height))
-    ctx.filter = 'none'
-
-    const overlayCanvas = document.querySelector('.leaflet-overlay-pane canvas.leaflet-zoom-animated')
-    if (overlayCanvas) {
-    	const overlayRect = overlayCanvas.getBoundingClientRect()
-
-		const offsetX = overlayRect.left - minX
-		const offsetY = overlayRect.top - minY
-		
-		const scaleX = overlayRect.width / overlayCanvas.width
-		const scaleY = overlayRect.height / overlayCanvas.height
-
-		ctx.save()
-		ctx.translate(offsetX, offsetY)
-		ctx.scale(scaleX, scaleY)
-		ctx.drawImage(overlayCanvas, 0, 0)
-		ctx.restore()
-    }
-
-	return resolve(canvas)
-})
+	const canvas = document.createElement('canvas')
+	const vw = canvas.width = window.innerWidth
+	const vh = canvas.height = window.innerHeight
 	
+	const ctx = canvas.getContext('2d')
+	ctx.filter = 'brightness(60%)'
+
+	// draw tiles relative to viewport
+	for (const img of tiles) {
+		const rect = img.getBoundingClientRect()
+		
+		// skip tiles fully outside viewport
+		if (rect.right < 0 || rect.bottom < 0) continue
+		if (rect.left > vw || rect.top > vh) continue
+
+		const x = Math.max(rect.left, 0)
+		const y = Math.max(rect.top, 0)
+		
+		const width = Math.min(rect.right, vw) - x
+		const height = Math.min(rect.bottom, vh) - y
+
+		ctx.drawImage(img, x - rect.left, y - rect.top, width, height, x, y, width, height)
+	}
+
+	ctx.filter = 'none'
+
+	// draw overlay canvas
+	const overlay = document.querySelector('.leaflet-overlay-pane canvas.leaflet-zoom-animated')
+	if (overlay) {
+		const rect = overlay.getBoundingClientRect()
+		
+		const x = Math.max(rect.left, 0)
+		const y = Math.max(rect.top, 0)
+		
+		const width = Math.min(rect.right, vw) - x
+		const height = Math.min(rect.bottom, vh) - y
+		
+		if (width > 0 && height > 0) {
+			const scaleX = overlay.width / rect.width
+			const scaleY = overlay.height / rect.height
+			
+			const dx = (x - rect.left) * scaleX
+			const dy = (y - rect.top) * scaleY
+			
+			ctx.drawImage(overlay, dx, dy, width * scaleX, height * scaleY, x, y, width, height)
+		}
+	}
+
+	return canvas
+}
+
 async function editUILayout() {
     const coordinates = await waitForElement('.leaflet-control-layers.coordinates')
 	const link = await waitForElement('.leaflet-control-layers.link')
