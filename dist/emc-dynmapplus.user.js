@@ -327,52 +327,62 @@ async function insertScreenshotBtn() {
   screenshotBtn?.addEventListener("click", async (e) => {
     e.preventDefault();
     try {
-      const canvas = await screenshot();
+      const canvas = await screenshotViewport();
       const blob = await new Promise((r) => canvas.toBlob(r, "image/png"));
       await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
       showAlert("Screenshot successful. Copied to clipboard!");
     } catch (e2) {
       console.error(e2);
-      showAlert("Failed to screenshot or copy to clipboard. Check the console.");
+      showAlert("Failed to screenshot/copy to clipboard. Check the console.");
     }
   });
 }
-var screenshot = () => new Promise((resolve, reject) => {
-  const allTiles = Array.from(document.querySelectorAll(".leaflet-tile-loaded"));
-  if (!allTiles.length) return reject("No tiles found");
-  let minX = Infinity, minY = Infinity;
-  let maxX = -Infinity, maxY = -Infinity;
-  const tilesInfo = [];
-  allTiles.forEach((img) => {
-    const rect = img.getBoundingClientRect();
-    tilesInfo.push({ img, rect });
-    minX = Math.min(minX, rect.left);
-    minY = Math.min(minY, rect.top);
-    maxX = Math.max(maxX, rect.right);
-    maxY = Math.max(maxY, rect.bottom);
-  });
+var nextFrame = () => new Promise((r) => requestAnimationFrame(r));
+var screenshotViewport = async () => {
+  const tiles = Array.from(document.querySelectorAll(".leaflet-tile"));
+  if (!tiles.length) throw new Error("No tiles found");
+  await Promise.all(tiles.map((img) => {
+    if (img.complete && img.naturalWidth !== 0) return Promise.resolve();
+    return new Promise((resolve) => {
+      img.addEventListener("load", resolve, { once: true });
+      img.addEventListener("error", resolve, { once: true });
+    });
+  }));
+  await nextFrame();
+  await nextFrame();
   const canvas = document.createElement("canvas");
-  canvas.width = Math.ceil(maxX - minX);
-  canvas.height = Math.ceil(maxY - minY);
+  const vw = canvas.width = unsafeWindow.innerWidth;
+  const vh = canvas.height = unsafeWindow.innerHeight;
   const ctx = canvas.getContext("2d");
   ctx.filter = "brightness(60%)";
-  tilesInfo.forEach(({ img, rect }) => ctx.drawImage(img, rect.left - minX, rect.top - minY, rect.width, rect.height));
-  ctx.filter = "none";
-  const overlayCanvas = document.querySelector(".leaflet-overlay-pane canvas.leaflet-zoom-animated");
-  if (overlayCanvas) {
-    const overlayRect = overlayCanvas.getBoundingClientRect();
-    const scaleX = overlayRect.width / overlayCanvas.width;
-    const scaleY = overlayRect.height / overlayCanvas.height;
-    const offsetX = overlayRect.left - minX;
-    const offsetY = overlayRect.top - minY;
-    ctx.save();
-    ctx.translate(offsetX, offsetY);
-    ctx.scale(scaleX, scaleY);
-    ctx.drawImage(overlayCanvas, 0, 0);
-    ctx.restore();
+  for (const img of tiles) {
+    const rect = img.getBoundingClientRect();
+    if (rect.right < 0 || rect.bottom < 0) continue;
+    if (rect.left > vw || rect.top > vh) continue;
+    const x = Math.max(rect.left, 0);
+    const y = Math.max(rect.top, 0);
+    const width = Math.min(rect.right, vw) - x;
+    const height = Math.min(rect.bottom, vh) - y;
+    ctx.drawImage(img, x - rect.left, y - rect.top, width, height, x, y, width, height);
   }
-  return resolve(canvas);
-});
+  ctx.filter = "none";
+  const overlay = document.querySelector(".leaflet-overlay-pane canvas.leaflet-zoom-animated");
+  if (overlay) {
+    const rect = overlay.getBoundingClientRect();
+    const x = Math.max(rect.left, 0);
+    const y = Math.max(rect.top, 0);
+    const width = Math.min(rect.right, vw) - x;
+    const height = Math.min(rect.bottom, vh) - y;
+    if (width > 0 && height > 0) {
+      const scaleX = overlay.width / rect.width;
+      const scaleY = overlay.height / rect.height;
+      const dx = (x - rect.left) * scaleX;
+      const dy = (y - rect.top) * scaleY;
+      ctx.drawImage(overlay, dx, dy, width * scaleX, height * scaleY, x, y, width, height);
+    }
+  }
+  return canvas;
+};
 async function editUILayout() {
   const coordinates = await waitForElement(".leaflet-control-layers.coordinates");
   const link = await waitForElement(".leaflet-control-layers.link");
