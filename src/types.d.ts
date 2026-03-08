@@ -8,9 +8,15 @@ declare global {
         version: string
         description: string
         author: string
+        web_accessible_resources: Array<{
+            run_at: string
+            matches: Array<string>
+            resources: Array<string>
+        }>
         content_scripts: Array<{
-            matches: string[],
-            js: string[]
+            matches: Array<string>,
+            css: Array<string>
+            js: Array<string>
         }>
     }
 
@@ -19,9 +25,9 @@ declare global {
 
     // --------------------- GEOMETRY TYPES ---------------------
     export interface Vertex { x: number, z: number }
-    export type Polygon = Vertex[]
-    export type MarkerPoints = Polygon[]
-    export type MultiPolygonPoints = MarkerPoints[]
+    export type Polygon = Array<Vertex>
+    export type MarkerPoints = Array<Polygon>
+    export type MultiPolygonPoints = Array<MarkerPoints>
 
     export interface Marker {
         tooltip: string,
@@ -43,7 +49,7 @@ declare global {
     export interface ParsedMarker {
         townName: string,
         nationName: string,
-        residentList: string[],
+        residentList: Array<string>,
         residentNum: number,
         isCapital: boolean,
         area: number,
@@ -59,7 +65,7 @@ declare global {
     export interface CachedAlliance {
         name: string
         modeType: string
-        nations: string[]
+        nations: Array<string>
         colours: AllianceColours
     }
 

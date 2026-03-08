@@ -696,18 +696,32 @@ function searchArchive(date) {
   localStorage["emcdynmapplus-mapmode"] = "archive";
   location.reload();
 }
-async function locateTown(town) {
-  town = town.trim().toLowerCase();
-  if (town == "") return;
-  const coords = await getTownSpawn(town);
+async function locateResident(residentName) {
+  residentName = residentName.trim().toLowerCase();
+  if (residentName == "") return;
+  const queryBody = { query: [residentName], template: { town: true } };
+  const data = await postJSON(`${OAPI_BASE}/${CURRENT_MAP}/players`, queryBody);
+  if (data == false) return showAlert("Searched resident has not been found.");
+  if (data == null) return showAlert("Service is currently unavailable, please try later.");
+  const townName = data[0].town.name;
+  if (!townName) return showAlert("The searched resident is townless.");
+  const coords = await getTownSpawn(townName);
+  if (coords == false) return showAlert("Unexpected error occurred while searching for resident, please try later.");
+  if (coords == null) return showAlert("Service is currently unavailable, please try later.");
+  location.href = `${MAPI_BASE}?zoom=4&x=${coords.x}&z=${coords.z}`;
+}
+async function locateTown(townName) {
+  townName = townName.trim().toLowerCase();
+  if (townName == "") return;
+  const coords = await getTownSpawn(townName);
   if (coords == false) return showAlert("Searched town has not been found.");
   if (coords == null) return showAlert("Service is currently unavailable, please try later.");
   location.href = `${MAPI_BASE}?zoom=4&x=${coords.x}&z=${coords.z}`;
 }
-async function locateNation(nation) {
-  nation = nation.trim().toLowerCase();
-  if (nation == "") return;
-  const queryBody = { query: [nation], template: { capital: true } };
+async function locateNation(nationName) {
+  nationName = nationName.trim().toLowerCase();
+  if (nationName == "") return;
+  const queryBody = { query: [nationName], template: { capital: true } };
   const data = await postJSON(`${OAPI_BASE}/${CURRENT_MAP}/nations`, queryBody);
   if (data == false) return showAlert("Searched nation has not been found.");
   if (data == null) return showAlert("Service is currently unavailable, please try later.");
@@ -717,22 +731,8 @@ async function locateNation(nation) {
   if (coords == null) return showAlert("Service is currently unavailable, please try later.");
   location.href = `${MAPI_BASE}?zoom=4&x=${coords.x}&z=${coords.z}`;
 }
-async function locateResident(resident) {
-  resident = resident.trim().toLowerCase();
-  if (resident == "") return;
-  const queryBody = { query: [resident], template: { town: true } };
-  const data = await postJSON(`${OAPI_BASE}/${CURRENT_MAP}/players`, queryBody);
-  if (data == false) return showAlert("Searched resident has not been found.");
-  if (data == null) return showAlert("Service is currently unavailable, please try later.");
-  const town = data[0].town.name;
-  if (!town) return showAlert("The searched resident is townless.");
-  const coords = await getTownSpawn(town);
-  if (coords == false) return showAlert("Unexpected error occurred while searching for resident, please try later.");
-  if (coords == null) return showAlert("Service is currently unavailable, please try later.");
-  location.href = `${MAPI_BASE}?zoom=4&x=${coords.x}&z=${coords.z}`;
-}
-async function getTownSpawn(town) {
-  const queryBody = { query: [town], template: { coordinates: true } };
+async function getTownSpawn(townName) {
+  const queryBody = { query: [townName], template: { coordinates: true } };
   const data = await postJSON(`${OAPI_BASE}/${CURRENT_MAP}/towns`, queryBody);
   if (data == false || data == void 0) return false;
   if (data == null) return null;
