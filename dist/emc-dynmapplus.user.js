@@ -328,7 +328,7 @@ async function insertScreenshotBtn() {
     e.preventDefault();
     try {
       const canvas = await screenshotViewport();
-      const blob = await new Promise((r) => canvas.toBlob(r, "image/png"));
+      const blob = await new Promise((res) => canvas.toBlob(res, "image/png", 1));
       await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
       showAlert("Screenshot successful. Copied to clipboard!");
     } catch (e2) {
@@ -338,9 +338,16 @@ async function insertScreenshotBtn() {
   });
 }
 var nextFrame = () => new Promise((r) => requestAnimationFrame(r));
+var queryTileElements = () => document.querySelectorAll('.leaflet-layer[style*="z-index: 1"] .leaflet-tile-container img.leaflet-tile');
 var screenshotViewport = async () => {
-  const tiles = Array.from(document.querySelectorAll(".leaflet-tile"));
-  if (!tiles.length) throw new Error("No tiles found");
+  const tileElements = queryTileElements();
+  if (!tileElements.length) throw new Error("No tiles found");
+  const tiles = Array.from(tileElements).filter((img) => {
+    if (!img.parentElement) return false;
+    const style = getComputedStyle(img.parentElement);
+    const scale = parseFloat(style.transform.match(/scale\(([^)]+)\)/)?.[1] || "1");
+    return scale >= 1;
+  });
   await Promise.all(tiles.map((img) => {
     if (img.complete && img.naturalWidth !== 0) return Promise.resolve();
     return new Promise((resolve) => {
