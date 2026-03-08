@@ -221,6 +221,7 @@ const nextFrame = () => new Promise(r => requestAnimationFrame(r))
 
 /** @returns {Promise<HTMLCanvasElement>} */
 const screenshotViewport = async () => {
+	/** @type {Array<HTMLImageElement>} */
 	const tiles = Array.from(document.querySelectorAll('.leaflet-tile'))
 	if (!tiles.length) throw new Error('No tiles found')
 
