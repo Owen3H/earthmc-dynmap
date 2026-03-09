@@ -214,9 +214,9 @@ var htmlCode = (
     currentMapModeLabel: '<div class="sidebar-option" id="current-map-mode-label">Map Mode: {currentMapMode}</div>',
     alertBox: '<div id="alert"><p id="alert-message">{message}</p><button id="alert-close">Dismiss</button></div>',
     /** Inserted into document <head> */
-    customFonts: `<link rel="preconnect" href="https://fonts.googleapis.com">
+    interFont: `<link rel="preconnect" href="https://fonts.googleapis.com">
 		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-		<link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap" rel="stylesheet">
+		<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap">
 	`,
     darkMode: `<style id="dark-mode">
 		.leaflet-control, .sidebar-input, #alert,
@@ -419,9 +419,9 @@ async function editUILayout() {
     }
   }));
 }
-function tryInsertNationClaimsPanel() {
+function tryInsertNationClaimsPanel(mapMode) {
   const mode = localStorage["emcdynmapplus-mapmode"];
-  if (mode != "nationclaims") return null;
+  if (mode != mapMode) return null;
   return waitForElement(".leaflet-control-container").then((el) => {
     disablePanAndZoom(el);
     return addNationClaimsPanel(el);
@@ -662,8 +662,8 @@ function toggleDarkMode(boxTicked) {
   localStorage["emcdynmapplus-darkmode"] = boxTicked;
   return boxTicked ? loadDarkMode() : unloadDarkMode();
 }
-function loadCustomFonts() {
-  document.head.insertAdjacentHTML("beforeend", htmlCode.customFonts);
+function insertCustomStylesheets() {
+  document.head.insertAdjacentHTML("beforeend", htmlCode.interFont);
 }
 function loadDarkMode() {
   document.documentElement.style.colorScheme = "dark";
@@ -694,15 +694,16 @@ function removeScrollNormalizer(mapEl) {
   document.dispatchEvent(new CustomEvent("EMCDYNMAPPLUS_ADJUST_SCROLL", eventData));
 }
 function locate(selectValue, inputValue) {
+  const isArchiveMode = currentMapMode() == "archive";
   switch (selectValue) {
     case "Town":
-      locateTown(inputValue);
+      locateTown(inputValue, isArchiveMode);
       break;
     case "Nation":
-      locateNation(inputValue);
+      locateNation(inputValue, isArchiveMode);
       break;
     case "Resident":
-      locateResident(inputValue);
+      locateResident(inputValue, isArchiveMode);
       break;
   }
 }
@@ -713,48 +714,61 @@ function searchArchive(date) {
   localStorage["emcdynmapplus-mapmode"] = "archive";
   location.reload();
 }
-async function locateResident(residentName) {
-  residentName = residentName.trim().toLowerCase();
-  if (residentName == "") return;
-  const queryBody = { query: [residentName], template: { town: true } };
-  const data = await postJSON(`${OAPI_BASE}/${CURRENT_MAP}/players`, queryBody);
-  if (data == false) return showAlert("Searched resident has not been found.");
-  if (data == null) return showAlert("Service is currently unavailable, please try later.");
-  const townName = data[0].town.name;
-  if (!townName) return showAlert("The searched resident is townless.");
-  const coords = await getTownSpawn(townName);
-  if (coords == false) return showAlert("Unexpected error occurred while searching for resident, please try later.");
-  if (coords == null) return showAlert("Service is currently unavailable, please try later.");
-  location.href = `${MAPI_BASE}?zoom=4&x=${coords.x}&z=${coords.z}`;
-}
-async function locateTown(townName) {
+async function locateTown(townName, isArchiveMode) {
   townName = townName.trim().toLowerCase();
   if (townName == "") return;
-  const coords = await getTownSpawn(townName);
-  if (coords == false) return showAlert("Searched town has not been found.");
-  if (coords == null) return showAlert("Service is currently unavailable, please try later.");
-  location.href = `${MAPI_BASE}?zoom=4&x=${coords.x}&z=${coords.z}`;
+  let coords = null;
+  if (!isArchiveMode) coords = await getTownSpawn(townName);
+  if (!coords) coords = getTownMidpoint(townName);
+  if (!coords) return showAlert(`Could not find town/capital with name '${townName}'.`);
+  updateUrlLocation(coords);
 }
-async function locateNation(nationName) {
+async function locateNation(nationName, isArchiveMode) {
   nationName = nationName.trim().toLowerCase();
   if (nationName == "") return;
-  const queryBody = { query: [nationName], template: { capital: true } };
-  const data = await postJSON(`${OAPI_BASE}/${CURRENT_MAP}/nations`, queryBody);
-  if (data == false) return showAlert("Searched nation has not been found.");
-  if (data == null) return showAlert("Service is currently unavailable, please try later.");
-  const capital = data[0].capital.name;
-  const coords = await getTownSpawn(capital);
-  if (coords == false) return showAlert("Unexpected error occurred while searching for nation, please try later.");
-  if (coords == null) return showAlert("Service is currently unavailable, please try later.");
-  location.href = `${MAPI_BASE}?zoom=4&x=${coords.x}&z=${coords.z}`;
+  let capitalName = null;
+  if (!isArchiveMode) {
+    const queryBody = { query: [nationName], template: { capital: true } };
+    const nations = await postJSON(`${OAPI_BASE}/${CURRENT_MAP}/nations`, queryBody);
+    if (nations && nations.length > 0) capitalName = nations[0].capital?.name;
+  }
+  if (!capitalName) {
+    const marker = parsedMarkers.find((m) => m.nationName && m.nationName.toLowerCase() == nationName && m.isCapital);
+    if (marker) capitalName = marker.townName;
+  }
+  if (!capitalName) return showAlert("Searched nation could not be found.");
+  await locateTown(capitalName, isArchiveMode);
+}
+async function locateResident(residentName, isArchiveMode) {
+  residentName = residentName.trim().toLowerCase();
+  if (residentName == "") return;
+  let townName = null;
+  if (!isArchiveMode) {
+    const queryBody = { query: [residentName], template: { town: true } };
+    const players = await postJSON(`${OAPI_BASE}/${CURRENT_MAP}/players`, queryBody);
+    if (players && players.length > 0) townName = players[0].town?.name;
+  }
+  if (!townName) {
+    const marker = parsedMarkers.find((m) => m.residentList && m.residentList.some((r) => r.toLowerCase() == residentName));
+    if (marker) townName = marker.townName;
+  }
+  if (!townName) return showAlert("Searched resident could not be found.");
+  await locateTown(townName, isArchiveMode);
 }
 async function getTownSpawn(townName) {
   const queryBody = { query: [townName], template: { coordinates: true } };
-  const data = await postJSON(`${OAPI_BASE}/${CURRENT_MAP}/towns`, queryBody);
-  if (data == false || data == void 0) return false;
-  if (data == null) return null;
-  const spawn = data[0].coordinates.spawn;
+  const towns = await postJSON(`${OAPI_BASE}/${CURRENT_MAP}/towns`, queryBody);
+  if (!towns || towns.length < 1) return null;
+  const spawn = towns[0].coordinates.spawn;
   return { x: Math.round(spawn.x), z: Math.round(spawn.z) };
+}
+function getTownMidpoint(townName) {
+  const town = parsedMarkers.find((m) => m.townName && m.townName.toLowerCase() == townName);
+  if (!town) return null;
+  return { x: town.x, z: town.z };
+}
+function updateUrlLocation(coords, zoom = 4) {
+  location.href = `${MAPI_BASE}?zoom=${zoom}&x=${coords.x}&z=${coords.z}`;
 }
 
 // <define:BORDERS>
@@ -770,6 +784,7 @@ waitForElement(".leaflet-nameplate-pane").then((element) => {
     }
   });
 });
+var parsedMarkers = [];
 var cachedAlliances = null;
 var cachedApiNations = null;
 var MAP_MODES = (
@@ -846,6 +861,21 @@ function pointInPolygon(vertex, polygon) {
   }
   return inside;
 }
+var roundToNearest16 = (n) => Math.round(n / 16) * 16;
+function midrange(vertices) {
+  let minX = Infinity, maxX = -Infinity;
+  let minZ = Infinity, maxZ = -Infinity;
+  for (const vert of vertices) {
+    if (vert.x < minX) minX = vert.x;
+    if (vert.x > maxX) maxX = vert.x;
+    if (vert.z < minZ) minZ = vert.z;
+    if (vert.z > maxZ) maxZ = vert.z;
+  }
+  return {
+    x: roundToNearest16((minX + maxX) / 2),
+    z: roundToNearest16((minZ + maxZ) / 2)
+  };
+}
 var makePolyline = (linePoints, weight = 1, colour = "#ffffff") => ({
   "type": "polyline",
   "points": linePoints,
@@ -881,9 +911,8 @@ async function modifyMarkers(data) {
   }
   const date = archiveDate();
   const isSquaremap = mapMode != "archive" || date >= 20240701;
-  const storedNationClaimsInfo = nationClaimsInfo();
   const claimsCustomizerInfo = new Map(
-    storedNationClaimsInfo.filter((obj) => obj.input != null).map((obj) => [obj.input?.toLowerCase(), obj.color])
+    nationClaimsInfo().filter((obj) => obj.input != null).map((obj) => [obj.input?.toLowerCase(), obj.color])
   );
   const useOpaque = localStorage["emcdynmapplus-nation-claims-opaque-colors"] == "true" ? true : false;
   const showExcluded = localStorage["emcdynmapplus-nation-claims-show-excluded"] == "true" ? true : false;
@@ -892,6 +921,7 @@ async function modifyMarkers(data) {
     if (marker.type != "polygon" && marker.type != "icon") continue;
     const parsedInfo = isSquaremap ? modifyDescription(marker, mapMode) : modifyDynmapDescription(marker, date);
     if (marker.type != "polygon") continue;
+    parsedMarkers.push(parsedInfo);
     marker.opacity = 1;
     marker.fillOpacity = 0.33;
     marker.weight = 1.5;
@@ -957,6 +987,8 @@ function modifyDescription(marker, mapMode) {
   const fixedTownName = town.replaceAll("<", "&lt;").replaceAll(">", "&gt;");
   const fixedNationName = nation?.replaceAll("<", "&lt;").replaceAll(">", "&gt;") ?? nation;
   const area = calcMarkerArea(marker);
+  let location2 = { x: 0, z: 0 };
+  if (marker.points) location2 = midrange(marker.points.flat(2));
   const isArchiveMode = mapMode == "archive";
   const residentList = isArchiveMode ? residents : residents.split(", ").map((resident) => htmlCode.residentClickable.replaceAll("{player}", resident)).join(", ");
   const councillorList = isArchiveMode ? councillors : councillors.map((councillor) => htmlCode.residentClickable.replaceAll("{player}", councillor)).join(", ");
@@ -987,8 +1019,9 @@ function modifyDescription(marker, mapMode) {
     residentNum,
     residentList: residents.split(", "),
     isCapital,
+    mayor,
     area,
-    mayor
+    ...location2
   };
 }
 function modifyDynmapDescription(marker, curArchiveDate) {
@@ -997,6 +1030,7 @@ function modifyDynmapDescription(marker, curArchiveDate) {
   const residentNum = residentList.length;
   const isCapital = marker.popup.match(/capital: true/) != null;
   const area = calcPolygonArea(marker.points);
+  const location2 = midrange(marker.points.flat(2));
   if (isCapital) marker.popup = marker.popup.replace('120%">', '120%">\u2605 ');
   if (curArchiveDate < 20220906) {
     marker.popup = marker.popup.replace(/">hasUpkeep:.+?(?<=<br \/>)/, '; white-space:pre">');
@@ -1019,7 +1053,8 @@ function modifyDynmapDescription(marker, curArchiveDate) {
     residentList,
     residentNum,
     isCapital,
-    area
+    area,
+    ...location2
   };
 }
 var colorMarker = (marker, fill, outline, weight = null) => {
@@ -1068,7 +1103,7 @@ async function lookupPlayer(playerName, showOnlineStatus = true) {
   const loading = addElement(leafletTL, htmlCode.playerLookupLoading, "#player-lookup-loading");
   const players = await postJSON(`${OAPI_BASE}/${CURRENT_MAP}/players`, { query: [playerName] });
   loading.remove();
-  if (players == null) return showAlert("Service is currently unavailable, please try later.");
+  if (!players) return showAlert("Service is currently unavailable, please try later.");
   if (players.length < 1) return showAlert("Error looking up this player. They have possibly opted-out.");
   const lookup = addElement(leafletTL, htmlCode.playerLookup);
   lookup.insertAdjacentHTML("beforeend", '<span class="close-container">X</span>');
@@ -1093,7 +1128,7 @@ async function lookupPlayer(playerName, showOnlineStatus = true) {
   if (player.status.isMayor) rank = "Mayor";
   if (player.ranks.nationRanks.includes("Chancellor")) rank = "Chancellor";
   if (player.status.isKing) rank = "Leader";
-  const playerAvatarURL = "https://mc-heads.net/avatar/" + player.uuid.replaceAll("-", "");
+  const playerAvatarURL = `https://mc-heads.net/avatar/${player.uuid.replaceAll("-", "")}`;
   document.querySelector("#player-lookup-avatar").setAttribute("src", playerAvatarURL);
   lookup.innerHTML = lookup.innerHTML.replace("{player}", player.name || playerName).replace("{about}", about).replace("{show-online-status}", showOnlineStatus ? onlineStatus : "").replace("{online-color}", isOnline ? "green" : "red").replace("{online}", isOnline ? "\u26AB\uFE0E Online" : "\u25CB Offline").replace("{town}", town ? `Town: <b>${town}</b><br>` : "").replace("{nation}", nation ? `Nation: <b>${nation}</b><br>` : "").replace("{rank}", rank).replace("{balance}", balance).replace("{last-online}", !isOnline ? `Last online: <b>${lastOnline}</b><br>` : "");
   lookup.querySelector(".close-container").addEventListener("click", (event) => {
@@ -1230,18 +1265,15 @@ function isUserscript() {
   }
   document.addEventListener("EMCDYNMAPPLUS_INTERCEPT", async (e) => {
     const { url, data } = e.detail;
+    const evOpts = { url, data, wasModified: false };
     try {
-      const modifiedData = await modifyMarkers(data);
-      document.dispatchEvent(new CustomEvent("EMCDYNMAPPLUS_MODIFIED", {
-        detail: { url, data: modifiedData, wasModified: true }
-      }));
+      evOpts.data = await modifyMarkers(data);
+      evOpts.wasModified = true;
     } catch (err) {
       console.error(`Error modifying data of: ${url}
 `, err);
-      document.dispatchEvent(new CustomEvent("EMCDYNMAPPLUS_MODIFIED", {
-        detail: { url, data, wasModified: false }
-      }));
     }
+    document.dispatchEvent(new CustomEvent("EMCDYNMAPPLUS_MODIFIED", { detail: evOpts }));
   });
   if (document.readyState !== "loading") init(manifest);
   else document.addEventListener("DOMContentLoaded", (_) => init(manifest));
@@ -1694,13 +1726,13 @@ div.leaflet-control-layers.screenshot img {\r
   localStorage["emcdynmapplus-nation-claims-opaque-colors"] ?? (localStorage["emcdynmapplus-nation-claims-opaque-colors"] = "true");
   localStorage["emcdynmapplus-nation-claims-show-excluded"] ?? (localStorage["emcdynmapplus-nation-claims-show-excluded"] = "true");
   console.log("emcdynmapplus: Initializing UI elements..");
-  loadCustomFonts();
+  insertCustomStylesheets();
   await insertSidebarMenu();
   updateServerInfo(await insertServerInfoPanel());
   await editUILayout();
   await insertScreenshotBtn();
-  const panel = await tryInsertNationClaimsPanel();
-  if (panel) loadNationClaims(panel);
+  const insertedPanel = await tryInsertNationClaimsPanel("nationclaims");
+  if (insertedPanel) loadNationClaims(insertedPanel);
   initToggleOptions();
   checkForUpdate(manifest);
 }
