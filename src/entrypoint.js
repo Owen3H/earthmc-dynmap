@@ -18,19 +18,16 @@ function isUserscript() {
 
 	document.addEventListener('EMCDYNMAPPLUS_INTERCEPT', async e => {
 		const { url, data } = e.detail
-		try {
-			//console.log('intercepted: ' + url + "\n\tmodifying markers..")
+		const evOpts = { url, data, wasModified: false }
 
-			const modifiedData = await modifyMarkers(data)
-			document.dispatchEvent(new CustomEvent('EMCDYNMAPPLUS_MODIFIED', {
-				detail: { url, data: modifiedData, wasModified: true }
-			}))
+		try {
+			evOpts.data = await modifyMarkers(data)
+			evOpts.wasModified = true
 		} catch (err) {
 			console.error(`Error modifying data of: ${url}\n`, err)
-			document.dispatchEvent(new CustomEvent('EMCDYNMAPPLUS_MODIFIED', {
-				detail: { url, data, wasModified: false }
-			}))
 		}
+
+		document.dispatchEvent(new CustomEvent('EMCDYNMAPPLUS_MODIFIED', { detail: evOpts }))
 	})
 
 	// If not 'complete' or 'interactive', defer init until DOM is ready.
@@ -72,17 +69,16 @@ async function init(manifest) {
 
 	console.log("emcdynmapplus: Initializing UI elements..")
 
-	loadCustomFonts()
+	insertCustomStylesheets()
     
 	await insertSidebarMenu()
 	updateServerInfo(await insertServerInfoPanel())
     await editUILayout()
 	await insertScreenshotBtn()
 	
-	// inserts the claim color customizer if 'nationclaims' mode is active
 	const panel = await tryInsertNationClaimsPanel()
 	if (panel) loadNationClaims(panel)
-		
+
 	initToggleOptions()
 	checkForUpdate(manifest)
 }

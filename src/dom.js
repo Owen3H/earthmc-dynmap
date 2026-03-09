@@ -37,9 +37,9 @@ const htmlCode = /** @type {const} */ ({
     currentMapModeLabel: '<div class="sidebar-option" id="current-map-mode-label">Map Mode: {currentMapMode}</div>',
     alertBox: '<div id="alert"><p id="alert-message">{message}</p><button id="alert-close">Dismiss</button></div>',
 	/** Inserted into document <head> */
-	customFonts: `<link rel="preconnect" href="https://fonts.googleapis.com">
+	interFont: `<link rel="preconnect" href="https://fonts.googleapis.com">
 		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-		<link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap" rel="stylesheet">
+		<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap">
 	`,
 	darkMode: `<style id="dark-mode">
 		.leaflet-control, .sidebar-input, #alert,
@@ -346,7 +346,10 @@ async function editUILayout() {
 	}))
 }
 
-/** @returns {Promise<Element | null>} The "#nation-claims" element. */
+/** 
+ * Inserts the claim color customizer only if the active map mode is **nationclaims**.
+ * @returns {Promise<Element | null>} The "#nation-claims" element. 
+ */
 function tryInsertNationClaimsPanel() {
 	const mode = localStorage['emcdynmapplus-mapmode']
 	if (mode != 'nationclaims') return null
@@ -698,8 +701,9 @@ function toggleDarkMode(boxTicked) {
 	return boxTicked ? loadDarkMode() : unloadDarkMode()
 }
 
-function loadCustomFonts() {
-	document.head.insertAdjacentHTML('beforeend', htmlCode.customFonts)
+function insertCustomStylesheets() {
+	document.head.insertAdjacentHTML('beforeend', htmlCode.interFont)
+	// other stylesheet html links ... 
 }
 
 function loadDarkMode() {
