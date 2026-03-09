@@ -1035,9 +1035,9 @@ function modifyDynmapDescription(marker, curArchiveDate) {
   if (curArchiveDate < 20220906) {
     marker.popup = marker.popup.replace(/">hasUpkeep:.+?(?<=<br \/>)/, '; white-space:pre">');
   } else marker.popup = marker.popup.replace('">pvp:', '; white-space:pre">pvp:');
-  marker.popup = marker.popup.replace("Flags<br />", "<br>Flags<br>").replace(">pvp:", ">PVP allowed:").replace(">mobs:", ">Mob spawning:").replace(">public:", ">Public status:").replace(">explosion:", ">Explosions:&#9;").replace(">fire:", ">Fire spread:&#9;").replace(/<br \/>capital:.*<\/span>/, "</span>").replaceAll("true<", '&#9;<span style="color:green">Yes</span><').replaceAll("false<", '&#9;<span style="color:red">No</span><').replace(`Members <span`, `Members <b>[${residentNum}]</b> <span`);
+  marker.popup = marker.popup.replace("Mayor", "Mayor:").replace("Flags<br />", "<br>Flags<br>").replace(">pvp:", ">PVP allowed:").replace(">mobs:", ">Mob spawning:").replace(">public:", ">Public status:").replace(">explosion:", ">Explosions:&#9;").replace(">fire:", ">Fire spread:&#9;").replace(/<br \/>capital:.*<\/span>/, "</span>").replaceAll("true<", '&#9;<span style="color:green">Yes</span><').replaceAll("false<", '&#9;<span style="color:red">No</span><').replace(`Members <span`, `Members <b>[${residentNum}]</b> <span`);
   if (area > 0) {
-    marker.popup = marker.popup.replace(`</span><br /> Members`, `</span><br>Size<span style="font-weight:bold"> ${area} </span><br> Members`);
+    marker.popup = marker.popup.replace(`</span><br /> Members`, `</span><br>Size:<span style="font-weight:bold"> ${area} chunks</span><br> Members`);
   }
   if (residentNum > 50) {
     marker.popup = marker.popup.replace(
