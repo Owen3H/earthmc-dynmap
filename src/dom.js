@@ -760,10 +760,11 @@ function removeScrollNormalizer(mapEl) {
  * @param {string} inputValue
  */
 function locate(selectValue, inputValue) {
+	const isArchiveMode = currentMapMode() == 'archive'
 	switch (selectValue) {
-		case 'Town': locateTown(inputValue); break
-		case 'Nation': locateNation(inputValue); break
-		case 'Resident': locateResident(inputValue); break
+		case 'Town': locateTown(inputValue, isArchiveMode); break
+		case 'Nation': locateNation(inputValue, isArchiveMode); break
+		case 'Resident': locateResident(inputValue, isArchiveMode); break
 	}
 }
 
@@ -776,64 +777,92 @@ function searchArchive(date) {
 	location.reload()
 }
 
-/** @param {string} residentName */
-async function locateResident(residentName) {
-	residentName = residentName.trim().toLowerCase()
-	if (residentName == '') return
-
-	const queryBody = { query: [residentName], template: { town: true } }
-	const data = await postJSON(`${OAPI_BASE}/${CURRENT_MAP}/players`, queryBody)
-	if (data == false) return showAlert('Searched resident has not been found.')
-	if (data == null) return showAlert('Service is currently unavailable, please try later.')
-
-	const townName = data[0].town.name
-	if (!townName) return showAlert('The searched resident is townless.')
-	
-	const coords = await getTownSpawn(townName)
-	if (coords == false) return showAlert('Unexpected error occurred while searching for resident, please try later.')
-	if (coords == null) return showAlert('Service is currently unavailable, please try later.')
-	
-	location.href = `${MAPI_BASE}?zoom=4&x=${coords.x}&z=${coords.z}`
-}
-
-/** @param {string} townName */
-async function locateTown(townName) {
+/** 
+ * @param {string} townName 
+ * @param {boolean} isArchiveMode
+ */
+async function locateTown(townName, isArchiveMode) {
 	townName = townName.trim().toLowerCase()
 	if (townName == '') return
 
-	const coords = await getTownSpawn(townName)
-	if (coords == false) return showAlert('Searched town has not been found.')
-	if (coords == null) return showAlert('Service is currently unavailable, please try later.')
+	let coords = null
+	if (!isArchiveMode) coords = await getTownSpawn(townName)
+	if (!coords) coords = getTownMidpoint(townName)
 
-	location.href = `${MAPI_BASE}?zoom=4&x=${coords.x}&z=${coords.z}`
+	if (!coords) return showAlert(`Could not find town/capital with name '${townName}'.`)
+	updateUrlLocation(coords)
 }
 
-/** @param {string} nationName */
-async function locateNation(nationName) {
+/** 
+ * @param {string} nationName
+ * @param {boolean} isArchiveMode
+ */
+async function locateNation(nationName, isArchiveMode) {
 	nationName = nationName.trim().toLowerCase()
 	if (nationName == '') return
 
-	const queryBody = { query: [nationName], template: { capital: true } }
-	const data = await postJSON(`${OAPI_BASE}/${CURRENT_MAP}/nations`, queryBody)
-	if (data == false) return showAlert('Searched nation has not been found.')
-	if (data == null) return showAlert('Service is currently unavailable, please try later.')
+	let capitalName = null
+	if (!isArchiveMode) {
+		const queryBody = { query: [nationName], template: { capital: true } }
+		const nations = await postJSON(`${OAPI_BASE}/${CURRENT_MAP}/nations`, queryBody)
+		if (nations && nations.length > 0) capitalName = nations[0].capital?.name
+	}
+	if (!capitalName) {
+		const marker = parsedMarkers.find(m => m.nationName && m.nationName.toLowerCase() == nationName && m.isCapital)
+		if (marker) capitalName = marker.townName
+	}
 
-	const capital = data[0].capital.name
-	const coords = await getTownSpawn(capital)
-	if (coords == false) return showAlert('Unexpected error occurred while searching for nation, please try later.')
-	if (coords == null) return showAlert('Service is currently unavailable, please try later.')
-	
-	location.href = `${MAPI_BASE}?zoom=4&x=${coords.x}&z=${coords.z}`
+	if (!capitalName) return showAlert('Searched nation could not be found.')
+	await locateTown(capitalName, isArchiveMode)
+}
+
+/** 
+ * @param {string} residentName
+ * @param {boolean} isArchiveMode
+ */
+async function locateResident(residentName, isArchiveMode) {
+	residentName = residentName.trim().toLowerCase()
+	if (residentName == '') return
+
+	let townName = null
+	if (!isArchiveMode) {
+		const queryBody = { query: [residentName], template: { town: true } }
+		const players = await postJSON(`${OAPI_BASE}/${CURRENT_MAP}/players`, queryBody)
+		if (players && players.length > 0) townName = players[0].town?.name
+	}
+	if (!townName) {
+		const marker = parsedMarkers.find(m => m.residentList && m.residentList.some(r => r.toLowerCase() == residentName))
+		if (marker) townName = marker.townName
+	}
+
+	if (!townName) return showAlert('Searched resident could not be found.')
+	await locateTown(townName, isArchiveMode)
 }
 
 /** @param {string} townName */
 async function getTownSpawn(townName) {
 	const queryBody = { query: [townName], template: { coordinates: true } }
-	const data = await postJSON(`${OAPI_BASE}/${CURRENT_MAP}/towns`, queryBody)
-	if (data == false || data == undefined) return false
-	if (data == null) return null
+	const towns = await postJSON(`${OAPI_BASE}/${CURRENT_MAP}/towns`, queryBody)
+	if (!towns || towns.length < 1) return null
 
-	const spawn = data[0].coordinates.spawn
+	const spawn = towns[0].coordinates.spawn
 	return { x: Math.round(spawn.x), z: Math.round(spawn.z) }
+}
+
+/** @param {string} townName */
+function getTownMidpoint(townName) {
+	const town = parsedMarkers.find(m => m.townName && m.townName.toLowerCase() == townName)
+	if (!town) return null
+
+	return { x: town.x, z: town.z }
+}
+
+/**
+ * Updates the address bar / href with the specified coords and zoom.
+ * @param {Vertex} coords 
+ * @param {number} zoom 
+ */
+function updateUrlLocation(coords, zoom = 4) {
+	location.href = `${MAPI_BASE}?zoom=${zoom}&x=${coords.x}&z=${coords.z}`
 }
 //#endregion

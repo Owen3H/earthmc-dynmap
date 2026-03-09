@@ -29,13 +29,28 @@ declare global {
     export type MarkerPoints = Array<Polygon>
     export type MultiPolygonPoints = Array<MarkerPoints>
 
+    /** The raw response data from `markers.json`. Contains markers from Towny at index 0 and World Border at index 1. */
+    export type MarkersResponse = Array<ResponseMarker>
+    export interface ResponseMarker { 
+        // id: string;
+        // name: string;
+        // timestamp: number
+        // control: boolean;
+        // z_index: number;
+        // order: number;
+        // hide: boolean;
+        markers: Array<SquaremapMarker | DynmapMarker>;
+    }
+
     export interface Marker {
-        tooltip: string,
-        popup: string,
-        color: string,
-        fillColor: string,
-        weight: number,
+        tooltip: string
+        popup: string
         type: string
+        weight: number
+        color: string
+        opacity: number
+        fillColor: string
+        fillOpacity: number
     }
     
     export interface SquaremapMarker extends Marker {
@@ -47,12 +62,14 @@ declare global {
     }
 
     export interface ParsedMarker {
-        townName: string,
-        nationName: string,
-        residentList: Array<string>,
-        residentNum: number,
-        isCapital: boolean,
-        area: number,
+        townName: string
+        nationName: string
+        residentList: Array<string>
+        residentNum: number
+        isCapital: boolean
+        area: number
+        x: number
+        z: number
         mayor?: string
     }
 

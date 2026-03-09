@@ -12,6 +12,9 @@ waitForElement('.leaflet-nameplate-pane').then(element => {
 	})
 })
 
+/** @type {Array<ParsedMarker>} */
+let parsedMarkers = []
+
 /** @type {Array<CachedAlliance>} */
 let cachedAlliances = null
 
@@ -33,7 +36,7 @@ const EXTRA_BORDER_OPTS = {
 	markup: false,
 }
 
-/** @type {() => MapMode} */
+/** @type {() => MapMode | "archive"} */
 const currentMapMode = () => localStorage['emcdynmapplus-mapmode'] ?? 'meganations'
 const archiveDate = () => parseInt(localStorage['emcdynmapplus-archive-date'])
 
@@ -139,6 +142,30 @@ function pointInPolygon(vertex, polygon) {
 	return inside
 }
 
+/** @param {number} n */
+const roundToNearest16 = n => Math.round(n / 16) * 16
+
+/**
+ * @param {Polygon} vertices 
+ * @returns {Vertex}
+ */
+function midrange(vertices) {
+	let minX = Infinity, maxX = -Infinity
+	let minZ = Infinity, maxZ = -Infinity
+
+	for (const vert of vertices) {
+		if (vert.x < minX) minX = vert.x
+		if (vert.x > maxX) maxX = vert.x
+		if (vert.z < minZ) minZ = vert.z
+		if (vert.z > maxZ) maxZ = vert.z
+	}
+
+	return {
+		x: roundToNearest16((minX + maxX) / 2),
+		z: roundToNearest16((minZ + maxZ) / 2)
+	}
+}
+
 /**
  * @param {MarkerPoints} linePoints
  * @param {string} weight 
@@ -149,7 +176,9 @@ const makePolyline = (linePoints, weight = 1, colour = '#ffffff') => ({
 	'weight': weight, 'color': colour,
 })
 
-/** @param {Array<any>} data - The markers response JSON data. */
+/** 
+ * @param {MarkersResponse} data - The markers response JSON data. 
+ */
 async function modifyMarkers(data) {
 	const mapMode = currentMapMode()
 	if (mapMode == 'archive') {
@@ -187,8 +216,7 @@ async function modifyMarkers(data) {
 	const date = archiveDate()
 	const isSquaremap = mapMode != 'archive' || date >= 20240701
 
-	const storedNationClaimsInfo = nationClaimsInfo()
-	const claimsCustomizerInfo = new Map(storedNationClaimsInfo
+	const claimsCustomizerInfo = new Map(nationClaimsInfo()
 		.filter(obj => obj.input != null)
 		.map(obj => [obj.input?.toLowerCase(), obj.color])
 	)
@@ -199,9 +227,11 @@ async function modifyMarkers(data) {
 	const start = performance.now()
 	for (const marker of data[0].markers) {
 		if (marker.type != 'polygon' && marker.type != 'icon') continue
-		
+
 		const parsedInfo = isSquaremap ? modifyDescription(marker, mapMode) : modifyDynmapDescription(marker, date)
 		if (marker.type != 'polygon') continue
+
+		parsedMarkers.push(parsedInfo)
 
 		// Universal properties
 		marker.opacity = 1
@@ -224,9 +254,7 @@ async function modifyMarkers(data) {
 	return data
 }
 
-/**
- * @param {Array<any>} data - The markers response JSON data.
- */
+/** @param {MarkersResponse} data - The markers response JSON data. */
 function addChunksLayer(data) {
 	const { L, R, U, D } = BORDER_CHUNK_COORDS
 	const ver = (x) => [{ x, z: U }, { x, z: D }, { x, z: U }]
@@ -247,7 +275,7 @@ function addChunksLayer(data) {
 }
 
 /**
- * @param {Array<any>} data - The markers response JSON data.
+ * @param {MarkersResponse} data - The markers response JSON data.
  * @param {Object} borders - The borders JSON data.
  */
 function addCountryBordersLayer(data, borders) {
@@ -303,6 +331,9 @@ function modifyDescription(marker, mapMode) {
 	const fixedNationName = nation?.replaceAll('<', '&lt;').replaceAll('>', '&gt;') ?? nation
 
 	const area = calcMarkerArea(marker) // Area excluding interior holes
+
+	let location = { x: 0, z: 0 }
+	if (marker.points) location = midrange(marker.points.flat(2))
 
 	// Create clickable resident lists
 	const isArchiveMode = mapMode == 'archive'
@@ -362,7 +393,7 @@ function modifyDescription(marker, mapMode) {
 		townName: fixedTownName, 
 		nationName: fixedNationName,
 		residentNum, residentList: residents.split(', '), 
-		isCapital, area, mayor
+		isCapital, mayor, area, ...location
 	}
 }
 
@@ -378,6 +409,7 @@ function modifyDynmapDescription(marker, curArchiveDate) {
 	const residentNum = residentList.length
 	const isCapital = marker.popup.match(/capital: true/) != null
 	const area = calcPolygonArea(marker.points)
+	const location = midrange(marker.points.flat(2))
 
 	// Modify description
 	if (isCapital) marker.popup = marker.popup.replace('120%">', '120%">★ ') // Prepend star indicating a capital
@@ -416,7 +448,7 @@ function modifyDynmapDescription(marker, curArchiveDate) {
 		townName: town?.trim() || null,
 		nationName: nation?.trim() || null,
 		residentList, residentNum, 
-		isCapital, area,
+		isCapital, area, ...location
 	}
 }
 
@@ -505,7 +537,7 @@ async function lookupPlayer(playerName, showOnlineStatus = true) {
 
 	loading.remove()
 
-	if (players == null) return showAlert('Service is currently unavailable, please try later.')
+	if (!players) return showAlert('Service is currently unavailable, please try later.')
 	if (players.length < 1) return showAlert('Error looking up this player. They have possibly opted-out.')
 
 	const lookup = addElement(leafletTL, htmlCode.playerLookup)
@@ -538,7 +570,7 @@ async function lookupPlayer(playerName, showOnlineStatus = true) {
 	if (player.status.isKing) rank = 'Leader'
 
 	// Place data
-	const playerAvatarURL = 'https://mc-heads.net/avatar/' + player.uuid.replaceAll('-', '')
+	const playerAvatarURL = `https://mc-heads.net/avatar/${player.uuid.replaceAll('-', '')}`
 	document.querySelector('#player-lookup-avatar').setAttribute('src', playerAvatarURL)
 	lookup.innerHTML = lookup.innerHTML
 		.replace('{player}', player.name || playerName)
