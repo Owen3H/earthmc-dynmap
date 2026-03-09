@@ -418,7 +418,9 @@ function modifyDynmapDescription(marker, curArchiveDate) {
 	}
 	else marker.popup = marker.popup.replace('">pvp:', '; white-space:pre">pvp:')
 
-	marker.popup = marker.popup.replace('Flags<br />', '<br>Flags<br>')
+	marker.popup = marker.popup
+		.replace("Mayor", "Mayor:")
+		.replace('Flags<br />', '<br>Flags<br>')
 		.replace('>pvp:', '>PVP allowed:')
 		.replace('>mobs:', '>Mob spawning:')
 		.replace('>public:', '>Public status:')
@@ -430,7 +432,7 @@ function modifyDynmapDescription(marker, curArchiveDate) {
 		.replace(`Members <span`, `Members <b>[${residentNum}]</b> <span`)
 	if (area > 0) {
 		marker.popup = marker.popup
-		.replace(`</span><br /> Members`, `</span><br>Size<span style="font-weight:bold"> ${area} </span><br> Members`)
+		.replace(`</span><br /> Members`, `</span><br>Size:<span style="font-weight:bold"> ${area} chunks</span><br> Members`)
 	}
 	// Scrollable resident list
 	if (residentNum > 50) {

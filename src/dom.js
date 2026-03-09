@@ -778,7 +778,7 @@ function searchArchive(date) {
 }
 
 /** 
- * @param {string} townName 
+ * @param {string} townName
  * @param {boolean} isArchiveMode
  */
 async function locateTown(townName, isArchiveMode) {
@@ -859,8 +859,8 @@ function getTownMidpoint(townName) {
 
 /**
  * Updates the address bar / href with the specified coords and zoom.
- * @param {Vertex} coords 
- * @param {number} zoom 
+ * @param {Vertex} coords
+ * @param {number} zoom
  */
 function updateUrlLocation(coords, zoom = 4) {
 	location.href = `${MAPI_BASE}?zoom=${zoom}&x=${coords.x}&z=${coords.z}`
