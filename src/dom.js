@@ -347,12 +347,13 @@ async function editUILayout() {
 }
 
 /** 
- * Inserts the claim color customizer only if the active map mode is **nationclaims**.
+ * Inserts the claim color customizer only if the active map mode matches mapMode.
+ * @param {string} mapMode - The name of the map mode required to insert the claims panel.
  * @returns {Promise<Element | null>} The "#nation-claims" element. 
  */
-function tryInsertNationClaimsPanel() {
+function tryInsertNationClaimsPanel(mapMode) {
 	const mode = localStorage['emcdynmapplus-mapmode']
-	if (mode != 'nationclaims') return null
+	if (mode != mapMode) return null
 
 	return waitForElement('.leaflet-control-container').then(el => {
 		disablePanAndZoom(el)
