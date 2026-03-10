@@ -1119,7 +1119,7 @@ async function lookupPlayer(playerName, showOnlineStatus = true) {
   const balance = player.stats.balance;
   const town = player.town.name;
   const nation = player.nation.name;
-  const lastOnline = new Date(player.timestamps.lastOnline).toLocaleDateString("fr");
+  const lastOnline = new Date(player.timestamps.lastOnline).toLocaleDateString();
   let onlineStatus = '<span id="player-lookup-online" style="color: {online-color}">{online}</span>';
   const about = !player.about || player.about == "/res set about [msg]" ? "" : `<br><i>${player.about}</i>`;
   let rank = "Townless";
@@ -1190,7 +1190,7 @@ var getArchiveURL = (date, markersURL) => `https://web.archive.org/web/${date}id
 async function getArchive(data) {
   const loadingMessage = addElement(document.body, htmlCode.alertMsg.replace("{message}", "Loading archive, please wait..."));
   const date = archiveDate();
-  const markersURL = date < 20240701 ? "https://earthmc.net/map/aurora/standalone/MySQL_markers.php?marker=_markers_/marker_earth.json" : date < 20230212 ? "https://earthmc.net/map/aurora/tiles/_markers_/marker_earth.json" : "https://map.earthmc.net/tiles/minecraft_overworld/markers.json";
+  const markersURL = date < 20230212 ? "https://earthmc.net/map/aurora/tiles/_markers_/marker_earth.json" : date < 20240701 ? "https://earthmc.net/map/aurora/standalone/MySQL_markers.php?marker=_markers_/marker_earth.json" : "https://map.earthmc.net/tiles/minecraft_overworld/markers.json";
   const archive = await fetchJSON(PROXY_URL + getArchiveURL(date, markersURL));
   if (!archive) return showAlert("Archive service is currently unavailable, please try later.");
   let actualArchiveDate;
@@ -1201,7 +1201,7 @@ async function getArchive(data) {
     data = archive;
     actualArchiveDate = archive[0].timestamp;
   }
-  actualArchiveDate = new Date(parseInt(actualArchiveDate)).toLocaleDateString();
+  actualArchiveDate = new Date(parseInt(actualArchiveDate)).toLocaleDateString("en-ca");
   document.querySelector("#current-map-mode-label").textContent += ` (${actualArchiveDate})`;
   loadingMessage.remove();
   if (actualArchiveDate.replaceAll("-", "") != date) {
