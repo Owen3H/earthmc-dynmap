@@ -1,6 +1,13 @@
 /** ANYTHING RELATED TO UI ELEMENTS OR DOM MANIPULATION BELONGS IN THIS FILE */
 console.log('emcdynmapplus: loaded dom')
 
+const BRIGHTNESS_PERCENTAGE = 60
+const CONTRAST_PERCENTAGE = 105
+const SATURATE_PERCENTAGE = 95
+const TILE_PANE_FILTER = /** @type {const} */ (
+	`brightness(${BRIGHTNESS_PERCENTAGE}%) contrast(${CONTRAST_PERCENTAGE}%) saturate(${SATURATE_PERCENTAGE}%)`
+)
+
 const ARCHIVE_DATE = {
 	MIN: "2022-05-01",
 	MAX: new Date().toLocaleDateString()
@@ -253,7 +260,7 @@ const screenshotViewport = async () => {
 	const vh = canvas.height = window.innerHeight
 	
 	const ctx = canvas.getContext('2d')
-	ctx.filter = 'brightness(60%)'
+	ctx.filter = TILE_PANE_FILTER
 
 	// draw tiles relative to viewport
 	for (const img of tiles) {
@@ -666,12 +673,13 @@ function addLocateMenu(sidebar) {
 
 /** 
  * @param {boolean} boxTicked 
- * @param {number} percentage - The amount to decrease brightness by.
  */
-function toggleDarkened(boxTicked, percentage = 45) {
+function toggleDarkened(boxTicked) {
 	const element = document.querySelector('.leaflet-tile-pane')
+	if (!element) return showAlert('Failed to toggle brightness. Cannot apply filter to non-existent tile pane.')
+
 	localStorage['emcdynmapplus-darkened'] = boxTicked
-	element.style.filter = boxTicked ? `brightness(${100-percentage}%)` : ''
+	element.style.filter = boxTicked ? TILE_PANE_FILTER : ''
 }
 
 /** @param {boolean} boxTicked */
@@ -680,12 +688,14 @@ function toggleServerInfo(boxTicked) {
 	const serverInfoPanel = document.querySelector('#server-info')
 	serverInfoPanel?.setAttribute('style', `visibility: ${boxTicked ? 'visible' : 'hidden'}`)
 
-	if (boxTicked) {
-		if (serverInfoScheduler == null) updateServerInfo(serverInfoPanel) // immediate fetch without spam
-	} else {
+	if (!boxTicked) {
 		if (serverInfoScheduler != null) clearTimeout(serverInfoScheduler) // stop future runs
 		serverInfoScheduler = null
+
+		return
 	}
+
+	if (serverInfoScheduler == null) updateServerInfo(serverInfoPanel) // immediate fetch without spam
 }
 
 /** @param {boolean} boxTicked */
