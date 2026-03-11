@@ -1,10 +1,11 @@
 /** ANYTHING RELATED TO UI ELEMENTS OR DOM MANIPULATION BELONGS IN THIS FILE */
 console.log('emcdynmapplus: loaded dom')
 
+// TODO: Add sliders under a "Tile Filters" section and bind these variables to their respective values.
 const BRIGHTNESS_PERCENTAGE = 60
 const CONTRAST_PERCENTAGE = 105
 const SATURATE_PERCENTAGE = 95
-const TILE_PANE_FILTER = /** @type {const} */ (
+const getTilePaneFilter = () => /** @type {const} */ (
 	`brightness(${BRIGHTNESS_PERCENTAGE}%) contrast(${CONTRAST_PERCENTAGE}%) saturate(${SATURATE_PERCENTAGE}%)`
 )
 
@@ -260,7 +261,7 @@ const screenshotViewport = async () => {
 	const vh = canvas.height = window.innerHeight
 	
 	const ctx = canvas.getContext('2d')
-	ctx.filter = TILE_PANE_FILTER
+	ctx.filter = getTilePaneFilter()
 
 	// draw tiles relative to viewport
 	for (const img of tiles) {
@@ -679,7 +680,7 @@ function toggleDarkened(boxTicked) {
 	if (!element) return showAlert('Failed to toggle brightness. Cannot apply filter to non-existent tile pane.')
 
 	localStorage['emcdynmapplus-darkened'] = boxTicked
-	element.style.filter = boxTicked ? TILE_PANE_FILTER : ''
+	element.style.filter = boxTicked ? getTilePaneFilter() : ''
 }
 
 /** @param {boolean} boxTicked */
