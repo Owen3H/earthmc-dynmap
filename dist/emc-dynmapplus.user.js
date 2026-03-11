@@ -181,6 +181,13 @@ async function sendBatch(url, chunk) {
 
 // src/dom.js
 console.log("emcdynmapplus: loaded dom");
+var BRIGHTNESS_PERCENTAGE = 60;
+var CONTRAST_PERCENTAGE = 105;
+var SATURATE_PERCENTAGE = 95;
+var getTilePaneFilter = () => (
+  /** @type {const} */
+  `brightness(${BRIGHTNESS_PERCENTAGE}%) contrast(${CONTRAST_PERCENTAGE}%) saturate(${SATURATE_PERCENTAGE}%)`
+);
 var ARCHIVE_DATE = {
   MIN: "2022-05-01",
   MAX: (/* @__PURE__ */ new Date()).toLocaleDateString()
@@ -361,7 +368,7 @@ var screenshotViewport = async () => {
   const vw = canvas.width = unsafeWindow.innerWidth;
   const vh = canvas.height = unsafeWindow.innerHeight;
   const ctx = canvas.getContext("2d");
-  ctx.filter = "brightness(60%)";
+  ctx.filter = getTilePaneFilter();
   for (const img of tiles) {
     const rect = img.getBoundingClientRect();
     if (rect.right < 0 || rect.bottom < 0) continue;
@@ -637,21 +644,22 @@ function addLocateMenu(sidebar) {
     locate(locateSelect.value, locateInput.value);
   });
 }
-function toggleDarkened(boxTicked, percentage = 45) {
+function toggleDarkened(boxTicked) {
   const element = document.querySelector(".leaflet-tile-pane");
+  if (!element) return showAlert("Failed to toggle brightness. Cannot apply filter to non-existent tile pane.");
   localStorage["emcdynmapplus-darkened"] = boxTicked;
-  element.style.filter = boxTicked ? `brightness(${100 - percentage}%)` : "";
+  element.style.filter = boxTicked ? getTilePaneFilter() : "";
 }
 function toggleServerInfo(boxTicked) {
   localStorage["emcdynmapplus-serverinfo"] = boxTicked;
   const serverInfoPanel = document.querySelector("#server-info");
   serverInfoPanel?.setAttribute("style", `visibility: ${boxTicked ? "visible" : "hidden"}`);
-  if (boxTicked) {
-    if (serverInfoScheduler == null) updateServerInfo(serverInfoPanel);
-  } else {
+  if (!boxTicked) {
     if (serverInfoScheduler != null) clearTimeout(serverInfoScheduler);
     serverInfoScheduler = null;
+    return;
   }
+  if (serverInfoScheduler == null) updateServerInfo(serverInfoPanel);
 }
 function toggleShowCapitalStars(boxTicked) {
   localStorage["emcdynmapplus-capital-stars"] = boxTicked;
