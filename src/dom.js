@@ -75,15 +75,22 @@ const htmlCode = /** @type {const} */ ({
 
 /**
  * Shows an alert message in a box at the center of the screen.
- * @param {string} message 
+ * @param {string} message - The important text to show inside the alert box.
+ * @param {number} timeout - The time (in sec) until the alert box is auto closed. null = manual dismiss
  */
-function showAlert(message) {
+function showAlert(message, timeout = null) {
 	const alert = window.document.querySelector('#alert')
-	if (alert != null) alert.remove()
+	if (alert) alert.remove() // remove last alert if still open
 
 	window.document.body.insertAdjacentHTML('beforeend', htmlCode.alertBox.replace('{message}', message))
 	const alertClose = window.document.querySelector('#alert-close')
 	alertClose.addEventListener('click', event => { event.target.parentElement.remove() })
+
+	if (!timeout) return
+	setTimeout(() => {
+		const alert = window.document.querySelector('#alert')
+		if (alert) alert.remove()
+	}, timeout*1000)
 }
 
 /**
@@ -217,7 +224,8 @@ async function insertScreenshotBtn() {
 			const canvas = await screenshotViewport()
 			const blob = await new Promise(res => canvas.toBlob(res, 'image/png', 1))
 			await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
-			showAlert('Screenshot successful. Copied to clipboard!')
+			
+			showAlert('Screenshot successful. Copied to clipboard!', 5)
 		} catch (e) {
 			console.error(e)
 			showAlert('Failed to screenshot/copy to clipboard. Check the console.')
@@ -225,11 +233,63 @@ async function insertScreenshotBtn() {
 	})
 }
 
-const nextFrame = () => new Promise(r => requestAnimationFrame(r))
-const queryTileElements = () => document.querySelectorAll('.leaflet-layer[style*="z-index: 1"] .leaflet-tile-container img.leaflet-tile')
+/**
+ * Temporarily blocks mouse/keyboard interaction while running a function.
+ * @param {() => Promise<any>} fn Async function to run while blocked
+ * @returns {Promise<any>} Resolves with the callback result
+ */
+const withInteractionBlocked = async (fn) => {
+	const blocker = document.createElement('div')
+	blocker.style.position = 'fixed'
+	blocker.style.top = '0'
+	blocker.style.left = '0'
+	blocker.style.width = '100vw'
+	blocker.style.height = '100vh'
+	blocker.style.zIndex = '999999'
+	blocker.style.cursor = 'wait'
+	document.body.appendChild(blocker)
+
+	try {
+		return await fn()
+	} finally {
+		blocker.remove()
+	}
+}
+
+/**
+ * Waits until the Leaflet map stops being panned or updated.
+ * Resolves once DOM is stable for 50ms.
+ */
+const waitForStableViewport = () => new Promise(resolve => {
+	const pane = document.querySelector('.leaflet-map-pane')
+	if (!pane) return resolve()
+	
+	let timer
+	const observer = new MutationObserver(() => {
+		clearTimeout(timer)
+		timer = setTimeout(() => {
+			observer.disconnect()
+			resolve()
+		}, 50)
+	})
+
+	observer.observe(pane, { attributes: true, childList: true, subtree: true, characterData: true })
+})
+
+const queryTileElements = () => document.querySelectorAll(".leaflet-tile-pane .leaflet-layer img.leaflet-tile")
+const delay = ms => new Promise(resolve => setTimeout(resolve, ms))
+//const nextFrame = () => new Promise(r => requestAnimationFrame(r))
 
 /** @returns {Promise<HTMLCanvasElement>} */
 const screenshotViewport = async () => {
+	await withInteractionBlocked(async () => {
+		showAlert("Waiting for viewport to stabilize...")
+		await waitForStableViewport() // wait until map is no longer being panned
+
+		showAlert("Screenshotting viewport...", 2)
+		await delay(2000) // extra wait to ensure markers are loaded
+	})
+
 	const tileElements = queryTileElements()
 	if (!tileElements.length) throw new Error('No tiles found')
 
@@ -240,21 +300,11 @@ const screenshotViewport = async () => {
 		const style = getComputedStyle(img.parentElement)
 		const scale = parseFloat(style.transform.match(/scale\(([^)]+)\)/)?.[1] || '1')
 		
-		return scale >= 1
+		return scale >= 1 // only include tiles with decent resolution
 	})
 
-	// wait for all tiles to finish loading
-	await Promise.all(tiles.map(img => {
-		if (img.complete && img.naturalWidth !== 0) return Promise.resolve()
-		return new Promise(resolve => {
-			img.addEventListener('load', resolve, { once: true })
-			img.addEventListener('error', resolve, { once: true })
-		})
-	}))
-
-	// wait a couple frames to let transforms settle
-	await nextFrame()
-	await nextFrame()
+	// wait for images to fully decode and finish loading
+	await Promise.all(tiles.map(img => img.decode().catch(() => {})))
 
 	const canvas = document.createElement('canvas')
 	const vw = canvas.width = window.innerWidth
@@ -266,43 +316,36 @@ const screenshotViewport = async () => {
 	// draw tiles relative to viewport
 	for (const img of tiles) {
 		const rect = img.getBoundingClientRect()
-		
+
 		// skip tiles fully outside viewport
-		if (rect.right < 0 || rect.bottom < 0) continue
-		if (rect.left > vw || rect.top > vh) continue
+		if (rect.right <= 0 || rect.bottom <= 0) continue
+		if (rect.left >= vw || rect.top >= vh) continue
 
-		const x = Math.max(rect.left, 0)
-		const y = Math.max(rect.top, 0)
-		
-		const width = Math.min(rect.right, vw) - x
-		const height = Math.min(rect.bottom, vh) - y
-
-		ctx.drawImage(img, x - rect.left, y - rect.top, width, height, x, y, width, height)
+		ctx.drawImage(img, rect.left, rect.top, rect.width, rect.height)
 	}
 
 	ctx.filter = 'none'
 
-	// draw overlay canvas
 	const overlay = document.querySelector('.leaflet-overlay-pane canvas.leaflet-zoom-animated')
-	if (overlay) {
-		const rect = overlay.getBoundingClientRect()
+	if (!overlay) throw new Error('Cannot draw markers onto output image due to missing overlay pane element!')
+
+	//#region draw overlay canvas onto new canvas
+	const rect = overlay.getBoundingClientRect()
+	const x = Math.max(rect.left, 0)
+	const y = Math.max(rect.top, 0)
+	const width = Math.min(rect.right, vw) - x
+	const height = Math.min(rect.bottom, vh) - y
+	
+	if (width > 0 && height > 0) {
+		const scaleX = overlay.width / rect.width
+		const scaleY = overlay.height / rect.height
 		
-		const x = Math.max(rect.left, 0)
-		const y = Math.max(rect.top, 0)
+		const dx = (x - rect.left) * scaleX
+		const dy = (y - rect.top) * scaleY
 		
-		const width = Math.min(rect.right, vw) - x
-		const height = Math.min(rect.bottom, vh) - y
-		
-		if (width > 0 && height > 0) {
-			const scaleX = overlay.width / rect.width
-			const scaleY = overlay.height / rect.height
-			
-			const dx = (x - rect.left) * scaleX
-			const dy = (y - rect.top) * scaleY
-			
-			ctx.drawImage(overlay, dx, dy, width * scaleX, height * scaleY, x, y, width, height)
-		}
+		ctx.drawImage(overlay, dx, dy, width * scaleX, height * scaleY, x, y, width, height)
 	}
+	//#endregion
 
 	return canvas
 }
