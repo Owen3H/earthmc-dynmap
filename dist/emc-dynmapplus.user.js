@@ -248,14 +248,19 @@ var htmlCode = (
     alertMsg: '<div class="message" id="alert"><p id="alert-message">{message}</p></div>'
   }
 );
-function showAlert(message) {
+function showAlert(message, timeout = null) {
   const alert = unsafeWindow.document.querySelector("#alert");
-  if (alert != null) alert.remove();
+  if (alert) alert.remove();
   unsafeWindow.document.body.insertAdjacentHTML("beforeend", htmlCode.alertBox.replace("{message}", message));
   const alertClose = unsafeWindow.document.querySelector("#alert-close");
   alertClose.addEventListener("click", (event) => {
     event.target.parentElement.remove();
   });
+  if (!timeout) return;
+  setTimeout(() => {
+    const alert2 = unsafeWindow.document.querySelector("#alert");
+    if (alert2) alert2.remove();
+  }, timeout * 1e3);
 }
 function addElement(parent, elementHTML, selector = null, all = false) {
   parent.insertAdjacentHTML("beforeend", elementHTML);
@@ -337,16 +342,51 @@ async function insertScreenshotBtn() {
       const canvas = await screenshotViewport();
       const blob = await new Promise((res) => canvas.toBlob(res, "image/png", 1));
       await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
-      showAlert("Screenshot successful. Copied to clipboard!");
+      showAlert("Screenshot successful. Copied to clipboard!", 5);
     } catch (e2) {
       console.error(e2);
       showAlert("Failed to screenshot/copy to clipboard. Check the console.");
     }
   });
 }
-var nextFrame = () => new Promise((r) => requestAnimationFrame(r));
-var queryTileElements = () => document.querySelectorAll('.leaflet-layer[style*="z-index: 1"] .leaflet-tile-container img.leaflet-tile');
+var withInteractionBlocked = async (fn) => {
+  const blocker = document.createElement("div");
+  blocker.style.position = "fixed";
+  blocker.style.top = "0";
+  blocker.style.left = "0";
+  blocker.style.width = "100vw";
+  blocker.style.height = "100vh";
+  blocker.style.zIndex = "999999";
+  blocker.style.cursor = "wait";
+  document.body.appendChild(blocker);
+  try {
+    return await fn();
+  } finally {
+    blocker.remove();
+  }
+};
+var waitForStableViewport = () => new Promise((resolve) => {
+  const pane = document.querySelector(".leaflet-map-pane");
+  if (!pane) return resolve();
+  let timer;
+  const observer = new MutationObserver(() => {
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      observer.disconnect();
+      resolve();
+    }, 50);
+  });
+  observer.observe(pane, { attributes: true, childList: true, subtree: true, characterData: true });
+});
+var queryTileElements = () => document.querySelectorAll(".leaflet-tile-pane .leaflet-layer img.leaflet-tile");
+var delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 var screenshotViewport = async () => {
+  await withInteractionBlocked(async () => {
+    showAlert("Waiting for viewport to stabilize...");
+    await waitForStableViewport();
+    showAlert("Screenshotting viewport...", 2);
+    await delay(2e3);
+  });
   const tileElements = queryTileElements();
   if (!tileElements.length) throw new Error("No tiles found");
   const tiles = Array.from(tileElements).filter((img) => {
@@ -355,45 +395,33 @@ var screenshotViewport = async () => {
     const scale = parseFloat(style.transform.match(/scale\(([^)]+)\)/)?.[1] || "1");
     return scale >= 1;
   });
-  await Promise.all(tiles.map((img) => {
-    if (img.complete && img.naturalWidth !== 0) return Promise.resolve();
-    return new Promise((resolve) => {
-      img.addEventListener("load", resolve, { once: true });
-      img.addEventListener("error", resolve, { once: true });
-    });
-  }));
-  await nextFrame();
-  await nextFrame();
+  await Promise.all(tiles.map((img) => img.decode().catch(() => {
+  })));
   const canvas = document.createElement("canvas");
   const vw = canvas.width = unsafeWindow.innerWidth;
   const vh = canvas.height = unsafeWindow.innerHeight;
   const ctx = canvas.getContext("2d");
   ctx.filter = getTilePaneFilter();
   for (const img of tiles) {
-    const rect = img.getBoundingClientRect();
-    if (rect.right < 0 || rect.bottom < 0) continue;
-    if (rect.left > vw || rect.top > vh) continue;
-    const x = Math.max(rect.left, 0);
-    const y = Math.max(rect.top, 0);
-    const width = Math.min(rect.right, vw) - x;
-    const height = Math.min(rect.bottom, vh) - y;
-    ctx.drawImage(img, x - rect.left, y - rect.top, width, height, x, y, width, height);
+    const rect2 = img.getBoundingClientRect();
+    if (rect2.right <= 0 || rect2.bottom <= 0) continue;
+    if (rect2.left >= vw || rect2.top >= vh) continue;
+    ctx.drawImage(img, rect2.left, rect2.top, rect2.width, rect2.height);
   }
   ctx.filter = "none";
   const overlay = document.querySelector(".leaflet-overlay-pane canvas.leaflet-zoom-animated");
-  if (overlay) {
-    const rect = overlay.getBoundingClientRect();
-    const x = Math.max(rect.left, 0);
-    const y = Math.max(rect.top, 0);
-    const width = Math.min(rect.right, vw) - x;
-    const height = Math.min(rect.bottom, vh) - y;
-    if (width > 0 && height > 0) {
-      const scaleX = overlay.width / rect.width;
-      const scaleY = overlay.height / rect.height;
-      const dx = (x - rect.left) * scaleX;
-      const dy = (y - rect.top) * scaleY;
-      ctx.drawImage(overlay, dx, dy, width * scaleX, height * scaleY, x, y, width, height);
-    }
+  if (!overlay) throw new Error("Cannot draw markers onto output image due to missing overlay pane element!");
+  const rect = overlay.getBoundingClientRect();
+  const x = Math.max(rect.left, 0);
+  const y = Math.max(rect.top, 0);
+  const width = Math.min(rect.right, vw) - x;
+  const height = Math.min(rect.bottom, vh) - y;
+  if (width > 0 && height > 0) {
+    const scaleX = overlay.width / rect.width;
+    const scaleY = overlay.height / rect.height;
+    const dx = (x - rect.left) * scaleX;
+    const dy = (y - rect.top) * scaleY;
+    ctx.drawImage(overlay, dx, dy, width * scaleX, height * scaleY, x, y, width, height);
   }
   return canvas;
 };
