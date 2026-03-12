@@ -79,16 +79,20 @@ const htmlCode = /** @type {const} */ ({
  * @param {number} timeout - The time (in sec) until the alert box is auto closed. null = manual dismiss
  */
 function showAlert(message, timeout = null) {
-	const alert = window.document.querySelector('#alert')
-	if (alert) alert.remove() // remove last alert if still open
+	let alert = document.querySelector('#alert')
+	if (!alert) {
+		document.body.insertAdjacentHTML('beforeend', htmlCode.alertBox.replace('{message}', message))
+		alert = document.querySelector('#alert')
 
-	window.document.body.insertAdjacentHTML('beforeend', htmlCode.alertBox.replace('{message}', message))
-	const alertClose = window.document.querySelector('#alert-close')
-	alertClose.addEventListener('click', event => { event.target.parentElement.remove() })
+		const alertClose = alert.querySelector('#alert-close')
+		alertClose.addEventListener('click', e => e.target.parentElement.remove())
+	} else {
+		alert.querySelector('#alert-message').textContent = message
+	}
 
 	if (!timeout) return
 	setTimeout(() => {
-		const alert = window.document.querySelector('#alert')
+		const alert = document.querySelector('#alert')
 		if (alert) alert.remove()
 	}, timeout*1000)
 }
@@ -222,7 +226,7 @@ async function insertScreenshotBtn() {
 
 		try {
 			const canvas = await screenshotViewport()
-			const blob = await new Promise(res => canvas.toBlob(res, 'image/png', 1))
+			const blob = await canvas.convertToBlob({ type: 'image/png', quality: 1 })
 			await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
 			
 			showAlert('Screenshot successful. Copied to clipboard!', 5)
@@ -278,16 +282,18 @@ const waitForStableViewport = () => new Promise(resolve => {
 
 const queryTileElements = () => document.querySelectorAll(".leaflet-tile-pane .leaflet-layer img.leaflet-tile")
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms))
-//const nextFrame = () => new Promise(r => requestAnimationFrame(r))
+const nextFrame = () => new Promise(r => requestAnimationFrame(r))
 
-/** @returns {Promise<HTMLCanvasElement>} */
+/** @returns {Promise<OffscreenCanvas>} */
 const screenshotViewport = async () => {
 	await withInteractionBlocked(async () => {
 		showAlert("Waiting for viewport to stabilize...")
 		await waitForStableViewport() // wait until map is no longer being panned
 
 		showAlert("Screenshotting viewport...", 2)
-		await delay(2000) // extra wait to ensure markers are loaded
+		for (let i = 0; i < 20; i++) {
+			await nextFrame()
+		}
 	})
 
 	const tileElements = queryTileElements()
@@ -306,9 +312,9 @@ const screenshotViewport = async () => {
 	// wait for images to fully decode and finish loading
 	await Promise.all(tiles.map(img => img.decode().catch(() => {})))
 
-	const canvas = document.createElement('canvas')
-	const vw = canvas.width = window.innerWidth
-	const vh = canvas.height = window.innerHeight
+	const vw = window.innerWidth
+	const vh = window.innerHeight
+	const canvas = new OffscreenCanvas(vw, vh)
 	
 	const ctx = canvas.getContext('2d')
 	ctx.filter = getTilePaneFilter()
