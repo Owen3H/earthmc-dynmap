@@ -249,16 +249,18 @@ var htmlCode = (
   }
 );
 function showAlert(message, timeout = null) {
-  const alert = unsafeWindow.document.querySelector("#alert");
-  if (alert) alert.remove();
-  unsafeWindow.document.body.insertAdjacentHTML("beforeend", htmlCode.alertBox.replace("{message}", message));
-  const alertClose = unsafeWindow.document.querySelector("#alert-close");
-  alertClose.addEventListener("click", (event) => {
-    event.target.parentElement.remove();
-  });
+  let alert = document.querySelector("#alert");
+  if (!alert) {
+    document.body.insertAdjacentHTML("beforeend", htmlCode.alertBox.replace("{message}", message));
+    alert = document.querySelector("#alert");
+    const alertClose = alert.querySelector("#alert-close");
+    alertClose.addEventListener("click", (e) => e.target.parentElement.remove());
+  } else {
+    alert.querySelector("#alert-message").textContent = message;
+  }
   if (!timeout) return;
   setTimeout(() => {
-    const alert2 = unsafeWindow.document.querySelector("#alert");
+    const alert2 = document.querySelector("#alert");
     if (alert2) alert2.remove();
   }, timeout * 1e3);
 }
@@ -340,7 +342,7 @@ async function insertScreenshotBtn() {
     e.preventDefault();
     try {
       const canvas = await screenshotViewport();
-      const blob = await new Promise((res) => canvas.toBlob(res, "image/png", 1));
+      const blob = await canvas.convertToBlob({ type: "image/png", quality: 1 });
       await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
       showAlert("Screenshot successful. Copied to clipboard!", 5);
     } catch (e2) {
@@ -380,12 +382,15 @@ var waitForStableViewport = () => new Promise((resolve) => {
 });
 var queryTileElements = () => document.querySelectorAll(".leaflet-tile-pane .leaflet-layer img.leaflet-tile");
 var delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+var nextFrame = () => new Promise((r) => requestAnimationFrame(r));
 var screenshotViewport = async () => {
   await withInteractionBlocked(async () => {
     showAlert("Waiting for viewport to stabilize...");
     await waitForStableViewport();
     showAlert("Screenshotting viewport...", 2);
-    await delay(2e3);
+    for (let i = 0; i < 20; i++) {
+      await nextFrame();
+    }
   });
   const tileElements = queryTileElements();
   if (!tileElements.length) throw new Error("No tiles found");
@@ -397,9 +402,9 @@ var screenshotViewport = async () => {
   });
   await Promise.all(tiles.map((img) => img.decode().catch(() => {
   })));
-  const canvas = document.createElement("canvas");
-  const vw = canvas.width = unsafeWindow.innerWidth;
-  const vh = canvas.height = unsafeWindow.innerHeight;
+  const vw = unsafeWindow.innerWidth;
+  const vh = unsafeWindow.innerHeight;
+  const canvas = new OffscreenCanvas(vw, vh);
   const ctx = canvas.getContext("2d");
   ctx.filter = getTilePaneFilter();
   for (const img of tiles) {
