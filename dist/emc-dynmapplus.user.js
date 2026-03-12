@@ -381,7 +381,6 @@ var waitForStableViewport = () => new Promise((resolve) => {
   observer.observe(pane, { attributes: true, childList: true, subtree: true, characterData: true });
 });
 var queryTileElements = () => document.querySelectorAll(".leaflet-tile-pane .leaflet-layer img.leaflet-tile");
-var delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 var nextFrame = () => new Promise((r) => requestAnimationFrame(r));
 var screenshotViewport = async () => {
   await withInteractionBlocked(async () => {
