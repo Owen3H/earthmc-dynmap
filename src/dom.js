@@ -281,8 +281,8 @@ const waitForStableViewport = () => new Promise(resolve => {
 })
 
 const queryTileElements = () => document.querySelectorAll(".leaflet-tile-pane .leaflet-layer img.leaflet-tile")
-const delay = ms => new Promise(resolve => setTimeout(resolve, ms))
 const nextFrame = () => new Promise(r => requestAnimationFrame(r))
+//const delay = ms => new Promise(resolve => setTimeout(resolve, ms))
 
 /** @returns {Promise<OffscreenCanvas>} */
 const screenshotViewport = async () => {
