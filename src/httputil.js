@@ -1,5 +1,5 @@
 /** ANYTHING RELATED TO NETWORKING BELONGS IN HERE */
-console.log('emcdynmapplus: loaded httputil')
+//console.log('emcdynmapplus: loaded httputil')
 
 const PROJECT_URL = `https://github.com/3meraldK/earthmc-dynmap`
 const PROXY_URL = `https://api.codetabs.com/v1/proxy/?quest=`
@@ -125,17 +125,16 @@ async function queryConcurrent(url, arr) {
 }
 
 /**
- * Splits an array into sub arrays by chunkSize
- * @param {Array<any>} arr 
- * @param {number} chunkSize 
+ * Splits an array into sub arrays by chunk size `sz`.
+ * @param {Array} arr 
+ * @param {number} chunkSize
+ * @returns {Array<Array>}
  */
-function chunkArr(arr, chunkSize) {
-	/** @type {Array<Array>} */
-	const chunks = []
-	for (let i = 0; i < arr.length; i += chunkSize) {
-		chunks.push(arr.slice(i, i + chunkSize))
-	}
-	return chunks
+function chunkArr(arr, sz) {
+	const ch = []
+	let i = 0, len = arr.length
+	for (; i < len; i += sz) { ch.push(arr.slice(i, i + sz)) }
+	return ch
 }
 
 /**

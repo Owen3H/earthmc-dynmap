@@ -1,5 +1,14 @@
-/** ANYTHING RELATED TO UI ELEMENTS OR DOM MANIPULATION BELONGS IN THIS FILE */
-console.log('emcdynmapplus: loaded dom')
+/** ANY UI CODE OR DOM MANIPULATION NOT RELATING TO THE EXTENSION MENU BELONGS IN THIS FILE */
+//console.log('emcdynmapplus: loaded dom')
+
+const ARCHIVE_DATE = {
+	MIN: "2022-05-01",
+	MAX: new Date().toLocaleDateString()
+}
+
+const SCROLL_BASE_ZOOM 	= 90
+const SCROLL_LINE_DELTA = 30  // 1 scroll line = ~30 deltaY in windows
+const SCROLL_THRESHOLD 	= 5	  // increase zoom by this many scroll lines
 
 // TODO: Add sliders under a "Tile Filters" section and bind these variables to their respective values.
 const BRIGHTNESS_PERCENTAGE = 60
@@ -9,12 +18,7 @@ const getTilePaneFilter = () => /** @type {const} */ (
 	`brightness(${BRIGHTNESS_PERCENTAGE}%) contrast(${CONTRAST_PERCENTAGE}%) saturate(${SATURATE_PERCENTAGE}%)`
 )
 
-const ARCHIVE_DATE = {
-	MIN: "2022-05-01",
-	MAX: new Date().toLocaleDateString()
-}
-
-const htmlCode = /** @type {const} */ ({
+const INSERTABLE_HTML = /** @type {const} */ ({
 	// Used in this file
     buttons: {
         locate: '<button class="sidebar-button" id="locate-button">Locate</button>',
@@ -81,7 +85,7 @@ const htmlCode = /** @type {const} */ ({
 function showAlert(message, timeout = null) {
 	let alert = document.querySelector('#alert')
 	if (!alert) {
-		document.body.insertAdjacentHTML('beforeend', htmlCode.alertBox.replace('{message}', message))
+		document.body.insertAdjacentHTML('beforeend', INSERTABLE_HTML.alertBox.replace('{message}', message))
 		alert = document.querySelector('#alert')
 
 		const alertClose = alert.querySelector('#alert-close')
@@ -309,17 +313,36 @@ const screenshotViewport = async () => {
 		return scale >= 1 // only include tiles with decent resolution
 	})
 
-	// wait for images to fully decode and finish loading
-	await Promise.all(tiles.map(img => img.decode().catch(() => {})))
+	// wait for images to fully decode if they aren't already complete.
+	await Promise.all(tiles.map(img => img.complete ? Promise.resolve() : img.decode().catch(() => {})))
 
-	const vw = window.innerWidth
-	const vh = window.innerHeight
+	const resScale = 1.5
+	const vw = window.innerWidth * resScale
+	const vh = window.innerHeight * resScale
 	const canvas = new OffscreenCanvas(vw, vh)
 	
-	const ctx = canvas.getContext('2d')
-	ctx.filter = getTilePaneFilter()
+	const ctx = canvas.getContext('2d', { alpha: false })
+	ctx.imageSmoothingEnabled = false // disable antialiasing
+	ctx.scale(resScale, resScale) // increase resolution
 
-	// draw tiles relative to viewport
+	// draw the sky bg first incase we are at world border and missing tiles
+	const mapElement = document.querySelector('#map')
+	if (mapElement) {
+		const bg = getComputedStyle(map).backgroundImage
+		if (bg && bg !== 'none') {
+			const img = new Image()
+			img.crossOrigin = "anonymous"
+			img.src = bg.slice(5, -2)
+			
+			await img.decode()
+
+			ctx.fillStyle = ctx.createPattern(img, 'repeat')
+			ctx.fillRect(0, 0, window.innerWidth, window.innerHeight)
+		}
+	}
+
+	// draw tiles relative to viewport (with brightness filter applied)
+	ctx.filter = getTilePaneFilter()
 	for (const img of tiles) {
 		const rect = img.getBoundingClientRect()
 
@@ -329,13 +352,12 @@ const screenshotViewport = async () => {
 
 		ctx.drawImage(img, rect.left, rect.top, rect.width, rect.height)
 	}
-
 	ctx.filter = 'none'
 
+	//#region draw overlay canvas onto our canvas on top of tiles
 	const overlay = document.querySelector('.leaflet-overlay-pane canvas.leaflet-zoom-animated')
 	if (!overlay) throw new Error('Cannot draw markers onto output image due to missing overlay pane element!')
 
-	//#region draw overlay canvas onto new canvas
 	const rect = overlay.getBoundingClientRect()
 	const x = Math.max(rect.left, 0)
 	const y = Math.max(rect.top, 0)
@@ -367,7 +389,7 @@ async function editUILayout() {
 			e.preventDefault()
 			e.stopPropagation()
 			history.replaceState(null, '', newHref)
-			showAlert('Updated URL with current camera coordinates. Next refresh will navigate there automatically.')
+			showAlert('Updated URL with current camera coordinates. Next refresh will navigate there automatically.', 3)
 		}
 	})
 
@@ -467,11 +489,11 @@ const MAX_CLAIM_COLOUR_INPUTS = 300
 /** @param {HTMLElement} parent - The "leaflet-bottom leaflet-right" element. */
 function addNationClaimsPanel(parent) {
 	/** @type {HTMLElement} */
-	const panel = addElement(parent, htmlCode.nationClaims)
+	const panel = addElement(parent, INSERTABLE_HTML.nationClaims)
 	panel.addEventListener('wheel', e => e.stopPropagation()) // stop squaremap overtaking scroll, we need to scroll the inputs
 
 	/** @type {HTMLElement} */
-	const titlebar = addElement(panel, htmlCode.nationClaimsTitlebar, '#nation-claims-titlebar')
+	const titlebar = addElement(panel, INSERTABLE_HTML.nationClaimsTitlebar, '#nation-claims-titlebar')
 	const toggleShowBtn = titlebar.querySelector('a')
 	const btnImg = toggleShowBtn.querySelector('img')
 	toggleShowBtn.addEventListener('click', e => {
@@ -491,8 +513,8 @@ function addNationClaimsPanel(parent) {
 	const entriesContainer = addElement(contentContainer, '<div id="nation-claims-entry-container"></div>')
 	
 	for (let i = 1; i <= MAX_CLAIM_COLOUR_INPUTS; i++) {
-		const colInput = htmlCode.nationClaimsColorInput.replace('{index}', i) 
-		const txtInput = htmlCode.nationClaimsTextInput.replace('{index}', i)
+		const colInput = INSERTABLE_HTML.nationClaimsColorInput.replace('{index}', i) 
+		const txtInput = INSERTABLE_HTML.nationClaimsTextInput.replace('{index}', i)
 
 		const id = `nation-claims-entry${i}`
 		addElement(entriesContainer, `<div class="nation-claims-entry" id="${id}">${colInput}${txtInput}</div>`)
@@ -503,8 +525,8 @@ function addNationClaimsPanel(parent) {
 
 	/** @type {HTMLElement} */
 	const showExcludedCheckbox = appendHTML(optDiv1, 
-		htmlCode.options.checkbox.replace('{option}', 'show-excluded') + 
-		htmlCode.options.label.replace('{option}', 'show-excluded').replace('{optionText}', 'Show irrelevant towns')
+		INSERTABLE_HTML.options.checkbox.replace('{option}', 'show-excluded') + 
+		INSERTABLE_HTML.options.label.replace('{option}', 'show-excluded').replace('{optionText}', 'Show irrelevant towns')
 	)
 	showExcludedCheckbox.checked = localStorage['emcdynmapplus-nation-claims-show-excluded'] == 'true' ? true : false
 	showExcludedCheckbox.addEventListener('change', e =>
@@ -513,8 +535,8 @@ function addNationClaimsPanel(parent) {
 
 	/** @type {HTMLElement} */
 	const useOpaqueCheckbox = appendHTML(optDiv2,
-		htmlCode.options.checkbox.replace('{option}', 'use-opaque-colors') + 
-		htmlCode.options.label.replace('{option}', 'use-opaque-colors').replace('{optionText}', 'Use opaque colors')
+		INSERTABLE_HTML.options.checkbox.replace('{option}', 'use-opaque-colors') + 
+		INSERTABLE_HTML.options.label.replace('{option}', 'use-opaque-colors').replace('{optionText}', 'Use opaque colors')
 	)
 	useOpaqueCheckbox.checked = localStorage['emcdynmapplus-nation-claims-opaque-colors'] == 'true' ? true : false
 	useOpaqueCheckbox.addEventListener('change', e =>
@@ -545,7 +567,7 @@ function addNationClaimsPanel(parent) {
 		const entries = Array.from({ length: MAX_CLAIM_COLOUR_INPUTS }, () => ({ color: null, input: null }))
 		localStorage['emcdynmapplus-nation-claims-info'] = JSON.stringify(entries)
 		loadNationClaims(panel)
-		showAlert("Set all nation claim inputs to default.")
+		showAlert("Set all nation claim inputs to default.", 2)
 	})
 
 	return panel
@@ -553,7 +575,7 @@ function addNationClaimsPanel(parent) {
 
 /** @param {HTMLElement} parent - The "leaflet-top leaflet-right" element. */
 function addServerInfoPanel(parent) {
-	const panel = addElement(parent, htmlCode.serverInfo)
+	const panel = addElement(parent, INSERTABLE_HTML.serverInfo)
 	addElement(panel, '<div id="server-info-title">Server Info</div>')
 	addElement(panel, '<div class="server-info-entry" id="vote-party">Votes until VP: Loading..</div>')
 	addElement(panel, '<br>')
@@ -610,319 +632,26 @@ function renderServerInfo(element, info) {
 	element.querySelector("#thunder").innerHTML = serverInfoEntry(`⛈️ Thunder`, info.status.isThundering ? 'Yes' : 'No')
 }
 
-/** @param {HTMLElement} parent - The "leaflet-top leaflet-left" element. */
-function addMainMenu(parent) {
-	const sidebar = addElement(parent, htmlCode.sidebar)
-	addLocateMenu(sidebar) // Locator button and input box
+/** @param {number} deltaY */
+function triggerScrollEvent(deltaY) {
+    // Calculate how many sets of SCROLL_THRESHOLD lines the user scrolled
+    const zoomMultiplier = Math.floor(Math.abs(deltaY) / (SCROLL_LINE_DELTA * SCROLL_THRESHOLD))
+    const pxPerZoomLevel = SCROLL_BASE_ZOOM + (zoomMultiplier * 30)
 
-	//#region Archive search and date input
-	const archiveContainer = addElement(sidebar, htmlCode.sidebarOption, '.sidebar-option', true)[1]
-	const archiveButton = addElement(archiveContainer, htmlCode.buttons.searchArchive)
-	const archiveInput = addElement(archiveContainer, htmlCode.archiveInput)
-	
-	archiveButton.addEventListener('click', _ => searchArchive(archiveInput.value))
-
-	// TODO: Typing in a bogus date will cause infinite "Loading archive..."
-	archiveInput.addEventListener('keyup', e => { if (e.key == 'Enter') searchArchive(archiveInput.value) })
-	archiveInput.addEventListener('change', _ => {
-		const URLDate = archiveInput.value.replaceAll('-', '')
-		localStorage['emcdynmapplus-archive-date'] = URLDate
-	})
-	//#endregion
-
-	const curMapMode = currentMapMode()
-
-	// Switch map mode button
-	const switchMapModeButton = addElement(sidebar, htmlCode.buttons.switchMapMode)
-	switchMapModeButton.addEventListener('click', _ => switchMapMode(curMapMode))
-
-	// Options button and checkboxes
-	addOptions(sidebar, curMapMode)
-
-	// Current map mode label
-	const currentMapModeLabel = addElement(sidebar, htmlCode.currentMapModeLabel)
-	currentMapModeLabel.textContent = currentMapModeLabel.textContent.replace('{currentMapMode}', curMapMode)
-
-	return sidebar
+	const eventData = { detail: { pxPerZoomLevel: deltaY < 0 ? pxPerZoomLevel : -pxPerZoomLevel } }
+    document.dispatchEvent(new CustomEvent('EMCDYNMAPPLUS_ADJUST_SCROLL', eventData))
 }
 
-/** 
- * @param {HTMLElement} sidebar 
- * @param {MapMode} curMapMode 
-*/
-function addOptions(sidebar, curMapMode) {
-	const optionsButton = addElement(sidebar, htmlCode.buttons.options)
-	const optionsMenu = addElement(sidebar, htmlCode.options.menu)
-	optionsMenu.style.display = 'none'
-	optionsButton.addEventListener('click', _ => {
-		optionsMenu.style.display = (optionsMenu.style.display == 'none') ? 'grid' : 'none'
-	})
+const SERVERINFO_INTERVAL = 5*1000
+let serverInfoScheduler = null
 
-	let i = 0
-	const checkboxes = {
-		normalizeScroll: addCheckboxOption(optionsMenu, i++, 'toggle-normalize-scroll', 'Normalize scroll inputs', 'normalize-scroll'),
-		decreaseBrightness: addCheckboxOption(optionsMenu, i++, 'toggle-darkened', 'Decrease brightness', 'darkened'),
-		darkMode: addCheckboxOption(optionsMenu, i++, 'toggle-darkmode', 'Toggle dark mode', 'darkmode'),
-		serverInfo: addCheckboxOption(optionsMenu, i++, 'toggle-serverinfo', 'Display server info', 'serverinfo'),
-	}
+/** @param {HTMLElement} element - The "#server-info" element. */
+async function updateServerInfo(element) {
+	const info = await fetchServerInfo()
+	if (info) renderServerInfo(element, info)
 
-	checkboxes.normalizeScroll.addEventListener('change', e => toggleScrollNormalize(e.target.checked))
-	checkboxes.decreaseBrightness.addEventListener('change', e => toggleDarkened(e.target.checked))
-	checkboxes.darkMode.addEventListener('change', e => toggleDarkMode(e.target.checked))
-	checkboxes.serverInfo.addEventListener('change', e => toggleServerInfo(e.target.checked))
-	
-	if (curMapMode != 'archive') {
-		const showCapitalStars = addCheckboxOption(optionsMenu, i++, 'toggle-capital-stars', 'Show capital stars', 'capital-stars')
-		showCapitalStars.addEventListener('change', e => toggleShowCapitalStars(e.target.checked))
-	}
+	// schedule next only if still enabled
+	const enabled = localStorage['emcdynmapplus-serverinfo'] === 'true' ? true : false
+	if (!enabled) serverInfoScheduler = null
+	else serverInfoScheduler = setTimeout(() => updateServerInfo(element), SERVERINFO_INTERVAL)
 }
-
-/**
- * Adds a option which displays a checkbox
- * @param {number} index - The number determining the order of this option in the list 
- * @param {string} optionId - The unique string used to query this option
- * @param {string} optionText - The text to display next to the checkbox
- * @param {string} variable - The variable name in storage used to keep the 'checked' state 
- */
-function addCheckboxOption(menu, index, optionId, optionText, variable) {
-	/** @type {HTMLElement} */
-	const option = addElement(menu, htmlCode.options.option, '.option', true)[index]
-	option.insertAdjacentHTML('beforeend', htmlCode.options.label
-		.replace('{option}', optionId)
-		.replace('{optionText}', optionText))
-	
-	// Initialize checkbox state
-	/** @type {HTMLInputElement} */
-	const checkbox = addElement(option, htmlCode.options.checkbox.replace('{option}', optionId), '#' + optionId)
-	checkbox.checked = (localStorage['emcdynmapplus-' + variable] == 'true')
-	return checkbox
-}
-
-/** @param {HTMLElement} sidebar */
-function addLocateMenu(sidebar) {
-	const locateMenu = addElement(sidebar, '<div id="locate-menu"></div>', '#locate-menu')
-	const locateButton = addElement(locateMenu, htmlCode.buttons.locate, '#locate-button')
-	const locateSubmenu = addElement(locateMenu, htmlCode.sidebarOption, '.sidebar-option')
-	const locateSelect = addElement(locateSubmenu, htmlCode.locateSelect, '#locate-select')
-	const locateInput = addElement(locateSubmenu, htmlCode.locateInput, '#locate-input')
-	locateSelect.addEventListener('change', () => {
-		switch (locateSelect.value) {
-			case 'Town': locateInput.placeholder = 'London'; break
-			case 'Nation': locateInput.placeholder = 'Germany'; break
-			case 'Resident': locateInput.placeholder = 'Notch'; break
-		}
-	})
-	locateInput.addEventListener('keyup', event => {
-		if (event.key != 'Enter') return
-		locate(locateSelect.value, locateInput.value)
-	})
-	locateButton.addEventListener('click', () => {
-		locate(locateSelect.value, locateInput.value)
-	})
-}
-
-/** 
- * @param {boolean} boxTicked 
- */
-function toggleDarkened(boxTicked) {
-	const element = document.querySelector('.leaflet-tile-pane')
-	if (!element) return showAlert('Failed to toggle brightness. Cannot apply filter to non-existent tile pane.')
-
-	localStorage['emcdynmapplus-darkened'] = boxTicked
-	element.style.filter = boxTicked ? getTilePaneFilter() : ''
-}
-
-/** @param {boolean} boxTicked */
-function toggleServerInfo(boxTicked) {
-	localStorage['emcdynmapplus-serverinfo'] = boxTicked
-	const serverInfoPanel = document.querySelector('#server-info')
-	serverInfoPanel?.setAttribute('style', `visibility: ${boxTicked ? 'visible' : 'hidden'}`)
-
-	if (!boxTicked) {
-		if (serverInfoScheduler != null) clearTimeout(serverInfoScheduler) // stop future runs
-		serverInfoScheduler = null
-
-		return
-	}
-
-	if (serverInfoScheduler == null) updateServerInfo(serverInfoPanel) // immediate fetch without spam
-}
-
-/** @param {boolean} boxTicked */
-function toggleShowCapitalStars(boxTicked) {
-	localStorage['emcdynmapplus-capital-stars'] = boxTicked
-	const iconContainer = document.querySelector('.leaflet-pane.leaflet-marker-pane')
-	iconContainer.setAttribute('style', `visibility: ${boxTicked ? 'visible' : 'hidden'}`)
-}
-
-//#region Dark Mode
-/** @param {boolean} boxTicked */
-function toggleDarkMode(boxTicked) {
-	localStorage['emcdynmapplus-darkmode'] = boxTicked
-	return boxTicked ? loadDarkMode() : unloadDarkMode()
-}
-
-function insertCustomStylesheets() {
-	document.head.insertAdjacentHTML('beforeend', htmlCode.interFont)
-	// other stylesheet html links ... 
-}
-
-function loadDarkMode() {
-	// tell browser not to apply its auto dark mode.
-	// this fixes some inverted elements when both are enabled.
-	document.documentElement.style.colorScheme = 'dark'
-	document.head.insertAdjacentHTML('beforeend', htmlCode.darkMode)
-}
-
-function unloadDarkMode() {
-	document.documentElement.style.removeProperty('color-scheme')
-
-	const darkModeEl = document.querySelector('#dark-mode')
-	if (darkModeEl) darkModeEl.remove()
-	waitForElement('.leaflet-map-pane').then(el => el.style.filter = '')
-}
-//#endregion
-
-//#region Scroll normalization
-let scrollListener = null
-
-/** @param {boolean} boxTicked */
-function toggleScrollNormalize(boxTicked) {
-	localStorage['emcdynmapplus-normalize-scroll'] = boxTicked
-
-	const el = window.document.querySelector('#map')
-	return boxTicked ? addScrollNormalizer(el) : removeScrollNormalizer(el)
-}
-
-/** @param {HTMLElement} mapEl */
-function addScrollNormalizer(mapEl) {
-    scrollListener = e => {
-        e.preventDefault()  // Prevent default scroll behavior (so Leaflet doesn't zoom immediately)
-        triggerScrollEvent(e.deltaY)
-    }
-
-    mapEl.addEventListener('wheel', scrollListener, { passive: false })
-}
-
-/** @param {HTMLElement} mapEl */
-function removeScrollNormalizer(mapEl) {
-	mapEl.removeEventListener('wheel', scrollListener)
-
-	const eventData = { detail: { pxPerZoomLevel: 60 } }
-	document.dispatchEvent(new CustomEvent('EMCDYNMAPPLUS_ADJUST_SCROLL', eventData))
-}
-//#endregion
-
-//#region Entity locator
-/**
- * Runs appropriate locator func based on selectValue, passing inputValue as the argument. 
- * @param {string} selectValue
- * @param {string} inputValue
- */
-function locate(selectValue, inputValue) {
-	const isArchiveMode = currentMapMode() == 'archive'
-	switch (selectValue) {
-		case 'Town': locateTown(inputValue, isArchiveMode); break
-		case 'Nation': locateNation(inputValue, isArchiveMode); break
-		case 'Resident': locateResident(inputValue, isArchiveMode); break
-	}
-}
-
-/** @param {string} date */
-function searchArchive(date) {
-	if (date == '') return
-	const URLDate = date.replaceAll('-', '') // 2026-06-01 -> 20260601
-	localStorage['emcdynmapplus-archive-date'] = URLDate // In case 'change' event doesn't already update it
-	localStorage['emcdynmapplus-mapmode'] = 'archive'
-	location.reload()
-}
-
-/** 
- * @param {string} townName
- * @param {boolean} isArchiveMode
- */
-async function locateTown(townName, isArchiveMode) {
-	townName = townName.trim().toLowerCase()
-	if (townName == '') return
-
-	let coords = null
-	if (!isArchiveMode) coords = await getTownSpawn(townName)
-	if (!coords) coords = getTownMidpoint(townName)
-
-	if (!coords) return showAlert(`Could not find town/capital with name '${townName}'.`)
-	updateUrlLocation(coords)
-}
-
-/** 
- * @param {string} nationName
- * @param {boolean} isArchiveMode
- */
-async function locateNation(nationName, isArchiveMode) {
-	nationName = nationName.trim().toLowerCase()
-	if (nationName == '') return
-
-	let capitalName = null
-	if (!isArchiveMode) {
-		const queryBody = { query: [nationName], template: { capital: true } }
-		const nations = await postJSON(`${OAPI_BASE}/${CURRENT_MAP}/nations`, queryBody)
-		if (nations && nations.length > 0) capitalName = nations[0].capital?.name
-	}
-	if (!capitalName) {
-		const marker = parsedMarkers.find(m => m.nationName && m.nationName.toLowerCase() == nationName && m.isCapital)
-		if (marker) capitalName = marker.townName
-	}
-
-	if (!capitalName) return showAlert('Searched nation could not be found.')
-	await locateTown(capitalName, isArchiveMode)
-}
-
-/** 
- * @param {string} residentName
- * @param {boolean} isArchiveMode
- */
-async function locateResident(residentName, isArchiveMode) {
-	residentName = residentName.trim().toLowerCase()
-	if (residentName == '') return
-
-	let townName = null
-	if (!isArchiveMode) {
-		const queryBody = { query: [residentName], template: { town: true } }
-		const players = await postJSON(`${OAPI_BASE}/${CURRENT_MAP}/players`, queryBody)
-		if (players && players.length > 0) townName = players[0].town?.name
-	}
-	if (!townName) {
-		const marker = parsedMarkers.find(m => m.residentList && m.residentList.some(r => r.toLowerCase() == residentName))
-		if (marker) townName = marker.townName
-	}
-
-	if (!townName) return showAlert('Searched resident could not be found.')
-	await locateTown(townName, isArchiveMode)
-}
-
-/** @param {string} townName */
-async function getTownSpawn(townName) {
-	const queryBody = { query: [townName], template: { coordinates: true } }
-	const towns = await postJSON(`${OAPI_BASE}/${CURRENT_MAP}/towns`, queryBody)
-	if (!towns || towns.length < 1) return null
-
-	const spawn = towns[0].coordinates.spawn
-	return { x: Math.round(spawn.x), z: Math.round(spawn.z) }
-}
-
-/** @param {string} townName */
-function getTownMidpoint(townName) {
-	const town = parsedMarkers.find(m => m.townName && m.townName.toLowerCase() == townName)
-	if (!town) return null
-
-	return { x: town.x, z: town.z }
-}
-
-/**
- * Updates the address bar / href with the specified coords and zoom.
- * @param {Vertex} coords
- * @param {number} zoom
- */
-function updateUrlLocation(coords, zoom = 4) {
-	location.href = `${MAPI_BASE}?zoom=${zoom}&x=${coords.x}&z=${coords.z}`
-}
-//#endregion

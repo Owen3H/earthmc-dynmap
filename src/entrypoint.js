@@ -83,36 +83,6 @@ async function init(manifest) {
 	checkForUpdate(manifest)
 }
 
-const baseZoom = 90
-const scrollLineDelta = 30	// 1 scroll line = ~30 deltaY in windows
-const scrollThreshold = 5	// increase zoom by this many scroll lines
-
-/** @param {number} deltaY */
-function triggerScrollEvent(deltaY) {
-    // Calculate how many sets of 5 scroll lines the user scrolled
-    const zoomMultiplier = Math.floor(Math.abs(deltaY) / (scrollLineDelta * scrollThreshold))
-    const pxPerZoomLevel = baseZoom + (zoomMultiplier * 30)
-
-	const eventData = { detail: { pxPerZoomLevel: deltaY < 0 ? pxPerZoomLevel : -pxPerZoomLevel } }
-    document.dispatchEvent(new CustomEvent('EMCDYNMAPPLUS_ADJUST_SCROLL', eventData))
-}
-
-const SERVERINFO_INTERVAL = 5_000
-let serverInfoScheduler = null
-
-/** @param {HTMLElement} element - The "#server-info" element. */
-async function updateServerInfo(element) {
-	const info = await fetchServerInfo()
-	if (info) renderServerInfo(element, info)
-
-	// schedule next only if still enabled
-	if (localStorage['emcdynmapplus-serverinfo'] === 'true') {
-		serverInfoScheduler = setTimeout(() => updateServerInfo(element), SERVERINFO_INTERVAL)
-	} else {
-		serverInfoScheduler = null
-	}
-}
-
 /** @param {Manifest} manifest */
 function checkForUpdate(manifest) {
     const cachedVer = localStorage['emcdynmapplus-version']

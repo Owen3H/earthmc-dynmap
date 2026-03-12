@@ -378,7 +378,7 @@ input[type="color"]::-webkit-color-swatch {
 .leaflet-control-layers {
 	border: none !important;
 	border-radius: 3px !important;
-	background: #ffffffa6 !important; /** htmlCode.darkMode will override this if enabled */
+	background: #ffffffa6 !important; /** INSERTABLE_HTML.darkMode will override this if enabled */
 }
 
 .leaflet-bottom.leaflet-left {

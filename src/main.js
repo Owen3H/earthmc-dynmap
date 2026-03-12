@@ -1,5 +1,5 @@
 /** WHERE MAIN LOGIC HAPPENS. ANYTHING NOT RELATING TO HTTP/SETUP/DOM BELONGS HERE */
-console.log('emcdynmapplus: loaded main')
+//console.log('emcdynmapplus: loaded main')
 
 // Add clickable player nameplates
 waitForElement('.leaflet-nameplate-pane').then(element => {
@@ -338,15 +338,15 @@ function modifyDescription(marker, mapMode) {
 	// Create clickable resident lists
 	const isArchiveMode = mapMode == 'archive'
 	const residentList = isArchiveMode ? residents :
-		residents.split(', ').map(resident => htmlCode.residentClickable.replaceAll('{player}', resident)).join(', ')
+		residents.split(', ').map(resident => INSERTABLE_HTML.residentClickable.replaceAll('{player}', resident)).join(', ')
 	const councillorList = isArchiveMode ? councillors :
-		councillors.map(councillor => htmlCode.residentClickable.replaceAll('{player}', councillor)).join(', ')
+		councillors.map(councillor => INSERTABLE_HTML.residentClickable.replaceAll('{player}', councillor)).join(', ')
 
 	// Modify description
 	if (residentNum > 50) {
-		marker.popup = marker.popup.replace(residents, htmlCode.scrollableResidentList.replace('{list}', residentList))
+		marker.popup = marker.popup.replace(residents, INSERTABLE_HTML.scrollableResidentList.replace('{list}', residentList))
 	} else {
-		marker.popup = marker.popup.replace(residents + '\n', htmlCode.residentList.replace('{list}', residentList) + '\n')
+		marker.popup = marker.popup.replace(residents + '\n', INSERTABLE_HTML.residentList.replace('{list}', residentList) + '\n')
 	}
 
 	marker.popup = marker.popup
@@ -364,7 +364,7 @@ function modifyDescription(marker, mapMode) {
 	
 	if (!isArchiveMode) {
 		marker.popup = marker.popup
-		.replace(/Mayor: <b>(.*)<\/b>/, `Mayor: <b>${htmlCode.residentClickable.replaceAll('{player}', mayor)}</b>`) // Lookup mayor
+		.replace(/Mayor: <b>(.*)<\/b>/, `Mayor: <b>${INSERTABLE_HTML.residentClickable.replaceAll('{player}', mayor)}</b>`) // Lookup mayor
 		.replace(/Councillors: <b>(.*)<\/b>/, `Councillors: <b>${councillorList}</b>`) // Lookup a councillor in the list
 	}
 	if (isCapital) {
@@ -384,7 +384,7 @@ function modifyDescription(marker, mapMode) {
 		const nationAlliances = getNationAlliances(nation, mapMode)
 		if (nationAlliances.length > 0) {
 			const allianceList = nationAlliances.map(alliance => alliance.name).join(', ')
-			const partOfLabel = htmlCode.partOfLabel.replace('{allianceList}', allianceList)
+			const partOfLabel = INSERTABLE_HTML.partOfLabel.replace('{allianceList}', allianceList)
 			marker.popup = marker.popup.replace('</span>\n', '</span></br>' + partOfLabel)
 		}
 	}
@@ -532,17 +532,17 @@ async function lookupPlayer(playerName, showOnlineStatus = true) {
 	document.querySelector('#player-lookup-loading')?.remove()
 	
 	const leafletTL = document.querySelector('.leaflet-top.leaflet-left')
-	if (!leafletTL) return showAlert('Error selecting element required to show player lookup.')
+	if (!leafletTL) return showAlert('Error selecting element required to show player info popup.')
 
-	const loading = addElement(leafletTL, htmlCode.playerLookupLoading, '#player-lookup-loading')
+	const loading = addElement(leafletTL, INSERTABLE_HTML.playerLookupLoading, '#player-lookup-loading')
 	const players = await postJSON(`${OAPI_BASE}/${CURRENT_MAP}/players`, { query: [playerName] })
 
 	loading.remove()
 
-	if (!players) return showAlert('Service is currently unavailable, please try later.')
-	if (players.length < 1) return showAlert('Error looking up this player. They have possibly opted-out.')
+	if (!players) return showAlert('Service is currently unavailable, please try later.', 5)
+	if (players.length < 1) return showAlert(`Error looking up player: ${playerName}. They have possibly opted-out.`, 3)
 
-	const lookup = addElement(leafletTL, htmlCode.playerLookup)
+	const lookup = addElement(leafletTL, INSERTABLE_HTML.playerLookup)
 
 	// Populate with placeholders
 	lookup.insertAdjacentHTML('beforeend', '<span class="close-container">X</span>')
@@ -614,7 +614,7 @@ async function getAlliances() {
 			return []
 		}
 
-		showAlert('Service responsible for loading alliances is currently unavailable, but locally-cached data will be used.')
+		showAlert('Service responsible for loading alliances is unavailable, falling back to locally cached data.', 5)
 		return cache
 	}
 
@@ -675,7 +675,7 @@ const getArchiveURL = (date, markersURL) => `https://web.archive.org/web/${date}
  * @param {Object} markers - The old markers response JSON data
  */
 async function getArchive(data) {
-	const loadingMessage = addElement(document.body, htmlCode.alertMsg.replace('{message}', 'Loading archive, please wait...'))
+	const loadingMessage = addElement(document.body, INSERTABLE_HTML.alertMsg.replace('{message}', 'Loading archive, please wait...'))
 	const date = archiveDate()
 	
 	// markers.json URL changed over time
