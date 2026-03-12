@@ -27,6 +27,7 @@ function addDirIgnore(archive: archiver.Archiver, srcDir: string, destDir: strin
 const EXT_NAME = 'emc-dynmapplus'
 const outfile = path.join('dist', EXT_NAME+".zip")
 
+const start = performance.now()
 const output = createWriteStream(outfile)
 const archive = archiver.create('zip', { zlib: { level: 9 } })
 archive.pipe(output)
@@ -36,4 +37,9 @@ archive.directory('resources', EXT_NAME+'/resources')
 archive.file('manifest.json', { name: EXT_NAME+'/manifest.json' })
 archive.file('README.md', { name: EXT_NAME+'/README.md' })
 
-archive.finalize().then(() => console.log(`Successfully generated extension. Output at: ${outfile}`))
+archive.finalize().then(() => {
+	const elapsed = (performance.now() - start).toFixed(2)
+	const relPath = '.' + path.sep + path.relative(process.cwd(), outfile)
+
+	console.log(`Successfully generated extension.\n  Output: ${relPath}\n  Took: ${elapsed}ms\n`)
+})

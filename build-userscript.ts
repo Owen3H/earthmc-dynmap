@@ -41,9 +41,13 @@ const buildOpts: BuildOptions = {
     },
 }
 
+const start = performance.now()
 build(buildOpts).then(res => {
     const contentCode = res.outputFiles.map(f => f.text).join('\n')
-
     writeFileSync(outfile, `${HEADER}\n${contentCode}`)
-    console.log(`Successfully generated userscript. Output at: ${outfile}`)
+
+    const elapsed = (performance.now() - start).toFixed(2)
+    const relPath = '.' + path.sep + path.relative(process.cwd(), outfile)
+
+    console.log(`Successfully generated userscript.\n  Output: ${relPath}\n  Took: ${elapsed}ms\n`)
 })
