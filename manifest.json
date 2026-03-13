@@ -22,6 +22,7 @@
 		"js": [
 			"src/httputil.js",
 			"src/dom.js",
+			"src/screenshot.js",
 			"src/menu.js",
 			"src/main.js",
 			"src/entrypoint.js"
