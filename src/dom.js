@@ -6,6 +6,8 @@ const ARCHIVE_DATE = {
 	MAX: new Date().toLocaleDateString()
 }
 
+const MAX_NATION_CLAIM_ENTRIES = 300
+
 const SCROLL_BASE_ZOOM 	= 90
 const SCROLL_LINE_DELTA = 30  // 1 scroll line = ~30 deltaY in windows
 const SCROLL_THRESHOLD 	= 5	  // increase zoom by this many scroll lines
@@ -19,7 +21,7 @@ const getTilePaneFilter = () => /** @type {const} */ (
 )
 
 const INSERTABLE_HTML = /** @type {const} */ ({
-	// Used in this file
+	// Used in dom.js
     buttons: {
         locate: '<button class="sidebar-button" id="locate-button">Locate</button>',
         searchArchive: '<button class="sidebar-button" id="archive-button">Search Archive</button>',
@@ -48,7 +50,15 @@ const INSERTABLE_HTML = /** @type {const} */ ({
     archiveInput: `<input class="sidebar-input" id="archive-input" type="date" min="${ARCHIVE_DATE.MIN}" max="${ARCHIVE_DATE.MAX}">`,
     currentMapModeLabel: '<div class="sidebar-option" id="current-map-mode-label">Map Mode: {currentMapMode}</div>',
     alertBox: '<div id="alert"><p id="alert-message">{message}</p><button id="alert-close">Dismiss</button></div>',
-	/** Inserted into document <head> */
+    // Used in main.js
+    playerLookup: '<div class="leaflet-control-layers leaflet-control" id="player-lookup"></div>',
+    playerLookupLoading: '<div class="leaflet-control-layers leaflet-control" id="player-lookup-loading">Loading...</button>',
+    residentClickable: '<span class="resident-clickable">{player}</span>',
+    residentList: '<span class="resident-list">\t{list}</span>',
+    scrollableResidentList: '<div class="resident-list" id="scrollable-list">\t{list}</div>',
+    partOfLabel: '<span id="part-of-label">Part of <b>{allianceList}</b></span>',
+    alertMsg: '<div class="message" id="alert"><p id="alert-message">{message}</p></div>',
+	// Inserted into document <head>
 	interFont: `<link rel="preconnect" href="https://fonts.googleapis.com">
 		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 		<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap">
@@ -66,16 +76,9 @@ const INSERTABLE_HTML = /** @type {const} */ ({
 		}
 		</style>
 	`,
-
-    // Used in main.js
-    playerLookup: '<div class="leaflet-control-layers leaflet-control" id="player-lookup"></div>',
-    playerLookupLoading: '<div class="leaflet-control-layers leaflet-control" id="player-lookup-loading">Loading...</button>',
-    residentClickable: '<span class="resident-clickable">{player}</span>',
-    residentList: '<span class="resident-list">\t{list}</span>',
-    scrollableResidentList: '<div class="resident-list" id="scrollable-list">\t{list}</div>',
-    partOfLabel: '<span id="part-of-label">Part of <b>{allianceList}</b></span>',
-    alertMsg: '<div class="message" id="alert"><p id="alert-message">{message}</p></div>'
 })
+
+let alertTimeout = null
 
 /**
  * Shows an alert message in a box at the center of the screen.
@@ -85,28 +88,23 @@ const INSERTABLE_HTML = /** @type {const} */ ({
 function showAlert(message, timeout = null) {
 	let alert = document.querySelector('#alert')
 	if (!alert) {
-		document.body.insertAdjacentHTML('beforeend', INSERTABLE_HTML.alertBox.replace('{message}', message))
-		alert = document.querySelector('#alert')
+		alert = addElement(document.body, INSERTABLE_HTML.alertBox.replace('{message}', message))
+		alert.querySelector('#alert-close').addEventListener('click', () => {
+			clearTimeout(alertTimeout)
+			alert.remove()
+		})
+	} else alert.querySelector('#alert-message').textContent = message
 
-		const alertClose = alert.querySelector('#alert-close')
-		alertClose.addEventListener('click', e => e.target.parentElement.remove())
-	} else {
-		alert.querySelector('#alert-message').textContent = message
-	}
-
-	if (!timeout) return
-	setTimeout(() => {
-		const alert = document.querySelector('#alert')
-		if (alert) alert.remove()
-	}, timeout*1000)
+	clearTimeout(alertTimeout)
+	if (timeout) alertTimeout = setTimeout(() => alert.remove(), timeout*1000)
 }
 
 /**
  * Adds element to parent and uses selector to query select an element on parent.
  * @param {HTMLElement} parent
  * @param {string} elementHTML
- * @param {string} selector
- * @param {boolean} all
+ * @param {string} selector - optional query selector *inside* parent. null = self
+ * @param {boolean} all - return all matching nodes
  */
 function addElement(parent, elementHTML, selector=null, all=false) {
 	parent.insertAdjacentHTML('beforeend', elementHTML)
@@ -166,8 +164,7 @@ const waitForElement = selector => new Promise(resolve => {
 })
 
 /**
- * Calls `callback` whenever the element's href changes
- * @param {Element} element
+ * Calls `callback` whenever the element's href changes.
  * @param {HTMLElement} anchorParent
  * @param {() => HTMLElement} getAnchor
  * @param {(newHref: string, lastHref: string) => void} callback
@@ -243,8 +240,8 @@ async function insertScreenshotBtn() {
 
 /**
  * Temporarily blocks mouse/keyboard interaction while running a function.
- * @param {() => Promise<any>} fn Async function to run while blocked
- * @returns {Promise<any>} Resolves with the callback result
+ * @param {() => Promise<any>} fn Async function to run while blocked.
+ * @returns {Promise<any>} Resolves with the callback result.
  */
 const withInteractionBlocked = async (fn) => {
 	const blocker = document.createElement('div')
@@ -264,10 +261,7 @@ const withInteractionBlocked = async (fn) => {
 	}
 }
 
-/**
- * Waits until the Leaflet map stops being panned or updated.
- * Resolves once DOM is stable for 50ms.
- */
+/** Waits until the Leaflet map stops being panned or updated. Resolves once DOM is stable for 50ms. */
 const waitForStableViewport = () => new Promise(resolve => {
 	const pane = document.querySelector('.leaflet-map-pane')
 	if (!pane) return resolve()
@@ -284,100 +278,6 @@ const waitForStableViewport = () => new Promise(resolve => {
 	observer.observe(pane, { attributes: true, childList: true, subtree: true, characterData: true })
 })
 
-const queryTileElements = () => document.querySelectorAll(".leaflet-tile-pane .leaflet-layer img.leaflet-tile")
-const nextFrame = () => new Promise(r => requestAnimationFrame(r))
-//const delay = ms => new Promise(resolve => setTimeout(resolve, ms))
-
-/** @returns {Promise<OffscreenCanvas>} */
-const screenshotViewport = async () => {
-	await withInteractionBlocked(async () => {
-		showAlert("Waiting for viewport to stabilize...")
-		await waitForStableViewport() // wait until map is no longer being panned
-
-		showAlert("Screenshotting viewport...", 2)
-		for (let i = 0; i < 20; i++) {
-			await nextFrame()
-		}
-	})
-
-	const tileElements = queryTileElements()
-	if (!tileElements.length) throw new Error('No tiles found')
-
-	/** @type {Array<HTMLImageElement>} */
-	const tiles = Array.from(tileElements).filter(img => {
-		if (!img.parentElement) return false
-		
-		const style = getComputedStyle(img.parentElement)
-		const scale = parseFloat(style.transform.match(/scale\(([^)]+)\)/)?.[1] || '1')
-		
-		return scale >= 1 // only include tiles with decent resolution
-	})
-
-	// wait for images to fully decode if they aren't already complete.
-	await Promise.all(tiles.map(img => img.complete ? Promise.resolve() : img.decode().catch(() => {})))
-
-	const resScale = 1.5
-	const vw = window.innerWidth * resScale
-	const vh = window.innerHeight * resScale
-	const canvas = new OffscreenCanvas(vw, vh)
-	
-	const ctx = canvas.getContext('2d', { alpha: false })
-	ctx.imageSmoothingEnabled = false // disable antialiasing
-	ctx.scale(resScale, resScale) // increase resolution
-
-	// draw the sky bg first incase we are at world border and missing tiles
-	const mapElement = document.querySelector('#map')
-	if (mapElement) {
-		const bg = getComputedStyle(map).backgroundImage
-		if (bg && bg !== 'none') {
-			const img = new Image()
-			img.crossOrigin = "anonymous"
-			img.src = bg.slice(5, -2)
-			
-			await img.decode()
-
-			ctx.fillStyle = ctx.createPattern(img, 'repeat')
-			ctx.fillRect(0, 0, window.innerWidth, window.innerHeight)
-		}
-	}
-
-	// draw tiles relative to viewport (with brightness filter applied)
-	ctx.filter = getTilePaneFilter()
-	for (const img of tiles) {
-		const rect = img.getBoundingClientRect()
-
-		// skip tiles fully outside viewport
-		if (rect.right <= 0 || rect.bottom <= 0) continue
-		if (rect.left >= vw || rect.top >= vh) continue
-
-		ctx.drawImage(img, rect.left, rect.top, rect.width, rect.height)
-	}
-	ctx.filter = 'none'
-
-	//#region draw overlay canvas onto our canvas on top of tiles
-	const overlay = document.querySelector('.leaflet-overlay-pane canvas.leaflet-zoom-animated')
-	if (!overlay) throw new Error('Cannot draw markers onto output image due to missing overlay pane element!')
-
-	const rect = overlay.getBoundingClientRect()
-	const x = Math.max(rect.left, 0)
-	const y = Math.max(rect.top, 0)
-	const width = Math.min(rect.right, vw) - x
-	const height = Math.min(rect.bottom, vh) - y
-	
-	if (width > 0 && height > 0) {
-		const scaleX = overlay.width / rect.width
-		const scaleY = overlay.height / rect.height
-		
-		const dx = (x - rect.left) * scaleX
-		const dy = (y - rect.top) * scaleY
-		
-		ctx.drawImage(overlay, dx, dy, width * scaleX, height * scaleY, x, y, width, height)
-	}
-	//#endregion
-
-	return canvas
-}
-
 async function editUILayout() {
     const coordinates = await waitForElement('.leaflet-control-layers.coordinates')
 	const link = await waitForElement('.leaflet-control-layers.link')
@@ -388,8 +288,9 @@ async function editUILayout() {
 		link.onclick = e => {
 			e.preventDefault()
 			e.stopPropagation()
+			
 			history.replaceState(null, '', newHref)
-			showAlert('Updated URL with current camera coordinates. Next refresh will navigate there automatically.', 3)
+			showAlert('Updated URL with current camera coordinates. Next refresh will navigate there automatically.', 4)
 		}
 	})
 
@@ -397,14 +298,12 @@ async function editUILayout() {
     // and make sure the link and coordinates buttons align with it
 	const bottomLeft = document.querySelector(".leaflet-bottom.leaflet-left")
 	if (link || coordinates) {
-		// Create a wrapper div
 		const wrapper = document.createElement('div')
 		wrapper.id = 'coords-container'
-
-		// Move elements into wrapper
+ 		
+		// place link btn and coords in same div under bottom left panel
 		if (link) wrapper.appendChild(link)
 		if (coordinates) wrapper.appendChild(coordinates)
-
 		bottomLeft.appendChild(wrapper)
 	}
 
@@ -456,9 +355,7 @@ function insertSidebarMenu() {
     })
 }
 
-/**
- * @param {HTMLElement} element - The element to prevent dblckick and mousedown events on.
- */
+/** @param {HTMLElement} element - The element to prevent dblckick and mousedown events on. */
 function disablePanAndZoom(element) {
 	// Prevents panning the map when on this element by
 	// stopping the mouse event from propogating to Leaflet.
@@ -483,8 +380,6 @@ function loadNationClaims(panel) {
 		if (text) text.value = entry.input || ''
 	})
 }
-
-const MAX_CLAIM_COLOUR_INPUTS = 300
 
 /** @param {HTMLElement} parent - The "leaflet-bottom leaflet-right" element. */
 function addNationClaimsPanel(parent) {
@@ -512,19 +407,19 @@ function addNationClaimsPanel(parent) {
 	/** @type {HTMLElement} */
 	const entriesContainer = addElement(contentContainer, '<div id="nation-claims-entry-container"></div>')
 	
-	for (let i = 1; i <= MAX_CLAIM_COLOUR_INPUTS; i++) {
+	let html = ''
+	for (let i = 1; i <= MAX_NATION_CLAIM_ENTRIES; i++) {
 		const colInput = INSERTABLE_HTML.nationClaimsColorInput.replace('{index}', i) 
 		const txtInput = INSERTABLE_HTML.nationClaimsTextInput.replace('{index}', i)
-
-		const id = `nation-claims-entry${i}`
-		addElement(entriesContainer, `<div class="nation-claims-entry" id="${id}">${colInput}${txtInput}</div>`)
+		html += `<div class="nation-claims-entry" id="nation-claims-entry${i}">${colInput}${txtInput}</div>`
 	}
+	addElement(entriesContainer, html)
 
 	const optDiv1 = addElement(contentContainer, '<div class="nation-claims-checkbox-option"></div>')
 	const optDiv2 = addElement(contentContainer, '<div class="nation-claims-checkbox-option"></div>')
 
 	/** @type {HTMLElement} */
-	const showExcludedCheckbox = appendHTML(optDiv1, 
+	const showExcludedCheckbox = addElement(optDiv1, 
 		INSERTABLE_HTML.options.checkbox.replace('{option}', 'show-excluded') + 
 		INSERTABLE_HTML.options.label.replace('{option}', 'show-excluded').replace('{optionText}', 'Show irrelevant towns')
 	)
@@ -534,7 +429,7 @@ function addNationClaimsPanel(parent) {
 	)
 
 	/** @type {HTMLElement} */
-	const useOpaqueCheckbox = appendHTML(optDiv2,
+	const useOpaqueCheckbox = addElement(optDiv2,
 		INSERTABLE_HTML.options.checkbox.replace('{option}', 'use-opaque-colors') + 
 		INSERTABLE_HTML.options.label.replace('{option}', 'use-opaque-colors').replace('{optionText}', 'Use opaque colors')
 	)
@@ -544,15 +439,14 @@ function addNationClaimsPanel(parent) {
 	)
 
 	/** @type {HTMLElement} */
-	const div = appendHTML(contentContainer, '<div id="nation-claims-btn-container"></div>')
+	const div = addElement(contentContainer, '<div id="nation-claims-btn-container"></div>')
 
 	/** @type {HTMLElement} */
-	const applyBtn = appendHTML(div, '<button class="sidebar-button" id="nation-claims-apply">Apply</button>')
+	const applyBtn = addElement(div, '<button class="sidebar-button" id="nation-claims-apply">Apply</button>')
 	applyBtn.addEventListener('click', () => {
 		const colorInputs = entriesContainer.querySelectorAll('[id^="nation-color-entry"]')
 		const textInputs  = entriesContainer.querySelectorAll('[id^="nation-text-entry"]')
-
-		const entries = Array.from({ length: MAX_CLAIM_COLOUR_INPUTS }, (_, i) => ({
+		const entries = Array.from({ length: MAX_NATION_CLAIM_ENTRIES }, (_, i) => ({
 			color: colorInputs[i]?.value ?? null,
 			input: textInputs[i]?.value ?? null,
 		}))
@@ -562,9 +456,9 @@ function addNationClaimsPanel(parent) {
 	})
 
 	/** @type {HTMLElement} */
-	const resetAllBtn = appendHTML(div, '<button class="sidebar-button" id="nation-claims-reset-all">Reset All</button>')
+	const resetAllBtn = addElement(div, '<button class="sidebar-button" id="nation-claims-reset-all">Reset All</button>')
 	resetAllBtn.addEventListener('click', () => {
-		const entries = Array.from({ length: MAX_CLAIM_COLOUR_INPUTS }, () => ({ color: null, input: null }))
+		const entries = Array.from({ length: MAX_NATION_CLAIM_ENTRIES }, () => ({ color: null, input: null }))
 		localStorage['emcdynmapplus-nation-claims-info'] = JSON.stringify(entries)
 		loadNationClaims(panel)
 		showAlert("Set all nation claim inputs to default.", 2)

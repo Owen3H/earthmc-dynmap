@@ -1,6 +1,8 @@
 /** ANY CODE RELATING TO THE MAIN ONSCREEN EXTENSION MENU GOES HERE */
 //console.log('emcdynmapplus: loaded menu')
 
+// TODO: Use Custom Element Registry and convert the main menu into one.
+
 /** @param {HTMLElement} parent - The "leaflet-top leaflet-left" element. */
 function addMainMenu(parent) {
 	const sidebar = addElement(parent, INSERTABLE_HTML.sidebar)
