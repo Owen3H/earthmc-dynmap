@@ -36,6 +36,10 @@ const EXTRA_BORDER_OPTS = {
 	markup: false,
 }
 
+// Black
+const DEFAULT_ALLIANCE_COLOURS = { fill: '#000000', outline: '#000000' }
+const CHUNKS_PER_RES = 12
+
 /** @type {() => MapMode | "archive"} */
 const currentMapMode = () => localStorage['emcdynmapplus-mapmode'] ?? 'meganations'
 const archiveDate = () => parseInt(localStorage['emcdynmapplus-archive-date'])
@@ -589,9 +593,6 @@ async function lookupPlayer(playerName, showOnlineStatus = true) {
 	lookup.querySelector('.close-container').addEventListener('click', event => { event.target.parentElement.remove() })
 }
 
-// Black
-const DEFAULT_ALLIANCE_COLOURS = { fill: '#000000', outline: '#000000' }
-
 /**
  * @param {AllianceColours} colours  
  */
@@ -671,11 +672,9 @@ function getNationAlliances(nationName, mapMode) {
 
 const getArchiveURL = (date, markersURL) => `https://web.archive.org/web/${date}id_/${markersURL}`
 
-/**
- * @param {Object} markers - The old markers response JSON data
- */
+/** @param {Object} markers - The old markers response JSON data */
 async function getArchive(data) {
-	const loadingMessage = addElement(document.body, INSERTABLE_HTML.alertMsg.replace('{message}', 'Loading archive, please wait...'))
+	const loadingAlert = showAlert('Loading archive, please wait...')
 	const date = archiveDate()
 	
 	// markers.json URL changed over time
@@ -699,7 +698,8 @@ async function getArchive(data) {
 	// THIS HAS TO BE EN-CA SO REPLACING DASHES WORKS TO MATCH STORED DATE
 	actualArchiveDate = new Date(parseInt(actualArchiveDate)).toLocaleDateString('en-ca')
 	document.querySelector('#current-map-mode-label').textContent += ` (${actualArchiveDate})`
-	loadingMessage.remove()
+	
+	loadingAlert.remove()
 	if (actualArchiveDate.replaceAll('-', '') != date) {
 		showAlert(`The closest archive to your prompt comes from ${actualArchiveDate}.`)
 	}
@@ -707,9 +707,7 @@ async function getArchive(data) {
 	return data
 }
 
-/**
- * @param {Object} markerset - The towny markerset of the old markers response JSON data
- */
+/** @param {Object} markerset - The towny markerset of the old markers response JSON data */
 function convertOldMarkersStructure(markerset) {
 	return Object.entries(markerset.areas).filter(([key]) => !key.includes('_Shop')).map(([_, v]) => ({
 		fillColor: v.fillcolor,
@@ -721,8 +719,6 @@ function convertOldMarkersStructure(markerset) {
 		points: v.x.map((x, i) => ({ x, z: v.z[i] }))
 	}))
 }
-
-const CHUNKS_PER_RES = 12
 
 /**
  * Calculate the claim limit for an independent town and report overclaimed status.

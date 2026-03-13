@@ -97,6 +97,8 @@ function showAlert(message, timeout = null) {
 
 	clearTimeout(alertTimeout)
 	if (timeout) alertTimeout = setTimeout(() => alert.remove(), timeout*1000)
+
+	return alert
 }
 
 /**
@@ -226,7 +228,7 @@ async function insertScreenshotBtn() {
 		e.preventDefault() // stop blank href from refreshing as we are adding our own button behaviour
 
 		try {
-			const canvas = await screenshotViewport()
+			const canvas = await withInteractionBlocked(screenshotViewport)
 			const blob = await canvas.convertToBlob({ type: 'image/png', quality: 1 })
 			await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
 			
@@ -239,9 +241,10 @@ async function insertScreenshotBtn() {
 }
 
 /**
- * Temporarily blocks mouse/keyboard interaction while running a function.
- * @param {() => Promise<any>} fn Async function to run while blocked.
- * @returns {Promise<any>} Resolves with the callback result.
+ * Temporarily blocks mouse/keyboard interaction while running `fn`.
+ * @template T
+ * @param {() => Promise<T>} fn - Async function to run while blocked.
+ * @returns {Promise<T>} Resolves with whatever the callback returns.
  */
 const withInteractionBlocked = async (fn) => {
 	const blocker = document.createElement('div')
@@ -419,7 +422,7 @@ function addNationClaimsPanel(parent) {
 	const optDiv2 = addElement(contentContainer, '<div class="nation-claims-checkbox-option"></div>')
 
 	/** @type {HTMLElement} */
-	const showExcludedCheckbox = addElement(optDiv1, 
+	const showExcludedCheckbox = appendHTML(optDiv1, 
 		INSERTABLE_HTML.options.checkbox.replace('{option}', 'show-excluded') + 
 		INSERTABLE_HTML.options.label.replace('{option}', 'show-excluded').replace('{optionText}', 'Show irrelevant towns')
 	)
@@ -429,7 +432,7 @@ function addNationClaimsPanel(parent) {
 	)
 
 	/** @type {HTMLElement} */
-	const useOpaqueCheckbox = addElement(optDiv2,
+	const useOpaqueCheckbox = appendHTML(optDiv2,
 		INSERTABLE_HTML.options.checkbox.replace('{option}', 'use-opaque-colors') + 
 		INSERTABLE_HTML.options.label.replace('{option}', 'use-opaque-colors').replace('{optionText}', 'Use opaque colors')
 	)
@@ -439,10 +442,10 @@ function addNationClaimsPanel(parent) {
 	)
 
 	/** @type {HTMLElement} */
-	const div = addElement(contentContainer, '<div id="nation-claims-btn-container"></div>')
+	const div = appendHTML(contentContainer, '<div id="nation-claims-btn-container"></div>')
 
 	/** @type {HTMLElement} */
-	const applyBtn = addElement(div, '<button class="sidebar-button" id="nation-claims-apply">Apply</button>')
+	const applyBtn = appendHTML(div, '<button class="sidebar-button" id="nation-claims-apply">Apply</button>')
 	applyBtn.addEventListener('click', () => {
 		const colorInputs = entriesContainer.querySelectorAll('[id^="nation-color-entry"]')
 		const textInputs  = entriesContainer.querySelectorAll('[id^="nation-text-entry"]')
@@ -456,7 +459,7 @@ function addNationClaimsPanel(parent) {
 	})
 
 	/** @type {HTMLElement} */
-	const resetAllBtn = addElement(div, '<button class="sidebar-button" id="nation-claims-reset-all">Reset All</button>')
+	const resetAllBtn = appendHTML(div, '<button class="sidebar-button" id="nation-claims-reset-all">Reset All</button>')
 	resetAllBtn.addEventListener('click', () => {
 		const entries = Array.from({ length: MAX_NATION_CLAIM_ENTRIES }, () => ({ color: null, input: null }))
 		localStorage['emcdynmapplus-nation-claims-info'] = JSON.stringify(entries)

@@ -4,20 +4,11 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms))
 
 /** @param {"low" | "medium" | "high" | null | undefined} antialiasing */
 const screenshotViewport = async (antialiasing = null) => {
-	await withInteractionBlocked(async () => {
-		showAlert("Waiting for viewport to stabilize...")
-		await waitForStableViewport() // wait until map is no longer being panned
+    showAlert("Waiting for viewport to stabilize...")
+    await waitForStableViewport() // wait until map is no longer being panned
 
-		showAlert("Screenshotting viewport...", 1)
-		
-		await delay(400)
-		for (let i = 0; i < 10; i++) {
-			await nextFrame()
-		}
-	})
-
-	const tileElements = queryTileElements()
-	if (!tileElements.length) throw new Error('No tiles found')
+    const tileElements = queryTileElements()
+    if (!tileElements.length) throw new Error('No tiles found')
 
     /** @type {Array<HTMLImageElement>} */
     const tiles = []
@@ -35,19 +26,28 @@ const screenshotViewport = async (antialiasing = null) => {
         tiles.push(img)
     }
 
-	const resScale = 1.5 // increase canvas resolution
-	const canvas = new OffscreenCanvas(window.innerWidth * resScale, window.innerHeight * resScale)
-	const ctx = canvas.getContext('2d', { alpha: false })
+    const resScale = 1.5 // increase canvas resolution
+    const canvas = new OffscreenCanvas(window.innerWidth * resScale, window.innerHeight * resScale)
+    const ctx = canvas.getContext('2d', { alpha: false })
 
     ctx.imageSmoothingEnabled = !!antialiasing
-	ctx.imageSmoothingQuality = antialiasing || 'low'
+    ctx.imageSmoothingQuality = antialiasing || 'low'
     ctx.scale(resScale, resScale) // scale the coords to draw correctly with increased res
 
-	await drawBackground(ctx)
-	drawTiles(ctx, tiles)
-	drawMarkers(ctx)
+    showAlert('Waiting for markers to load...')
+    await delay(300)
+    for (let i = 0; i < 5; i++) {
+        await nextFrame()
+    }
 
-	return canvas
+    showAlert('Drawing layers...')
+    await delay(150)
+
+    await drawBackground(ctx)
+    drawTiles(ctx, tiles)
+    drawMarkers(ctx)
+
+    return canvas
 }
 
 /** 
