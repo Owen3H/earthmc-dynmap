@@ -419,7 +419,7 @@ function addNationClaimsPanel(parent) {
 	const optDiv2 = addElement(contentContainer, '<div class="nation-claims-checkbox-option"></div>')
 
 	/** @type {HTMLElement} */
-	const showExcludedCheckbox = appendHTML(optDiv1, 
+	const showExcludedCheckbox = addElement(optDiv1, 
 		INSERTABLE_HTML.options.checkbox.replace('{option}', 'show-excluded') + 
 		INSERTABLE_HTML.options.label.replace('{option}', 'show-excluded').replace('{optionText}', 'Show irrelevant towns')
 	)
@@ -429,7 +429,7 @@ function addNationClaimsPanel(parent) {
 	)
 
 	/** @type {HTMLElement} */
-	const useOpaqueCheckbox = appendHTML(optDiv2,
+	const useOpaqueCheckbox = addElement(optDiv2,
 		INSERTABLE_HTML.options.checkbox.replace('{option}', 'use-opaque-colors') + 
 		INSERTABLE_HTML.options.label.replace('{option}', 'use-opaque-colors').replace('{optionText}', 'Use opaque colors')
 	)
@@ -439,10 +439,10 @@ function addNationClaimsPanel(parent) {
 	)
 
 	/** @type {HTMLElement} */
-	const div = appendHTML(contentContainer, '<div id="nation-claims-btn-container"></div>')
+	const div = addElement(contentContainer, '<div id="nation-claims-btn-container"></div>')
 
 	/** @type {HTMLElement} */
-	const applyBtn = appendHTML(div, '<button class="sidebar-button" id="nation-claims-apply">Apply</button>')
+	const applyBtn = addElement(div, '<button class="sidebar-button" id="nation-claims-apply">Apply</button>')
 	applyBtn.addEventListener('click', () => {
 		const colorInputs = entriesContainer.querySelectorAll('[id^="nation-color-entry"]')
 		const textInputs  = entriesContainer.querySelectorAll('[id^="nation-text-entry"]')
@@ -456,7 +456,7 @@ function addNationClaimsPanel(parent) {
 	})
 
 	/** @type {HTMLElement} */
-	const resetAllBtn = appendHTML(div, '<button class="sidebar-button" id="nation-claims-reset-all">Reset All</button>')
+	const resetAllBtn = addElement(div, '<button class="sidebar-button" id="nation-claims-reset-all">Reset All</button>')
 	resetAllBtn.addEventListener('click', () => {
 		const entries = Array.from({ length: MAX_NATION_CLAIM_ENTRIES }, () => ({ color: null, input: null }))
 		localStorage['emcdynmapplus-nation-claims-info'] = JSON.stringify(entries)
