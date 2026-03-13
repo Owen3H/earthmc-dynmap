@@ -184,6 +184,7 @@ var ARCHIVE_DATE = {
   MIN: "2022-05-01",
   MAX: (/* @__PURE__ */ new Date()).toLocaleDateString()
 };
+var MAX_NATION_CLAIM_ENTRIES = 300;
 var SCROLL_BASE_ZOOM = 90;
 var SCROLL_LINE_DELTA = 30;
 var SCROLL_THRESHOLD = 5;
@@ -197,7 +198,7 @@ var getTilePaneFilter = () => (
 var INSERTABLE_HTML = (
   /** @type {const} */
   {
-    // Used in this file
+    // Used in dom.js
     buttons: {
       locate: '<button class="sidebar-button" id="locate-button">Locate</button>',
       searchArchive: '<button class="sidebar-button" id="archive-button">Search Archive</button>',
@@ -222,7 +223,15 @@ var INSERTABLE_HTML = (
     archiveInput: `<input class="sidebar-input" id="archive-input" type="date" min="${ARCHIVE_DATE.MIN}" max="${ARCHIVE_DATE.MAX}">`,
     currentMapModeLabel: '<div class="sidebar-option" id="current-map-mode-label">Map Mode: {currentMapMode}</div>',
     alertBox: '<div id="alert"><p id="alert-message">{message}</p><button id="alert-close">Dismiss</button></div>',
-    /** Inserted into document <head> */
+    // Used in main.js
+    playerLookup: '<div class="leaflet-control-layers leaflet-control" id="player-lookup"></div>',
+    playerLookupLoading: '<div class="leaflet-control-layers leaflet-control" id="player-lookup-loading">Loading...</button>',
+    residentClickable: '<span class="resident-clickable">{player}</span>',
+    residentList: '<span class="resident-list">	{list}</span>',
+    scrollableResidentList: '<div class="resident-list" id="scrollable-list">	{list}</div>',
+    partOfLabel: '<span id="part-of-label">Part of <b>{allianceList}</b></span>',
+    alertMsg: '<div class="message" id="alert"><p id="alert-message">{message}</p></div>',
+    // Inserted into document <head>
     interFont: `<link rel="preconnect" href="https://fonts.googleapis.com">
 		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 		<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap">
@@ -239,32 +248,22 @@ var INSERTABLE_HTML = (
 			filter: invert(1);
 		}
 		</style>
-	`,
-    // Used in main.js
-    playerLookup: '<div class="leaflet-control-layers leaflet-control" id="player-lookup"></div>',
-    playerLookupLoading: '<div class="leaflet-control-layers leaflet-control" id="player-lookup-loading">Loading...</button>',
-    residentClickable: '<span class="resident-clickable">{player}</span>',
-    residentList: '<span class="resident-list">	{list}</span>',
-    scrollableResidentList: '<div class="resident-list" id="scrollable-list">	{list}</div>',
-    partOfLabel: '<span id="part-of-label">Part of <b>{allianceList}</b></span>',
-    alertMsg: '<div class="message" id="alert"><p id="alert-message">{message}</p></div>'
+	`
   }
 );
+var alertTimeout = null;
 function showAlert(message, timeout = null) {
   let alert = document.querySelector("#alert");
   if (!alert) {
-    document.body.insertAdjacentHTML("beforeend", INSERTABLE_HTML.alertBox.replace("{message}", message));
-    alert = document.querySelector("#alert");
-    const alertClose = alert.querySelector("#alert-close");
-    alertClose.addEventListener("click", (e) => e.target.parentElement.remove());
-  } else {
-    alert.querySelector("#alert-message").textContent = message;
-  }
-  if (!timeout) return;
-  setTimeout(() => {
-    const alert2 = document.querySelector("#alert");
-    if (alert2) alert2.remove();
-  }, timeout * 1e3);
+    alert = addElement(document.body, INSERTABLE_HTML.alertBox.replace("{message}", message));
+    alert.querySelector("#alert-close").addEventListener("click", () => {
+      clearTimeout(alertTimeout);
+      alert.remove();
+    });
+  } else alert.querySelector("#alert-message").textContent = message;
+  clearTimeout(alertTimeout);
+  if (timeout) alertTimeout = setTimeout(() => alert.remove(), timeout * 1e3);
+  return alert;
 }
 function addElement(parent, elementHTML, selector = null, all = false) {
   parent.insertAdjacentHTML("beforeend", elementHTML);
@@ -343,7 +342,7 @@ async function insertScreenshotBtn() {
   screenshotBtn?.addEventListener("click", async (e) => {
     e.preventDefault();
     try {
-      const canvas = await screenshotViewport();
+      const canvas = await withInteractionBlocked(screenshotViewport);
       const blob = await canvas.convertToBlob({ type: "image/png", quality: 1 });
       await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
       showAlert("Screenshot successful. Copied to clipboard!", 5);
@@ -382,70 +381,6 @@ var waitForStableViewport = () => new Promise((resolve) => {
   });
   observer.observe(pane, { attributes: true, childList: true, subtree: true, characterData: true });
 });
-var queryTileElements = () => document.querySelectorAll(".leaflet-tile-pane .leaflet-layer img.leaflet-tile");
-var nextFrame = () => new Promise((r) => requestAnimationFrame(r));
-var screenshotViewport = async () => {
-  await withInteractionBlocked(async () => {
-    showAlert("Waiting for viewport to stabilize...");
-    await waitForStableViewport();
-    showAlert("Screenshotting viewport...", 2);
-    for (let i = 0; i < 20; i++) {
-      await nextFrame();
-    }
-  });
-  const tileElements = queryTileElements();
-  if (!tileElements.length) throw new Error("No tiles found");
-  const tiles = Array.from(tileElements).filter((img) => {
-    if (!img.parentElement) return false;
-    const style = getComputedStyle(img.parentElement);
-    const scale = parseFloat(style.transform.match(/scale\(([^)]+)\)/)?.[1] || "1");
-    return scale >= 1;
-  });
-  await Promise.all(tiles.map((img) => img.complete ? Promise.resolve() : img.decode().catch(() => {
-  })));
-  const resScale = 1.5;
-  const vw = unsafeWindow.innerWidth * resScale;
-  const vh = unsafeWindow.innerHeight * resScale;
-  const canvas = new OffscreenCanvas(vw, vh);
-  const ctx = canvas.getContext("2d", { alpha: false });
-  ctx.imageSmoothingEnabled = false;
-  ctx.scale(resScale, resScale);
-  const mapElement = document.querySelector("#map");
-  if (mapElement) {
-    const bg = getComputedStyle(map).backgroundImage;
-    if (bg && bg !== "none") {
-      const img = new Image();
-      img.crossOrigin = "anonymous";
-      img.src = bg.slice(5, -2);
-      await img.decode();
-      ctx.fillStyle = ctx.createPattern(img, "repeat");
-      ctx.fillRect(0, 0, unsafeWindow.innerWidth, unsafeWindow.innerHeight);
-    }
-  }
-  ctx.filter = getTilePaneFilter();
-  for (const img of tiles) {
-    const rect2 = img.getBoundingClientRect();
-    if (rect2.right <= 0 || rect2.bottom <= 0) continue;
-    if (rect2.left >= vw || rect2.top >= vh) continue;
-    ctx.drawImage(img, rect2.left, rect2.top, rect2.width, rect2.height);
-  }
-  ctx.filter = "none";
-  const overlay = document.querySelector(".leaflet-overlay-pane canvas.leaflet-zoom-animated");
-  if (!overlay) throw new Error("Cannot draw markers onto output image due to missing overlay pane element!");
-  const rect = overlay.getBoundingClientRect();
-  const x = Math.max(rect.left, 0);
-  const y = Math.max(rect.top, 0);
-  const width = Math.min(rect.right, vw) - x;
-  const height = Math.min(rect.bottom, vh) - y;
-  if (width > 0 && height > 0) {
-    const scaleX = overlay.width / rect.width;
-    const scaleY = overlay.height / rect.height;
-    const dx = (x - rect.left) * scaleX;
-    const dy = (y - rect.top) * scaleY;
-    ctx.drawImage(overlay, dx, dy, width * scaleX, height * scaleY, x, y, width, height);
-  }
-  return canvas;
-};
 async function editUILayout() {
   const coordinates = await waitForElement(".leaflet-control-layers.coordinates");
   const link = await waitForElement(".leaflet-control-layers.link");
@@ -454,7 +389,7 @@ async function editUILayout() {
       e.preventDefault();
       e.stopPropagation();
       history.replaceState(null, "", newHref);
-      showAlert("Updated URL with current camera coordinates. Next refresh will navigate there automatically.", 3);
+      showAlert("Updated URL with current camera coordinates. Next refresh will navigate there automatically.", 4);
     };
   });
   const bottomLeft = document.querySelector(".leaflet-bottom.leaflet-left");
@@ -511,7 +446,6 @@ function loadNationClaims(panel) {
     if (text) text.value = entry.input || "";
   });
 }
-var MAX_CLAIM_COLOUR_INPUTS = 300;
 function addNationClaimsPanel(parent) {
   const panel = addElement(parent, INSERTABLE_HTML.nationClaims);
   panel.addEventListener("wheel", (e) => e.stopPropagation());
@@ -527,12 +461,13 @@ function addNationClaimsPanel(parent) {
   const contentContainer = addElement(panel, '<div id="nation-claims-content"></div>');
   contentContainer.style.display = "none";
   const entriesContainer = addElement(contentContainer, '<div id="nation-claims-entry-container"></div>');
-  for (let i = 1; i <= MAX_CLAIM_COLOUR_INPUTS; i++) {
+  let html = "";
+  for (let i = 1; i <= MAX_NATION_CLAIM_ENTRIES; i++) {
     const colInput = INSERTABLE_HTML.nationClaimsColorInput.replace("{index}", i);
     const txtInput = INSERTABLE_HTML.nationClaimsTextInput.replace("{index}", i);
-    const id = `nation-claims-entry${i}`;
-    addElement(entriesContainer, `<div class="nation-claims-entry" id="${id}">${colInput}${txtInput}</div>`);
+    html += `<div class="nation-claims-entry" id="nation-claims-entry${i}">${colInput}${txtInput}</div>`;
   }
+  addElement(entriesContainer, html);
   const optDiv1 = addElement(contentContainer, '<div class="nation-claims-checkbox-option"></div>');
   const optDiv2 = addElement(contentContainer, '<div class="nation-claims-checkbox-option"></div>');
   const showExcludedCheckbox = appendHTML(
@@ -558,7 +493,7 @@ function addNationClaimsPanel(parent) {
   applyBtn.addEventListener("click", () => {
     const colorInputs = entriesContainer.querySelectorAll('[id^="nation-color-entry"]');
     const textInputs = entriesContainer.querySelectorAll('[id^="nation-text-entry"]');
-    const entries = Array.from({ length: MAX_CLAIM_COLOUR_INPUTS }, (_, i) => ({
+    const entries = Array.from({ length: MAX_NATION_CLAIM_ENTRIES }, (_, i) => ({
       color: colorInputs[i]?.value ?? null,
       input: textInputs[i]?.value ?? null
     }));
@@ -567,7 +502,7 @@ function addNationClaimsPanel(parent) {
   });
   const resetAllBtn = appendHTML(div, '<button class="sidebar-button" id="nation-claims-reset-all">Reset All</button>');
   resetAllBtn.addEventListener("click", () => {
-    const entries = Array.from({ length: MAX_CLAIM_COLOUR_INPUTS }, () => ({ color: null, input: null }));
+    const entries = Array.from({ length: MAX_NATION_CLAIM_ENTRIES }, () => ({ color: null, input: null }));
     localStorage["emcdynmapplus-nation-claims-info"] = JSON.stringify(entries);
     loadNationClaims(panel);
     showAlert("Set all nation claim inputs to default.", 2);
@@ -628,6 +563,87 @@ async function updateServerInfo(element) {
   const enabled = localStorage["emcdynmapplus-serverinfo"] === "true" ? true : false;
   if (!enabled) serverInfoScheduler = null;
   else serverInfoScheduler = setTimeout(() => updateServerInfo(element), SERVERINFO_INTERVAL);
+}
+
+// src/screenshot.js
+var queryTileElements = () => document.querySelectorAll(".leaflet-tile-pane .leaflet-layer img.leaflet-tile");
+var nextFrame = () => new Promise((r) => requestAnimationFrame(r));
+var delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+var screenshotViewport = async (antialiasing = null) => {
+  showAlert("Waiting for viewport to stabilize...");
+  await waitForStableViewport();
+  const tileElements = queryTileElements();
+  if (!tileElements.length) throw new Error("No tiles found");
+  const tiles = [];
+  for (const img of tileElements) {
+    if (!img.parentElement) continue;
+    const style = getComputedStyle(img.parentElement);
+    const scale = parseFloat(style.transform.match(/scale\(([^)]+)\)/)?.[1] || "1");
+    if (scale < 1) continue;
+    if (!img.complete) {
+      try {
+        await img.decode();
+      } catch {
+      }
+    }
+    tiles.push(img);
+  }
+  const resScale = 1.5;
+  const canvas = new OffscreenCanvas(unsafeWindow.innerWidth * resScale, unsafeWindow.innerHeight * resScale);
+  const ctx = canvas.getContext("2d", { alpha: false });
+  ctx.imageSmoothingEnabled = !!antialiasing;
+  ctx.imageSmoothingQuality = antialiasing || "low";
+  ctx.scale(resScale, resScale);
+  showAlert("Waiting for markers to load...");
+  await delay(300);
+  for (let i = 0; i < 5; i++) {
+    await nextFrame();
+  }
+  showAlert("Drawing layers...");
+  await delay(150);
+  await drawBackground(ctx);
+  drawTiles(ctx, tiles);
+  drawMarkers(ctx);
+  return canvas;
+};
+async function drawBackground(ctx) {
+  const mapElement = document.querySelector("#map");
+  if (!mapElement) return;
+  const bg = getComputedStyle(map).backgroundImage;
+  if (bg && bg !== "none") {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.src = bg.slice(5, -2);
+    await img.decode();
+    ctx.fillStyle = ctx.createPattern(img, "repeat");
+    ctx.fillRect(0, 0, unsafeWindow.innerWidth, unsafeWindow.innerHeight);
+  }
+}
+function drawTiles(ctx, tiles, withFilter = true) {
+  if (withFilter) ctx.filter = getTilePaneFilter();
+  for (const img of tiles) {
+    const rect = img.getBoundingClientRect();
+    if (rect.right <= 0 || rect.bottom <= 0) continue;
+    if (rect.left >= ctx.canvas.width || rect.top >= ctx.canvas.height) continue;
+    ctx.drawImage(img, rect.left, rect.top, rect.width, rect.height);
+  }
+  ctx.filter = "none";
+}
+function drawMarkers(ctx) {
+  const overlay = document.querySelector(".leaflet-overlay-pane canvas.leaflet-zoom-animated");
+  if (!overlay) throw new Error("Cannot draw markers onto output image due to missing overlay pane element!");
+  const rect = overlay.getBoundingClientRect();
+  const x = Math.max(rect.left, 0);
+  const y = Math.max(rect.top, 0);
+  const width = Math.min(rect.right, ctx.canvas.width) - x;
+  const height = Math.min(rect.bottom, ctx.canvas.height) - y;
+  if (width > 0 && height > 0) {
+    const scaleX = overlay.width / rect.width;
+    const scaleY = overlay.height / rect.height;
+    const dx = (x - rect.left) * scaleX;
+    const dy = (y - rect.top) * scaleY;
+    ctx.drawImage(overlay, dx, dy, width * scaleX, height * scaleY, x, y, width, height);
+  }
 }
 
 // src/menu.js
@@ -877,6 +893,8 @@ var EXTRA_BORDER_OPTS = {
   color: "#000000",
   markup: false
 };
+var DEFAULT_ALLIANCE_COLOURS = { fill: "#000000", outline: "#000000" };
+var CHUNKS_PER_RES = 12;
 var currentMapMode = () => localStorage["emcdynmapplus-mapmode"] ?? "meganations";
 var archiveDate = () => parseInt(localStorage["emcdynmapplus-archive-date"]);
 var nationClaimsInfo = () => JSON.parse(localStorage["emcdynmapplus-nation-claims-info"] || "[]");
@@ -1208,7 +1226,6 @@ async function lookupPlayer(playerName, showOnlineStatus = true) {
     event.target.parentElement.remove();
   });
 }
-var DEFAULT_ALLIANCE_COLOURS = { fill: "#000000", outline: "#000000" };
 function parseColours(colours) {
   if (!colours) return DEFAULT_ALLIANCE_COLOURS;
   colours.fill = "#" + colours.fill.replaceAll("#", "");
@@ -1261,7 +1278,7 @@ function getNationAlliances(nationName, mapMode) {
 }
 var getArchiveURL = (date, markersURL) => `https://web.archive.org/web/${date}id_/${markersURL}`;
 async function getArchive(data) {
-  const loadingMessage = addElement(document.body, INSERTABLE_HTML.alertMsg.replace("{message}", "Loading archive, please wait..."));
+  const loadingAlert = showAlert("Loading archive, please wait...");
   const date = archiveDate();
   const markersURL = date < 20230212 ? "https://earthmc.net/map/aurora/tiles/_markers_/marker_earth.json" : date < 20240701 ? "https://earthmc.net/map/aurora/standalone/MySQL_markers.php?marker=_markers_/marker_earth.json" : "https://map.earthmc.net/tiles/minecraft_overworld/markers.json";
   const archive = await fetchJSON(PROXY_URL + getArchiveURL(date, markersURL));
@@ -1276,7 +1293,7 @@ async function getArchive(data) {
   }
   actualArchiveDate = new Date(parseInt(actualArchiveDate)).toLocaleDateString("en-ca");
   document.querySelector("#current-map-mode-label").textContent += ` (${actualArchiveDate})`;
-  loadingMessage.remove();
+  loadingAlert.remove();
   if (actualArchiveDate.replaceAll("-", "") != date) {
     showAlert(`The closest archive to your prompt comes from ${actualArchiveDate}.`);
   }
@@ -1293,7 +1310,6 @@ function convertOldMarkersStructure(markerset) {
     points: v.x.map((x, i) => ({ x, z: v.z[i] }))
   }));
 }
-var CHUNKS_PER_RES = 12;
 function checkOverclaimedNationless(claimedChunks, numResidents) {
   const resLimit = numResidents * CHUNKS_PER_RES;
   const isOverclaimed = claimedChunks > resLimit;
@@ -1321,7 +1337,7 @@ function auroraNationBonus(numNationResidents) {
 }
 
 // <define:MANIFEST>
-var define_MANIFEST_default = { manifest_version: 3, name: "EarthMC Dynmap+ (Owen3H Fork)", version: "2.0", author: "3meraldK", description: "Extension to enrich the EarthMC map experience", icons: { "48": "resources/icon48.png", "128": "resources/icon128.png" }, web_accessible_resources: [{ run_at: "document_start", matches: ["https://map.earthmc.net/*"], resources: ["resources/borders.json", "resources/interceptor.js"] }], content_scripts: [{ matches: ["https://map.earthmc.net/*"], css: ["resources/style.css"], js: ["src/httputil.js", "src/dom.js", "src/menu.js", "src/main.js", "src/entrypoint.js"] }] };
+var define_MANIFEST_default = { manifest_version: 3, name: "EarthMC Dynmap+ (Owen3H Fork)", version: "2.0", author: "3meraldK", description: "Extension to enrich the EarthMC map experience", icons: { "48": "resources/icon48.png", "128": "resources/icon128.png" }, web_accessible_resources: [{ run_at: "document_start", matches: ["https://map.earthmc.net/*"], resources: ["resources/borders.json", "resources/interceptor.js"] }], content_scripts: [{ matches: ["https://map.earthmc.net/*"], css: ["resources/style.css"], js: ["src/httputil.js", "src/dom.js", "src/screenshot.js", "src/menu.js", "src/main.js", "src/entrypoint.js"] }] };
 
 // src/entrypoint.js
 function isUserscript() {
