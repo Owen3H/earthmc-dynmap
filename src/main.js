@@ -545,10 +545,12 @@ async function lookupPlayer(playerName, showOnlineStatus = true) {
 
 	if (!players) return showAlert('Service is currently unavailable, please try later.', 5)
 	if (players.length < 1) return showAlert(`Error looking up player: ${playerName}. They have possibly opted-out.`, 3)
+	
+	const player = players[0]
+	const hasTown = player.town && player.town.uuid
 
+	// Insert and populate with placeholders
 	const lookup = addElement(leafletTL, INSERTABLE_HTML.playerLookup)
-
-	// Populate with placeholders
 	lookup.insertAdjacentHTML('beforeend', '<span class="close-container">X</span>')
 	lookup.insertAdjacentHTML('beforeend', '{show-online-status}<br>')
 	lookup.insertAdjacentHTML('beforeend', '<img id="player-lookup-avatar"/>')
@@ -556,16 +558,20 @@ async function lookupPlayer(playerName, showOnlineStatus = true) {
 	lookup.insertAdjacentHTML('beforeend', '<hr>{town}{nation}')
 	lookup.insertAdjacentHTML('beforeend', 'Rank: <b>{rank}</b><br>')
 	lookup.insertAdjacentHTML('beforeend', 'Balance: <b>{balance} gold</b><br>')
+	lookup.insertAdjacentHTML('beforeend', '{registered}')
+	if (hasTown) lookup.insertAdjacentHTML('beforeend', '{town-join}')
 	lookup.insertAdjacentHTML('beforeend', '{last-online}')
-
-	const player = players[0]
 
 	// Gather data
 	const isOnline = player.status.isOnline
 	const balance = player.stats.balance
 	const town = player.town.name
 	const nation = player.nation.name
-	const lastOnline = new Date(player.timestamps.lastOnline).toLocaleDateString()
+
+	const registeredDate = new Date(player.timestamps.registered).toLocaleDateString()
+	const townJoinDate = new Date(player.timestamps.joinedTownAt || 0).toLocaleDateString()
+	const loDate = new Date(player.timestamps.lastOnline).toLocaleDateString()
+
 	let onlineStatus = '<span id="player-lookup-online" style="color: {online-color}">{online}</span>'
 	const about = (!player.about || player.about == '/res set about [msg]') ? '' : `<br><i>${player.about}</i>`
 	let rank = 'Townless'
@@ -588,9 +594,34 @@ async function lookupPlayer(playerName, showOnlineStatus = true) {
 		.replace('{nation}', nation ? `Nation: <b>${nation}</b><br>` : '')
 		.replace('{rank}', rank)
 		.replace('{balance}', balance)
-		.replace('{last-online}', !isOnline ? `Last online: <b>${lastOnline}</b><br>` : '')
+		.replace('{registered}', `Registered:<br><b>${registeredDate}</b> (${timeAgo(player.timestamps.registered)})`)
+
+	if (hasTown) {
+		const townJoinStr = `<br>Joined town:<br><b>${townJoinDate}</b> (${timeAgo(player.timestamps.joinedTownAt)})`
+		lookup.innerHTML = lookup.innerHTML.replace('{town-join}', townJoinStr)
+	}
+	
+	const onlineStr = !isOnline ? `<br>Last online:<br><b>${loDate}</b> (${timeAgo(player.timestamps.lastOnline)})` : ''
+	lookup.innerHTML = lookup.innerHTML.replace('{last-online}', onlineStr)
 
 	lookup.querySelector('.close-container').addEventListener('click', event => { event.target.parentElement.remove() })
+}
+
+const DAY_MS = 86400000
+
+/**
+ * Formats a timestamp into a string. Ex: "Today", "2 days ago", "3 months ago" or "1 year ago" 
+ * @param {number} ts The UNIX timestamp to format 
+ */
+function timeAgo(ts) {
+	const diff = Date.now() - ts
+	const units = [['year', 365*DAY_MS], ['month', 30*DAY_MS], ['day', DAY_MS]]
+	for (const [name, ms] of units) {
+		const v = Math.floor(diff / ms)
+		if (v >= 1) return `${v} ${name}${v > 1 ? 's' : ''} ago`
+	}
+
+	return 'Today'
 }
 
 /**

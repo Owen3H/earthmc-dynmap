@@ -7,6 +7,7 @@ const STYLE_CSS = readFileSync('resources/style.css', 'utf8')
 const BORDERS: Borders = JSON.parse(readFileSync('resources/borders.json', 'utf8'))
 const MANIFEST: Manifest = JSON.parse(readFileSync('manifest.json', 'utf8'))
 
+// TODO: Dynamically insert @include tags depending on matches arr count
 const contentScripts = MANIFEST.content_scripts[0]
 const HEADER = `// ==UserScript==
 // @name        ${MANIFEST.name}
@@ -14,6 +15,7 @@ const HEADER = `// ==UserScript==
 // @description ${MANIFEST.description}
 // @author      ${MANIFEST.author}
 // @include     ${contentScripts.matches[0]}
+// @include     ${contentScripts.matches[1]}
 // @icon        https://raw.githubusercontent.com/Owen3H/earthmc-dynmap/main/resources/icon48.png
 // @downloadURL https://raw.githubusercontent.com/Owen3H/earthmc-dynmap/main/dist/emc-dynmapplus.user.js
 // @grant       GM_addStyle

@@ -1,6 +1,6 @@
 :root {
 	--max-menu-width: 210px;
-  	--player-lookup-width: 170px;
+  	--player-lookup-width: 200px;
 	--map-mode-btn-width: 130px;
 	/** TODO: Make these more robust. Probably not my best idea */
 	--screenshot-bg-image: url("https://raw.githubusercontent.com/Owen3H/earthmc-dynmap/refs/heads/main/resources/icon-screenshot.png");
@@ -180,8 +180,8 @@ input[type="color"]::-webkit-color-swatch {
 	position: relative;
 	cursor: pointer;
 	font-size: medium;
-	bottom: 6px;
-	left: calc(var(--player-lookup-width) - 35px);
+	bottom: 7px;
+	left: calc(var(--player-lookup-width) - 36px);
 	padding-top: 1.5px;
 	padding-bottom: 2px;
 	padding-left: 8px;
