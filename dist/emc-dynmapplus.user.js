@@ -4,6 +4,7 @@
 // @description Extension to enrich the EarthMC map experience
 // @author      3meraldK
 // @include     https://map.earthmc.net/*
+// @include     https://nostra.earthmc.net/*
 // @icon        https://raw.githubusercontent.com/Owen3H/earthmc-dynmap/main/resources/icon48.png
 // @downloadURL https://raw.githubusercontent.com/Owen3H/earthmc-dynmap/main/dist/emc-dynmapplus.user.js
 // @grant       GM_addStyle
@@ -1196,6 +1197,8 @@ async function lookupPlayer(playerName, showOnlineStatus = true) {
   loading.remove();
   if (!players) return showAlert("Service is currently unavailable, please try later.", 5);
   if (players.length < 1) return showAlert(`Error looking up player: ${playerName}. They have possibly opted-out.`, 3);
+  const player = players[0];
+  const hasTown = player.town && player.town.uuid;
   const lookup = addElement(leafletTL, INSERTABLE_HTML.playerLookup);
   lookup.insertAdjacentHTML("beforeend", '<span class="close-container">X</span>');
   lookup.insertAdjacentHTML("beforeend", "{show-online-status}<br>");
@@ -1204,13 +1207,16 @@ async function lookupPlayer(playerName, showOnlineStatus = true) {
   lookup.insertAdjacentHTML("beforeend", "<hr>{town}{nation}");
   lookup.insertAdjacentHTML("beforeend", "Rank: <b>{rank}</b><br>");
   lookup.insertAdjacentHTML("beforeend", "Balance: <b>{balance} gold</b><br>");
+  lookup.insertAdjacentHTML("beforeend", "{registered}");
+  if (hasTown) lookup.insertAdjacentHTML("beforeend", "{town-join}");
   lookup.insertAdjacentHTML("beforeend", "{last-online}");
-  const player = players[0];
   const isOnline = player.status.isOnline;
   const balance = player.stats.balance;
   const town = player.town.name;
   const nation = player.nation.name;
-  const lastOnline = new Date(player.timestamps.lastOnline).toLocaleDateString();
+  const registeredDate = new Date(player.timestamps.registered).toLocaleDateString();
+  const townJoinDate = new Date(player.timestamps.joinedTownAt || 0).toLocaleDateString();
+  const loDate = new Date(player.timestamps.lastOnline).toLocaleDateString();
   let onlineStatus = '<span id="player-lookup-online" style="color: {online-color}">{online}</span>';
   const about = !player.about || player.about == "/res set about [msg]" ? "" : `<br><i>${player.about}</i>`;
   let rank = "Townless";
@@ -1221,10 +1227,26 @@ async function lookupPlayer(playerName, showOnlineStatus = true) {
   if (player.status.isKing) rank = "Leader";
   const playerAvatarURL = `https://mc-heads.net/avatar/${player.uuid.replaceAll("-", "")}`;
   document.querySelector("#player-lookup-avatar").setAttribute("src", playerAvatarURL);
-  lookup.innerHTML = lookup.innerHTML.replace("{player}", player.name || playerName).replace("{about}", about).replace("{show-online-status}", showOnlineStatus ? onlineStatus : "").replace("{online-color}", isOnline ? "green" : "red").replace("{online}", isOnline ? "\u26AB\uFE0E Online" : "\u25CB Offline").replace("{town}", town ? `Town: <b>${town}</b><br>` : "").replace("{nation}", nation ? `Nation: <b>${nation}</b><br>` : "").replace("{rank}", rank).replace("{balance}", balance).replace("{last-online}", !isOnline ? `Last online: <b>${lastOnline}</b><br>` : "");
+  lookup.innerHTML = lookup.innerHTML.replace("{player}", player.name || playerName).replace("{about}", about).replace("{show-online-status}", showOnlineStatus ? onlineStatus : "").replace("{online-color}", isOnline ? "green" : "red").replace("{online}", isOnline ? "\u26AB\uFE0E Online" : "\u25CB Offline").replace("{town}", town ? `Town: <b>${town}</b><br>` : "").replace("{nation}", nation ? `Nation: <b>${nation}</b><br>` : "").replace("{rank}", rank).replace("{balance}", balance).replace("{registered}", `Registered:<br><b>${registeredDate}</b> (${timeAgo(player.timestamps.registered)})`);
+  if (hasTown) {
+    const townJoinStr = `<br>Joined town:<br><b>${townJoinDate}</b> (${timeAgo(player.timestamps.joinedTownAt)})`;
+    lookup.innerHTML = lookup.innerHTML.replace("{town-join}", townJoinStr);
+  }
+  const onlineStr = !isOnline ? `<br>Last online:<br><b>${loDate}</b> (${timeAgo(player.timestamps.lastOnline)})` : "";
+  lookup.innerHTML = lookup.innerHTML.replace("{last-online}", onlineStr);
   lookup.querySelector(".close-container").addEventListener("click", (event) => {
     event.target.parentElement.remove();
   });
+}
+var DAY_MS = 864e5;
+function timeAgo(ts) {
+  const diff = Date.now() - ts;
+  const units = [["year", 365 * DAY_MS], ["month", 30 * DAY_MS], ["day", DAY_MS]];
+  for (const [name, ms] of units) {
+    const v = Math.floor(diff / ms);
+    if (v >= 1) return `${v} ${name}${v > 1 ? "s" : ""} ago`;
+  }
+  return "Today";
 }
 function parseColours(colours) {
   if (!colours) return DEFAULT_ALLIANCE_COLOURS;
@@ -1337,7 +1359,7 @@ function auroraNationBonus(numNationResidents) {
 }
 
 // <define:MANIFEST>
-var define_MANIFEST_default = { manifest_version: 3, name: "EarthMC Dynmap+ (Owen3H Fork)", version: "2.0", author: "3meraldK", description: "Extension to enrich the EarthMC map experience", icons: { "48": "resources/icon48.png", "128": "resources/icon128.png" }, web_accessible_resources: [{ run_at: "document_start", matches: ["https://map.earthmc.net/*"], resources: ["resources/borders.json", "resources/interceptor.js"] }], content_scripts: [{ matches: ["https://map.earthmc.net/*"], css: ["resources/style.css"], js: ["src/httputil.js", "src/dom.js", "src/screenshot.js", "src/menu.js", "src/main.js", "src/entrypoint.js"] }] };
+var define_MANIFEST_default = { manifest_version: 3, name: "EarthMC Dynmap+ (Owen3H Fork)", version: "2.0", author: "3meraldK", description: "Extension to enrich the EarthMC map experience", icons: { "48": "resources/icon48.png", "128": "resources/icon128.png" }, web_accessible_resources: [{ run_at: "document_start", matches: ["https://map.earthmc.net/*", "https://nostra.earthmc.net/*"], resources: ["resources/borders.json", "resources/interceptor.js"] }], content_scripts: [{ matches: ["https://map.earthmc.net/*", "https://nostra.earthmc.net/*"], css: ["resources/style.css"], js: ["src/httputil.js", "src/dom.js", "src/screenshot.js", "src/menu.js", "src/main.js", "src/entrypoint.js"] }] };
 
 // src/entrypoint.js
 function isUserscript() {
@@ -1383,7 +1405,7 @@ async function init(manifest) {
   if (isUserscript2) {
     GM_addStyle(`:root {\r
 	--max-menu-width: 210px;\r
-  	--player-lookup-width: 170px;\r
+  	--player-lookup-width: 200px;\r
 	--map-mode-btn-width: 130px;\r
 	/** TODO: Make these more robust. Probably not my best idea */\r
 	--screenshot-bg-image: url("https://raw.githubusercontent.com/Owen3H/earthmc-dynmap/refs/heads/main/resources/icon-screenshot.png");\r
@@ -1563,8 +1585,8 @@ input[type="color"]::-webkit-color-swatch {\r
 	position: relative;\r
 	cursor: pointer;\r
 	font-size: medium;\r
-	bottom: 6px;\r
-	left: calc(var(--player-lookup-width) - 35px);\r
+	bottom: 7px;\r
+	left: calc(var(--player-lookup-width) - 36px);\r
 	padding-top: 1.5px;\r
 	padding-bottom: 2px;\r
 	padding-left: 8px;\r
