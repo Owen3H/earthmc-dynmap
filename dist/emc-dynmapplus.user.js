@@ -327,8 +327,10 @@ function initToggleOptions() {
   const showServerInfo = localStorage["emcdynmapplus-serverinfo"] == "true" ? true : false;
   waitForElement("#server-info").then((_) => toggleServerInfo(showServerInfo));
   const archiveDate = localStorage["emcdynmapplus-archive-date"];
-  const formattedDate = archiveDate.slice(0, 4) + "-" + archiveDate.slice(4, 6) + "-" + archiveDate.slice(6, 8);
-  waitForElement("#archive-input").then((dateInputEl) => dateInputEl.value = formattedDate);
+  if (archiveDate) {
+    const formattedDate = archiveDate.slice(0, 4) + "-" + archiveDate.slice(4, 6) + "-" + archiveDate.slice(6, 8);
+    waitForElement("#archive-input").then((dateInputEl) => dateInputEl.value = formattedDate);
+  }
   const showCapitalStars = localStorage["emcdynmapplus-capital-stars"] == "true" ? true : false;
   waitForElement(".leaflet-pane.leaflet-marker-pane").then((_) => toggleShowCapitalStars(showCapitalStars));
   const normalizeScroll = localStorage["emcdynmapplus-normalize-scroll"] == "true" ? true : false;
@@ -1405,7 +1407,7 @@ async function init(manifest) {
   if (isUserscript2) {
     GM_addStyle(`:root {\r
 	--max-menu-width: 210px;\r
-  	--player-lookup-width: 200px;\r
+  	--player-lookup-width: 220px;\r
 	--map-mode-btn-width: 130px;\r
 	/** TODO: Make these more robust. Probably not my best idea */\r
 	--screenshot-bg-image: url("https://raw.githubusercontent.com/Owen3H/earthmc-dynmap/refs/heads/main/resources/icon-screenshot.png");\r
@@ -1607,14 +1609,14 @@ input[type="color"]::-webkit-color-swatch {\r
 }\r
 \r
 #player-lookup-avatar {\r
-	margin: 5px auto auto auto;\r
 	display: block;\r
-	width: 32px;\r
+	width: 36px;\r
 	box-shadow: 0 0 10px 1px #131313;\r
+	margin: auto auto 0.5em auto; /** make bottom margin match the divider below */\r
 }\r
 \r
 #player-lookup-name {\r
-	line-height: 30px;\r
+	font-size: 18px;\r
 }\r
 \r
 /* Main sidebar */\r
