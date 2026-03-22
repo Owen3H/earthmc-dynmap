@@ -207,8 +207,10 @@ function initToggleOptions() {
 
 	// Initialize date input from stored date. 20260801 -> 2026-08-01
 	const archiveDate = localStorage['emcdynmapplus-archive-date']
-	const formattedDate = archiveDate.slice(0, 4) + '-' + archiveDate.slice(4, 6) + '-' + archiveDate.slice(6, 8)
-	waitForElement('#archive-input').then(dateInputEl => dateInputEl.value = formattedDate)
+	if (archiveDate) {
+		const formattedDate = archiveDate.slice(0, 4) + '-' + archiveDate.slice(4, 6) + '-' + archiveDate.slice(6, 8)
+		waitForElement('#archive-input').then(dateInputEl => dateInputEl.value = formattedDate)
+	}
 
 	const showCapitalStars = localStorage['emcdynmapplus-capital-stars'] == 'true' ? true : false
 	waitForElement('.leaflet-pane.leaflet-marker-pane').then(_ => toggleShowCapitalStars(showCapitalStars))

@@ -1,6 +1,6 @@
 :root {
 	--max-menu-width: 210px;
-  	--player-lookup-width: 200px;
+  	--player-lookup-width: 220px;
 	--map-mode-btn-width: 130px;
 	/** TODO: Make these more robust. Probably not my best idea */
 	--screenshot-bg-image: url("https://raw.githubusercontent.com/Owen3H/earthmc-dynmap/refs/heads/main/resources/icon-screenshot.png");
@@ -202,14 +202,14 @@ input[type="color"]::-webkit-color-swatch {
 }
 
 #player-lookup-avatar {
-	margin: 5px auto auto auto;
 	display: block;
-	width: 32px;
+	width: 36px;
 	box-shadow: 0 0 10px 1px #131313;
+	margin: auto auto 0.5em auto; /** make bottom margin match the divider below */
 }
 
 #player-lookup-name {
-	line-height: 30px;
+	font-size: 18px;
 }
 
 /* Main sidebar */
