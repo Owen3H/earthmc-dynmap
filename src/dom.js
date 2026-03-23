@@ -155,6 +155,9 @@ const waitForElement = selector => new Promise(resolve => {
     const selected = document.querySelector(selector)
     if (selected) return resolve(selected)
 
+	const observeTarget = document.body ?? document.documentElement
+	if (!(observeTarget instanceof Node)) return resolve(null)
+
     const observer = new MutationObserver(() => {
         const selected = document.querySelector(selector)
         if (selected) {
@@ -162,7 +165,7 @@ const waitForElement = selector => new Promise(resolve => {
             observer.disconnect()
         }
     })
-    observer.observe(document.body, { childList: true, subtree: true })
+    observer.observe(observeTarget, { childList: true, subtree: true })
 })
 
 /**
@@ -172,6 +175,8 @@ const waitForElement = selector => new Promise(resolve => {
  * @param {(newHref: string, lastHref: string) => void} callback
  */
 function onAnchorUpdate(anchorParent, getAnchor, callback) {
+	if (!(anchorParent instanceof Node)) return null
+
 	let lastHref = null
 	const check = () => {
 		const anchor = getAnchor()
@@ -206,9 +211,13 @@ function initToggleOptions() {
 	waitForElement('#server-info').then(_ => toggleServerInfo(showServerInfo))
 
 	// Initialize date input from stored date. 20260801 -> 2026-08-01
-	const archiveDate = localStorage['emcdynmapplus-archive-date']
-	const formattedDate = archiveDate.slice(0, 4) + '-' + archiveDate.slice(4, 6) + '-' + archiveDate.slice(6, 8)
-	waitForElement('#archive-input').then(dateInputEl => dateInputEl.value = formattedDate)
+	const storedArchiveDate = localStorage['emcdynmapplus-archive-date']
+	const formattedDate = typeof storedArchiveDate === 'string' && storedArchiveDate.length === 8
+		? `${storedArchiveDate.slice(0, 4)}-${storedArchiveDate.slice(4, 6)}-${storedArchiveDate.slice(6, 8)}`
+		: ''
+	waitForElement('#archive-input').then(dateInputEl => {
+		if (dateInputEl && formattedDate) dateInputEl.value = formattedDate
+	})
 
 	const showCapitalStars = localStorage['emcdynmapplus-capital-stars'] == 'true' ? true : false
 	waitForElement('.leaflet-pane.leaflet-marker-pane').then(_ => toggleShowCapitalStars(showCapitalStars))
@@ -218,12 +227,19 @@ function initToggleOptions() {
 }
 
 async function insertScreenshotBtn() {
+	if (isFirefoxBrowser()) return
+
 	const linkBtn = await waitForElement(".leaflet-control-layers.link")
+	if (!linkBtn?.parentElement) return
+
 	const linkBtnCloned = linkBtn?.cloneNode(true)
+	if (!(linkBtnCloned instanceof HTMLElement)) return
+
 	linkBtnCloned.className = 'leaflet-control-layers link screenshot leaflet-control'
 
 	const screenshotBtn = linkBtn?.parentElement?.insertBefore(linkBtnCloned, linkBtn.parentElement.children[0])
-	screenshotBtn?.firstChild.setAttribute("href", "")
+	const screenshotLink = screenshotBtn?.querySelector('a')
+	screenshotLink?.setAttribute("href", "")
 	screenshotBtn?.addEventListener('click', async e => {
 		e.preventDefault() // stop blank href from refreshing as we are adding our own button behaviour
 
@@ -267,7 +283,7 @@ const withInteractionBlocked = async (fn) => {
 /** Waits until the Leaflet map stops being panned or updated. Resolves once DOM is stable for 50ms. */
 const waitForStableViewport = () => new Promise(resolve => {
 	const pane = document.querySelector('.leaflet-map-pane')
-	if (!pane) return resolve()
+	if (!(pane instanceof Node)) return resolve()
 	
 	let timer
 	const observer = new MutationObserver(() => {
@@ -386,6 +402,9 @@ function loadNationClaims(panel) {
 
 /** @param {HTMLElement} parent - The "leaflet-bottom leaflet-right" element. */
 function addNationClaimsPanel(parent) {
+	const existingPanel = parent.querySelector('#nation-claims')
+	if (existingPanel) return existingPanel
+
 	/** @type {HTMLElement} */
 	const panel = addElement(parent, INSERTABLE_HTML.nationClaims)
 	panel.addEventListener('wheel', e => e.stopPropagation()) // stop squaremap overtaking scroll, we need to scroll the inputs
@@ -472,6 +491,9 @@ function addNationClaimsPanel(parent) {
 
 /** @param {HTMLElement} parent - The "leaflet-top leaflet-right" element. */
 function addServerInfoPanel(parent) {
+	const existingPanel = parent.querySelector('#server-info')
+	if (existingPanel) return existingPanel
+
 	const panel = addElement(parent, INSERTABLE_HTML.serverInfo)
 	addElement(panel, '<div id="server-info-title">Server Info</div>')
 	addElement(panel, '<div class="server-info-entry" id="vote-party">Votes until VP: Loading..</div>')
@@ -535,8 +557,8 @@ function triggerScrollEvent(deltaY) {
     const zoomMultiplier = Math.floor(Math.abs(deltaY) / (SCROLL_LINE_DELTA * SCROLL_THRESHOLD))
     const pxPerZoomLevel = SCROLL_BASE_ZOOM + (zoomMultiplier * 30)
 
-	const eventData = { detail: { pxPerZoomLevel: deltaY < 0 ? pxPerZoomLevel : -pxPerZoomLevel } }
-    document.dispatchEvent(new CustomEvent('EMCDYNMAPPLUS_ADJUST_SCROLL', eventData))
+	const adjustedZoom = deltaY < 0 ? pxPerZoomLevel : -pxPerZoomLevel
+    document.dispatchEvent(new CustomEvent('EMCDYNMAPPLUS_ADJUST_SCROLL', { detail: adjustedZoom }))
 }
 
 const SERVERINFO_INTERVAL = 5*1000

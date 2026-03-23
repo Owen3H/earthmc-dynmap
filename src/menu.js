@@ -5,6 +5,9 @@
 
 /** @param {HTMLElement} parent - The "leaflet-top leaflet-left" element. */
 function addMainMenu(parent) {
+	const existingSidebar = parent.querySelector('#sidebar')
+	if (existingSidebar) return existingSidebar
+
 	const sidebar = addElement(parent, INSERTABLE_HTML.sidebar)
 	addLocateMenu(sidebar) // Locator button and input box
 
@@ -120,7 +123,48 @@ function toggleDarkened(boxTicked) {
 	if (!element) return showAlert('Failed to toggle brightness. Cannot apply filter to non-existent tile pane.', 4)
 
 	localStorage['emcdynmapplus-darkened'] = boxTicked
+
+	// Firefox is noticeably slower when panning large filtered layers.
+	// Use cheap compositing there and keep the original filter path elsewhere.
+	if (isFirefoxBrowser()) {
+		element.style.filter = ''
+		return toggleFirefoxTileDarkener(boxTicked, element)
+	}
+
+	removeFirefoxTileDarkener()
 	element.style.filter = boxTicked ? getTilePaneFilter() : ''
+}
+
+function getFirefoxTileDarkener() {
+	return document.querySelector('#emcdynmapplus-tile-darkener')
+}
+
+function ensureFirefoxTileDarkener() {
+	let darkener = getFirefoxTileDarkener()
+	if (darkener) return darkener
+
+	const mapContainer = document.querySelector('.leaflet-container')
+	if (!(mapContainer instanceof HTMLElement)) return null
+
+	darkener = document.createElement('div')
+	darkener.id = 'emcdynmapplus-tile-darkener'
+	darkener.setAttribute('aria-hidden', 'true')
+	mapContainer.appendChild(darkener)
+	return darkener
+}
+
+function toggleFirefoxTileDarkener(boxTicked, tilePane) {
+	const darkener = ensureFirefoxTileDarkener()
+	if (!darkener) return showAlert('Failed to toggle brightness overlay. Missing Leaflet container element.', 4)
+
+	darkener.style.display = boxTicked ? 'block' : 'none'
+	tilePane.style.opacity = boxTicked ? '0.72' : ''
+}
+
+function removeFirefoxTileDarkener() {
+	getFirefoxTileDarkener()?.remove()
+	const tilePane = document.querySelector('.leaflet-tile-pane')
+	if (tilePane instanceof HTMLElement) tilePane.style.opacity = ''
 }
 
 /** @param {boolean} boxTicked */
@@ -199,8 +243,7 @@ function addScrollNormalizer(mapEl) {
 function removeScrollNormalizer(mapEl) {
 	mapEl.removeEventListener('wheel', scrollListener)
 
-	const eventData = { detail: { pxPerZoomLevel: 60 } }
-	document.dispatchEvent(new CustomEvent('EMCDYNMAPPLUS_ADJUST_SCROLL', eventData))
+	document.dispatchEvent(new CustomEvent('EMCDYNMAPPLUS_ADJUST_SCROLL', { detail: 60 }))
 }
 //#endregion
 

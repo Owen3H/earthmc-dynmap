@@ -2,4 +2,10 @@ bun.lockb
 package-lock.json
 
 node_modules/
+archive-firefox-check.log
 dist/emc-dynmapplus.zip
+dist/chromium/
+dist/firefox/
+dist/*.xpi
+dist/*-chromium.zip
+dist/*-firefox.zip

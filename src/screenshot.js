@@ -59,7 +59,7 @@ async function drawBackground(ctx) {
 	const mapElement = document.querySelector('#map')
 	if (!mapElement) return
 	
-	const bg = getComputedStyle(map).backgroundImage
+	const bg = getComputedStyle(mapElement).backgroundImage
 	if (bg && bg !== 'none') {
 		const img = new Image()
 		img.crossOrigin = "anonymous"

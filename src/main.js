@@ -21,6 +21,15 @@ let cachedAlliances = null
 /** @type {Map<string, any>} */
 let cachedApiNations = null
 
+let cachedStyledBorders = null
+let pendingBordersLoad = null
+
+/** @type {Map<number, { data: MarkersResponse, actualArchiveDate: string }>} */
+const cachedArchives = new Map()
+
+/** @type {Map<number, Promise<{ data: MarkersResponse, actualArchiveDate: string } | null>>} */
+const pendingArchiveLoads = new Map()
+
 /** @typedef {typeof MAP_MODES[number]} MapMode */
 const MAP_MODES = /** @type {const} */ (["default", "overclaim", "nationclaims", "meganations", "alliances"])
 const BORDER_CHUNK_COORDS = { 
@@ -180,40 +189,114 @@ const makePolyline = (linePoints, weight = 1, colour = '#ffffff') => ({
 	'weight': weight, 'color': colour,
 })
 
+const MARKERS_LOG_PREFIX = 'emcdynmapplus[markers]'
+
+function isMarkersDebugLoggingEnabled() {
+	try {
+		return localStorage['emcdynmapplus-debug'] === 'true'
+	} catch {
+		return false
+	}
+}
+
+const markersDebugInfo = (...args) => {
+	if (isMarkersDebugLoggingEnabled()) console.info(...args)
+}
+
+async function getStyledBorders() {
+	if (cachedStyledBorders != null) return cachedStyledBorders
+
+	if (isUserscript()) {
+		cachedStyledBorders = Object.fromEntries(
+			Object.entries(BORDERS).map(([key, border]) => [key, { ...border, ...EXTRA_BORDER_OPTS }])
+		)
+		return cachedStyledBorders
+	}
+
+	if (!pendingBordersLoad) {
+		pendingBordersLoad = fetch(getExtensionURL('resources/borders.json'))
+			.then(async response => {
+				if (!response.ok) return null
+
+				const borders = await response.json()
+				return Object.fromEntries(
+					Object.entries(borders).map(([key, border]) => [key, { ...border, ...EXTRA_BORDER_OPTS }])
+				)
+			})
+			.catch(err => {
+				console.error(`${MARKERS_LOG_PREFIX}: failed to load borders resource`, err)
+				return null
+			})
+			.finally(() => {
+				pendingBordersLoad = null
+			})
+	}
+
+	cachedStyledBorders = await pendingBordersLoad
+	return cachedStyledBorders
+}
+
 /** 
  * @param {MarkersResponse} data - The markers response JSON data. 
  */
 async function modifyMarkers(data) {
+	let result = data
+	const initialMarkerCount = Array.isArray(result?.[0]?.markers) ? result[0].markers.length : 0
+
 	const mapMode = currentMapMode()
+	markersDebugInfo(`${MARKERS_LOG_PREFIX}: modifyMarkers started`, {
+		mapMode,
+		layerCount: Array.isArray(result) ? result.length : null,
+		initialMarkerCount,
+	})
+
 	if (mapMode == 'archive') {
-		data = await getArchive(data)
+		markersDebugInfo(`${MARKERS_LOG_PREFIX}: loading archive markers`, { archiveDate: archiveDate() })
+		result = await getArchive(result)
 	}
 
-	if (!data?.[0]?.markers?.length) {
+	if (!result?.[0]?.markers?.length) {
+		console.warn(`${MARKERS_LOG_PREFIX}: no markers found after initial load`, {
+			mapMode,
+			layerCount: Array.isArray(result) ? result.length : null,
+		})
 		showAlert('Unexpected error occurred while loading the map, EarthMC may be down. Try again later.')
-		return data
+		return result
 	}
 
 	const isAllianceMode = mapMode == 'alliances' || mapMode == 'meganations'
     if (isAllianceMode && cachedAlliances == null) {
+		markersDebugInfo(`${MARKERS_LOG_PREFIX}: loading alliances cache`)
         cachedAlliances = await getAlliances()
+		markersDebugInfo(`${MARKERS_LOG_PREFIX}: alliances cache loaded`, {
+			count: Array.isArray(cachedAlliances) ? cachedAlliances.length : null,
+		})
     }
 
 	if (mapMode == 'overclaim' && cachedApiNations == null) {
+		markersDebugInfo(`${MARKERS_LOG_PREFIX}: loading overclaim nation cache`)
 		const nlist = await fetchJSON(`${OAPI_BASE}/${CURRENT_MAP}/nations`)
 		const apiNations = await queryConcurrent(`${OAPI_BASE}/${CURRENT_MAP}/nations`, nlist)
 		cachedApiNations = new Map(apiNations.map(n => [n.name.toLowerCase(), n]))
+		markersDebugInfo(`${MARKERS_LOG_PREFIX}: overclaim nation cache loaded`, {
+			count: cachedApiNations.size,
+		})
 	}
 
-	addChunksLayer(data)
+	parsedMarkers = []
+	result = addChunksLayer(result)
+	markersDebugInfo(`${MARKERS_LOG_PREFIX}: chunks layer added`, {
+		layerCount: Array.isArray(result) ? result.length : null,
+	})
 
-	const borders = isUserscript() ? BORDERS : await fetch(chrome.runtime.getURL('resources/borders.json')).then(r => r.json())
+	const borders = await getStyledBorders()
 	if (!borders) showAlert("An unexpected error occurred fetching the borders resource file.")
 	else {
-		for (const key in borders) {
-			borders[key] = { ...borders[key], ...EXTRA_BORDER_OPTS }
-		}
-		addCountryBordersLayer(data, borders)
+		result = addCountryBordersLayer(result, borders) || result
+		markersDebugInfo(`${MARKERS_LOG_PREFIX}: borders layer added`, {
+			borderCount: Object.keys(borders).length,
+			layerCount: Array.isArray(result) ? result.length : null,
+		})
 	}
 	
 	// Get current local storage values
@@ -229,33 +312,57 @@ async function modifyMarkers(data) {
 	const showExcluded = localStorage['emcdynmapplus-nation-claims-show-excluded'] == 'true' ? true : false
 
 	const start = performance.now()
-	for (const marker of data[0].markers) {
-		if (marker.type != 'polygon' && marker.type != 'icon') continue
-
-		const parsedInfo = isSquaremap ? modifyDescription(marker, mapMode) : modifyDynmapDescription(marker, date)
-		if (marker.type != 'polygon') continue
-
-		parsedMarkers.push(parsedInfo)
-
-		// Universal properties
-		marker.opacity = 1
-		marker.fillOpacity = 0.33
-		marker.weight = 1.5
-
-		if (mapMode == 'default' || mapMode == 'archive') continue
-		if (mapMode == 'nationclaims') {
-			colorTownNationClaims(marker, parsedInfo.nationName, claimsCustomizerInfo, useOpaque, showExcluded)
+	let processedPolygons = 0
+	let skippedMarkers = 0
+	let markerErrors = 0
+	for (const marker of result[0].markers) {
+		if (marker.type != 'polygon' && marker.type != 'icon') {
+			skippedMarkers++
 			continue
 		}
 
-		// All other modes (alliances, meganations, overclaim)
-		colorTown(marker, parsedInfo, mapMode)
+		try {
+			const parsedInfo = isSquaremap ? modifyDescription(marker, mapMode) : modifyDynmapDescription(marker, date)
+			if (marker.type != 'polygon') continue
+
+			parsedMarkers.push(parsedInfo)
+			processedPolygons++
+
+			// Universal properties
+			marker.opacity = 1
+			marker.fillOpacity = 0.33
+			marker.weight = 1.5
+
+			if (mapMode == 'default' || mapMode == 'archive') continue
+			if (mapMode == 'nationclaims') {
+				colorTownNationClaims(marker, parsedInfo.nationName, claimsCustomizerInfo, useOpaque, showExcluded)
+				continue
+			}
+
+			// All other modes (alliances, meganations, overclaim)
+			colorTown(marker, parsedInfo, mapMode)
+		} catch (err) {
+			markerErrors++
+			console.error(`${MARKERS_LOG_PREFIX}: failed to process marker`, {
+				index: processedPolygons + skippedMarkers + markerErrors - 1,
+				type: marker?.type,
+				tooltip: marker?.tooltip?.slice?.(0, 120) || null,
+				error: err,
+			})
+		}
 	}
 	
 	const elapsed = (performance.now() - start)
-	console.log(`emcdynmapplus: modified description and colour of all markers. took ${elapsed.toFixed(2)}ms`)
+	markersDebugInfo(`${MARKERS_LOG_PREFIX}: modifyMarkers completed`, {
+		mapMode,
+		processedPolygons,
+		skippedMarkers,
+		markerErrors,
+		parsedMarkersCount: parsedMarkers.length,
+		elapsedMs: Number(elapsed.toFixed(2)),
+	})
 
-	return data
+	return result
 }
 
 /** @param {MarkersResponse} data - The markers response JSON data. */
@@ -269,13 +376,16 @@ function addChunksLayer(data) {
 	for (let x = L; x <= R; x += 16) chunkLines.push(ver(x))
 	for (let z = U; z <= D; z += 16) chunkLines.push(hor(z))
 
-	data[2] = {
+	const nextData = data.slice()
+	nextData[2] = {
 		'name': 'Chunks',
 		'id': 'chunks',
 		'hide': true,
 		'control': true,
 		'markers': [makePolyline(chunkLines, 0.33, '#000000')]
 	}
+
+	return nextData
 }
 
 /**
@@ -296,7 +406,8 @@ function addCountryBordersLayer(data, borders) {
 			return countryPoly
 		})
 
-		data[3] = {
+		const nextData = data.slice()
+		nextData[3] = {
 			'name': 'Country Borders',
 			'id': 'borders',
 			'order': 999,
@@ -304,6 +415,8 @@ function addCountryBordersLayer(data, borders) {
 			'control': true,
 			'markers': [makePolyline(points)]
 		}
+
+		return nextData
 	} catch (e) {
 		showAlert(`Could not set up a layer of country borders. You may need to clear this website's data. If problem persists, contact the developer.`)
 		console.error(e)
@@ -703,11 +816,20 @@ function getNationAlliances(nationName, mapMode) {
 
 const getArchiveURL = (date, markersURL) => `https://web.archive.org/web/${date}id_/${markersURL}`
 
-/** @param {Object} markers - The old markers response JSON data */
-async function getArchive(data) {
-	const loadingAlert = showAlert('Loading archive, please wait...')
-	const date = archiveDate()
-	
+/** @param {string} actualArchiveDate */
+function updateArchiveModeLabel(actualArchiveDate) {
+	const currentMapModeLabel = document.querySelector('#current-map-mode-label')
+	if (currentMapModeLabel) {
+		currentMapModeLabel.textContent = `Map Mode: archive (${actualArchiveDate})`
+	}
+}
+
+/**
+ * @param {number} date
+ * @param {MarkersResponse} data
+ * @returns {Promise<{ data: MarkersResponse, actualArchiveDate: string } | null>}
+ */
+async function loadArchiveForDate(date, data) {
 	// markers.json URL changed over time
 	const markersURL = 
 		date < 20230212 ? "https://earthmc.net/map/aurora/tiles/_markers_/marker_earth.json" :
@@ -715,27 +837,80 @@ async function getArchive(data) {
 		"https://map.earthmc.net/tiles/minecraft_overworld/markers.json" // latest
 
 	const archive = await fetchJSON(PROXY_URL + getArchiveURL(date, markersURL))
-	if (!archive) return showAlert('Archive service is currently unavailable, please try later.')
+	if (!archive) {
+		console.warn(`${MARKERS_LOG_PREFIX}: archive fetch returned no data`, { requestedDate: date, markersURL })
+		return null
+	}
 
+	let normalizedData = cloneSerializable(data)
 	let actualArchiveDate // Structure of markers.json changed at some point
 	if (date < 20240701) {
-		data[0].markers = convertOldMarkersStructure(archive.sets['townyPlugin.markerset'])
+		if (!normalizedData?.[0]) return null
+		normalizedData[0].markers = convertOldMarkersStructure(archive.sets['townyPlugin.markerset'])
 		actualArchiveDate = archive.timestamp
 	} else {
-		data = archive
-		actualArchiveDate = archive[0].timestamp
+		normalizedData = cloneSerializable(archive)
+		actualArchiveDate = archive[0]?.timestamp
 	}
+
+	if (!normalizedData || !actualArchiveDate) return null
 
 	// THIS HAS TO BE EN-CA SO REPLACING DASHES WORKS TO MATCH STORED DATE
-	actualArchiveDate = new Date(parseInt(actualArchiveDate)).toLocaleDateString('en-ca')
-	document.querySelector('#current-map-mode-label').textContent += ` (${actualArchiveDate})`
-	
-	loadingAlert.remove()
-	if (actualArchiveDate.replaceAll('-', '') != date) {
-		showAlert(`The closest archive to your prompt comes from ${actualArchiveDate}.`)
+	const formattedArchiveDate = new Date(parseInt(actualArchiveDate)).toLocaleDateString('en-ca')
+	return { data: normalizedData, actualArchiveDate: formattedArchiveDate }
+}
+
+/** @param {Object} markers - The old markers response JSON data */
+async function getArchive(data) {
+	const loadingAlert = showAlert('Loading archive, please wait...')
+	const date = archiveDate()
+	markersDebugInfo(`${MARKERS_LOG_PREFIX}: getArchive started`, { requestedDate: date })
+
+	let archiveResult = cachedArchives.get(date) ?? null
+	if (!archiveResult) {
+		let pendingLoad = pendingArchiveLoads.get(date)
+		if (!pendingLoad) {
+			pendingLoad = loadArchiveForDate(date, data).finally(() => pendingArchiveLoads.delete(date))
+			pendingArchiveLoads.set(date, pendingLoad)
+		}
+
+		archiveResult = await pendingLoad
+		if (archiveResult) cachedArchives.set(date, archiveResult)
 	}
 
-	return data
+	loadingAlert.remove()
+
+	if (!archiveResult) {
+		showAlert('Archive service is currently unavailable, please try later.')
+		const cachedArchive = cachedArchives.get(date)
+		if (cachedArchive) {
+			updateArchiveModeLabel(cachedArchive.actualArchiveDate)
+			console.warn(`${MARKERS_LOG_PREFIX}: reusing cached archive after fetch failure`, {
+				requestedDate: date,
+				actualArchiveDate: cachedArchive.actualArchiveDate,
+			})
+			return cloneSerializable(cachedArchive.data) || data
+		}
+
+		console.warn(`${MARKERS_LOG_PREFIX}: archive unavailable and no cached archive exists, returning original markers`, {
+			requestedDate: date,
+		})
+		return data
+	}
+
+	updateArchiveModeLabel(archiveResult.actualArchiveDate)
+	if (archiveResult.actualArchiveDate.replaceAll('-', '') != date) {
+		showAlert(`The closest archive to your prompt comes from ${archiveResult.actualArchiveDate}.`)
+	}
+
+	const resultData = cloneSerializable(archiveResult.data) || data
+	markersDebugInfo(`${MARKERS_LOG_PREFIX}: getArchive completed`, {
+		requestedDate: date,
+		actualArchiveDate: archiveResult.actualArchiveDate,
+		markerCount: Array.isArray(resultData?.[0]?.markers) ? resultData[0].markers.length : null,
+	})
+
+	return resultData
 }
 
 /** @param {Object} markerset - The towny markerset of the old markers response JSON data */

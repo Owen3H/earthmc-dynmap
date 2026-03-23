@@ -8,13 +8,19 @@ declare global {
         version: string
         description: string
         author: string
+        browser_specific_settings?: {
+            gecko?: {
+                id?: string
+                strict_min_version?: string
+            }
+        }
         web_accessible_resources: Array<{
-            run_at: string
             matches: Array<string>
             resources: Array<string>
-        }>
+        } | Array<string>>
         content_scripts: Array<{
             matches: Array<string>,
+            run_at?: string,
             css: Array<string>
             js: Array<string>
         }>
