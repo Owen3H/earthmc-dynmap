@@ -858,7 +858,7 @@ document.addEventListener("EMCDYNMAPPLUS_ADJUST_SCROLL", (e) => {
 });
 
 // <define:MANIFEST>
-var define_MANIFEST_default = { manifest_version: 3, name: "EarthMC Dynmap+ (Cross-Browser Fork)", version: "2.0", author: "3meraldK", description: "Extension to enrich the EarthMC map experience", icons: { "48": "resources/icon48.png", "128": "resources/icon128.png" }, web_accessible_resources: [{ matches: ["https://map.earthmc.net/*", "https://nostra.earthmc.net/*"], resources: ["resources/borders.json", "resources/marker-engine.js", "resources/interceptor.js"] }], content_scripts: [{ matches: ["https://map.earthmc.net/*", "https://nostra.earthmc.net/*"], run_at: "document_start", css: ["resources/style.css"], js: ["src/browser.js", "src/httputil.js", "src/dom.js", "src/screenshot.js", "src/menu.js", "src/main.js", "src/entrypoint.js"] }] };
+var define_MANIFEST_default = { manifest_version: 3, name: "EarthMC Dynmap+ (Cross-Browser Fork)", version: "2.0", author: "3meraldK", description: "Extension to enrich the EarthMC map experience", icons: { "48": "resources/icon48.png", "128": "resources/icon128.png" }, browser_specific_settings: { gecko: { data_collection_permissions: { required: ["searchTerms"] } } }, web_accessible_resources: [{ matches: ["https://map.earthmc.net/*", "https://nostra.earthmc.net/*"], resources: ["resources/borders.json", "resources/marker-engine.js", "resources/interceptor.js"] }], content_scripts: [{ matches: ["https://map.earthmc.net/*", "https://nostra.earthmc.net/*"], run_at: "document_start", css: ["resources/style.css"], js: ["src/browser.js", "src/httputil.js", "src/dom.js", "src/screenshot.js", "src/menu.js", "src/main.js", "src/entrypoint.js"] }] };
 
 // src/browser.js
 var extensionRuntime = globalThis.browser?.runtime ?? globalThis.chrome?.runtime ?? null;
@@ -1056,12 +1056,36 @@ var INSERTABLE_HTML = (
 		<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap">
 	`,
     darkMode: `<style id="dark-mode">
-		.leaflet-control, .sidebar-input, #alert,
-		.sidebar-button, .leaflet-bar > a, .leaflet-tooltip-top,
-		.leaflet-popup-content-wrapper, .leaflet-popup-tip,
-		.leaflet-bar > a.leaflet-disabled {
-			background: #131313d4 !important;
-			color: #dedede;
+		.leaflet-control, #alert,
+		.sidebar-button, .sidebar-input, .leaflet-bar > a,
+		.leaflet-tooltip-top, .leaflet-popup-content-wrapper,
+		.leaflet-popup-tip, .leaflet-bar > a.leaflet-disabled,
+		#alert-close, #player-lookup > .close-container {
+			background: #131313eb !important;
+			color: #dedede !important;
+			border-color: #4e4e4e !important;
+		}
+		.sidebar-button, .sidebar-input, #alert-close {
+			color-scheme: dark;
+		}
+		.sidebar-input::placeholder {
+			color: #a8a8a8 !important;
+		}
+		.sidebar-button option {
+			background: #161616 !important;
+			color: #dedede !important;
+		}
+		.leaflet-control.leaflet-control-layers,
+		#sidebar, #server-info, #nation-claims,
+		#player-lookup, #player-lookup-loading {
+			background: #131313eb !important;
+			border-color: #4e4e4e !important;
+		}
+		#current-map-mode-label, #options-menu, #options-menu label,
+		#options-menu .option, #player-lookup, #player-lookup-loading,
+		#server-info, #nation-claims, #nation-claims-titlebar,
+		.leaflet-popup-content, .leaflet-popup-content * {
+			color: #dedede !important;
 		}
 		div.leaflet-control-layers.link img {
 			filter: invert(1);
@@ -1071,39 +1095,80 @@ var INSERTABLE_HTML = (
   }
 );
 var alertTimeout = null;
+function appendChildren(parent, children) {
+  if (Array.isArray(children)) {
+    children.forEach((child) => appendChildren(parent, child));
+    return parent;
+  }
+  if (children == null || children === false) return parent;
+  parent.append(children instanceof Node ? children : document.createTextNode(String(children)));
+  return parent;
+}
+function createElement(tagName, options = {}, children = []) {
+  const element = document.createElement(tagName);
+  const {
+    id,
+    className,
+    text,
+    type,
+    placeholder,
+    value,
+    htmlFor,
+    href,
+    rel,
+    target,
+    src,
+    checked,
+    attrs = {},
+    style = {}
+  } = options;
+  if (id) element.id = id;
+  if (className) element.className = className;
+  if (text != null) element.textContent = text;
+  if (type != null && "type" in element) element.type = type;
+  if (placeholder != null && "placeholder" in element) element.placeholder = placeholder;
+  if (value != null && "value" in element) element.value = value;
+  if (htmlFor != null && "htmlFor" in element) element.htmlFor = htmlFor;
+  if (href != null && "href" in element) element.href = href;
+  if (rel != null && "rel" in element) element.rel = rel;
+  if (target != null && "target" in element) element.target = target;
+  if (src != null && "src" in element) element.src = src;
+  if (checked != null && "checked" in element) element.checked = checked;
+  Object.entries(attrs).forEach(([key, val]) => {
+    if (val != null) element.setAttribute(key, val);
+  });
+  Object.assign(element.style, style);
+  appendChildren(element, children);
+  return element;
+}
+function addElement(parent, element) {
+  parent.appendChild(element);
+  return element;
+}
+function replaceChildrenSafe(element, children) {
+  element.replaceChildren();
+  appendChildren(element, children);
+  return element;
+}
+function createAlertElement() {
+  const alertMessage = createElement("p", { id: "alert-message" });
+  const alert = addElement(document.body, createElement("div", { id: "alert" }, [
+    alertMessage,
+    createElement("button", { id: "alert-close", text: "Dismiss" })
+  ]));
+  alert.querySelector("#alert-close").addEventListener("click", () => {
+    clearTimeout(alertTimeout);
+    alert.remove();
+  });
+  return alert;
+}
 function showAlert(message, timeout = null) {
   let alert = document.querySelector("#alert");
-  if (!alert) {
-    alert = addElement(document.body, INSERTABLE_HTML.alertBox.replace("{message}", message));
-    alert.querySelector("#alert-close").addEventListener("click", () => {
-      clearTimeout(alertTimeout);
-      alert.remove();
-    });
-  } else alert.querySelector("#alert-message").textContent = message;
+  if (!alert) alert = createAlertElement();
+  replaceChildrenSafe(alert.querySelector("#alert-message"), message);
   clearTimeout(alertTimeout);
   if (timeout) alertTimeout = setTimeout(() => alert.remove(), timeout * 1e3);
   return alert;
-}
-function addElement(parent, elementHTML, selector = null, all = false) {
-  parent.insertAdjacentHTML("beforeend", elementHTML);
-  if (!selector) return parent.lastElementChild;
-  return all ? parent.querySelectorAll(selector) : parent.querySelector(selector);
-}
-function appendHTML(parent, html, options = { selector: null, all: false, wrap: false }) {
-  const { selector, all, wrap } = options;
-  const templ = document.createElement("template");
-  templ.innerHTML = html.trim();
-  let nodes = Array.from(templ.content.children);
-  if (!wrap) parent.append(...nodes);
-  else {
-    const container = document.createElement("div");
-    container.append(...nodes);
-    parent.appendChild(container);
-    nodes = [container];
-  }
-  if (!selector) return all ? nodes : nodes[0] || null;
-  const found = wrap ? nodes[0].querySelectorAll(selector) : nodes.flatMap((n) => Array.from(n.querySelectorAll(selector)));
-  return all ? found : found[0] || null;
 }
 var waitForElement = (selector) => new Promise((resolve) => {
   const selected = document.querySelector(selector);
@@ -1277,10 +1342,21 @@ function loadNationClaims(panel) {
 function addNationClaimsPanel(parent) {
   const existingPanel = parent.querySelector("#nation-claims");
   if (existingPanel) return existingPanel;
-  const panel = addElement(parent, INSERTABLE_HTML.nationClaims);
+  const panel = addElement(parent, createElement("div", {
+    id: "nation-claims",
+    className: "leaflet-control-layers leaflet-control"
+  }));
   panel.addEventListener("wheel", (e) => e.stopPropagation());
-  const titlebar = addElement(panel, INSERTABLE_HTML.nationClaimsTitlebar, "#nation-claims-titlebar");
-  const toggleShowBtn = titlebar.querySelector("a");
+  const toggleShowBtn = createElement("a", { href: "" }, createElement("img", {
+    className: "crisp-edges",
+    src: "images/clear.png"
+  }));
+  const titlebar = addElement(panel, createElement("div", { id: "nation-claims-titlebar" }, [
+    createElement("p", { text: "Nation Claims Customizer" }),
+    createElement("div", {
+      className: "leaflet-control-layers link leaflet-control"
+    }, toggleShowBtn)
+  ]));
   const btnImg = toggleShowBtn.querySelector("img");
   toggleShowBtn.addEventListener("click", (e) => {
     e.preventDefault();
@@ -1288,38 +1364,58 @@ function addNationClaimsPanel(parent) {
     contentContainer2.style.display = contentContainer2.style.display == "none" ? "" : "none";
     btnImg.classList.toggle("active");
   });
-  const contentContainer = addElement(panel, '<div id="nation-claims-content"></div>');
+  const contentContainer = addElement(panel, createElement("div", { id: "nation-claims-content" }));
   contentContainer.style.display = "none";
-  const entriesContainer = addElement(contentContainer, '<div id="nation-claims-entry-container"></div>');
-  let html = "";
+  const entriesContainer = addElement(contentContainer, createElement("div", { id: "nation-claims-entry-container" }));
   for (let i = 1; i <= MAX_NATION_CLAIM_ENTRIES; i++) {
-    const colInput = INSERTABLE_HTML.nationClaimsColorInput.replace("{index}", i);
-    const txtInput = INSERTABLE_HTML.nationClaimsTextInput.replace("{index}", i);
-    html += `<div class="nation-claims-entry" id="nation-claims-entry${i}">${colInput}${txtInput}</div>`;
+    const entry = addElement(entriesContainer, createElement("div", {
+      id: `nation-claims-entry${i}`,
+      className: "nation-claims-entry"
+    }));
+    addElement(entry, createElement("input", {
+      id: `nation-color-entry${i}`,
+      type: "color"
+    }));
+    addElement(entry, createElement("input", {
+      id: `nation-text-entry${i}`,
+      type: "text",
+      placeholder: "Enter nation name..."
+    }));
   }
-  addElement(entriesContainer, html);
-  const optDiv1 = addElement(contentContainer, '<div class="nation-claims-checkbox-option"></div>');
-  const optDiv2 = addElement(contentContainer, '<div class="nation-claims-checkbox-option"></div>');
-  const showExcludedCheckbox = appendHTML(
-    optDiv1,
-    INSERTABLE_HTML.options.checkbox.replace("{option}", "show-excluded") + INSERTABLE_HTML.options.label.replace("{option}", "show-excluded").replace("{optionText}", "Show irrelevant towns")
-  );
+  const optDiv1 = addElement(contentContainer, createElement("div", { className: "nation-claims-checkbox-option" }));
+  const optDiv2 = addElement(contentContainer, createElement("div", { className: "nation-claims-checkbox-option" }));
+  const showExcludedCheckbox = addElement(optDiv1, createElement("input", {
+    id: "show-excluded",
+    type: "checkbox"
+  }));
+  addElement(optDiv1, createElement("label", {
+    htmlFor: "show-excluded",
+    text: "Show irrelevant towns"
+  }));
   showExcludedCheckbox.checked = localStorage["emcdynmapplus-nation-claims-show-excluded"] == "true" ? true : false;
   showExcludedCheckbox.addEventListener(
     "change",
     (e) => localStorage["emcdynmapplus-nation-claims-show-excluded"] = e.target.checked
   );
-  const useOpaqueCheckbox = appendHTML(
-    optDiv2,
-    INSERTABLE_HTML.options.checkbox.replace("{option}", "use-opaque-colors") + INSERTABLE_HTML.options.label.replace("{option}", "use-opaque-colors").replace("{optionText}", "Use opaque colors")
-  );
+  const useOpaqueCheckbox = addElement(optDiv2, createElement("input", {
+    id: "use-opaque-colors",
+    type: "checkbox"
+  }));
+  addElement(optDiv2, createElement("label", {
+    htmlFor: "use-opaque-colors",
+    text: "Use opaque colors"
+  }));
   useOpaqueCheckbox.checked = localStorage["emcdynmapplus-nation-claims-opaque-colors"] == "true" ? true : false;
   useOpaqueCheckbox.addEventListener(
     "change",
     (e) => localStorage["emcdynmapplus-nation-claims-opaque-colors"] = e.target.checked
   );
-  const div = appendHTML(contentContainer, '<div id="nation-claims-btn-container"></div>');
-  const applyBtn = appendHTML(div, '<button class="sidebar-button" id="nation-claims-apply">Apply</button>');
+  const div = addElement(contentContainer, createElement("div", { id: "nation-claims-btn-container" }));
+  const applyBtn = addElement(div, createElement("button", {
+    id: "nation-claims-apply",
+    className: "sidebar-button",
+    text: "Apply"
+  }));
   applyBtn.addEventListener("click", () => {
     const colorInputs = entriesContainer.querySelectorAll('[id^="nation-color-entry"]');
     const textInputs = entriesContainer.querySelectorAll('[id^="nation-text-entry"]');
@@ -1330,7 +1426,11 @@ function addNationClaimsPanel(parent) {
     localStorage["emcdynmapplus-nation-claims-info"] = JSON.stringify(entries);
     location.reload();
   });
-  const resetAllBtn = appendHTML(div, '<button class="sidebar-button" id="nation-claims-reset-all">Reset All</button>');
+  const resetAllBtn = addElement(div, createElement("button", {
+    id: "nation-claims-reset-all",
+    className: "sidebar-button",
+    text: "Reset All"
+  }));
   resetAllBtn.addEventListener("click", () => {
     const entries = Array.from({ length: MAX_NATION_CLAIM_ENTRIES }, () => ({ color: null, input: null }));
     localStorage["emcdynmapplus-nation-claims-info"] = JSON.stringify(entries);
@@ -1342,19 +1442,37 @@ function addNationClaimsPanel(parent) {
 function addServerInfoPanel(parent) {
   const existingPanel = parent.querySelector("#server-info");
   if (existingPanel) return existingPanel;
-  const panel = addElement(parent, INSERTABLE_HTML.serverInfo);
-  addElement(panel, '<div id="server-info-title">Server Info</div>');
-  addElement(panel, '<div class="server-info-entry" id="vote-party">Votes until VP: Loading..</div>');
-  addElement(panel, "<br>");
-  addElement(panel, '<div class="server-info-entry" id="online-players-count">Online Players: Loading..</div>');
-  addElement(panel, '<div class="server-info-entry" id="online-nomads-count">Online Townless: Loading..</div>');
-  addElement(panel, "<br>");
-  addElement(panel, '<div class="server-info-entry" id="server-time">Server Time: Loading..</div>');
-  addElement(panel, '<div class="server-info-entry" id="new-day-in">New Day In: Loading..</div>');
-  addElement(panel, "<br>");
-  addElement(panel, '<div class="server-info-entry" id="storm">\u26A1 Storm: Loading..</div>');
-  addElement(panel, '<div class="server-info-entry" id="thunder">\u26C8\uFE0F Thunder: Loading..</div>');
+  const panel = addElement(parent, createElement("div", {
+    id: "server-info",
+    className: "leaflet-control-layers leaflet-control"
+  }));
+  addElement(panel, createElement("div", { id: "server-info-title", text: "Server Info" }));
+  addServerInfoPlaceholder(panel, "vote-party", "Votes until VP");
+  addElement(panel, createElement("br"));
+  addServerInfoPlaceholder(panel, "online-players-count", "Online Players");
+  addServerInfoPlaceholder(panel, "online-nomads-count", "Online Townless");
+  addElement(panel, createElement("br"));
+  addServerInfoPlaceholder(panel, "server-time", "Server Time");
+  addServerInfoPlaceholder(panel, "new-day-in", "New Day In");
+  addElement(panel, createElement("br"));
+  addServerInfoPlaceholder(panel, "storm", "\u26A1 Storm");
+  addServerInfoPlaceholder(panel, "thunder", "\u26C8\uFE0F Thunder");
   return panel;
+}
+function addServerInfoPlaceholder(parent, id, label) {
+  return addElement(parent, createElement("div", {
+    id,
+    className: "server-info-entry",
+    text: `${label}: Loading..`
+  }));
+}
+function renderServerInfoEntry(element, name, value) {
+  if (!element) return;
+  const colour = value == "Yes" ? "green" : value == "No" ? "red" : "white";
+  replaceChildrenSafe(element, createElement("p", { style: { margin: "0" } }, [
+    `${name}: `,
+    createElement("b", { text: String(value), style: { color: colour } })
+  ]));
 }
 var serverInfoEntry = (name, value) => {
   const colour = value == "Yes" ? "green" : value == "No" ? "red" : "white";
@@ -1373,13 +1491,14 @@ function renderServerInfo(element, info) {
   if (delta < 0) delta += 86400;
   const newDayHr = Math.floor(delta / 3600);
   const newDayMin = Math.floor(delta % 3600 / 60);
-  element.querySelector("#vote-party").innerHTML = serverInfoEntry(`Votes until VP`, vpRemaining > 0 ? vpRemaining : 0);
-  element.querySelector("#online-players-count").innerHTML = serverInfoEntry(`Online Players`, numOnlinePlayers || 0);
-  element.querySelector("#online-nomads-count").innerHTML = serverInfoEntry(`Online Townless`, numOnlineNomads || 0);
-  element.querySelector("#server-time").innerHTML = serverInfoEntry(`Server Time`, timeStr);
-  element.querySelector("#new-day-in").innerHTML = serverInfoEntry(`New Day In`, `${newDayHr}hrs ${newDayMin}m`);
-  element.querySelector("#storm").innerHTML = serverInfoEntry(`\u26A1 Storm`, info.status.hasStorm ? "Yes" : "No");
-  element.querySelector("#thunder").innerHTML = serverInfoEntry(`\u26C8\uFE0F Thunder`, info.status.isThundering ? "Yes" : "No");
+  renderServerInfoEntry(element.querySelector("#vote-party"), "Votes until VP", vpRemaining > 0 ? vpRemaining : 0);
+  renderServerInfoEntry(element.querySelector("#online-players-count"), "Online Players", numOnlinePlayers || 0);
+  renderServerInfoEntry(element.querySelector("#online-nomads-count"), "Online Townless", numOnlineNomads || 0);
+  renderServerInfoEntry(element.querySelector("#server-time"), "Server Time", timeStr);
+  renderServerInfoEntry(element.querySelector("#new-day-in"), "New Day In", `${newDayHr}hrs ${newDayMin}m`);
+  renderServerInfoEntry(element.querySelector("#storm"), "\u26A1 Storm", info.status.hasStorm ? "Yes" : "No");
+  renderServerInfoEntry(element.querySelector("#thunder"), "\u26C8\uFE0F Thunder", info.status.isThundering ? "Yes" : "No");
+  return;
 }
 function triggerScrollEvent(deltaY) {
   const zoomMultiplier = Math.floor(Math.abs(deltaY) / (SCROLL_LINE_DELTA * SCROLL_THRESHOLD));
@@ -1482,11 +1601,26 @@ function drawMarkers(ctx) {
 function addMainMenu(parent) {
   const existingSidebar = parent.querySelector("#sidebar");
   if (existingSidebar) return existingSidebar;
-  const sidebar = addElement(parent, INSERTABLE_HTML.sidebar);
+  const sidebar = addElement(parent, createElement("div", {
+    id: "sidebar",
+    className: "leaflet-control-layers leaflet-control"
+  }));
   addLocateMenu(sidebar);
-  const archiveContainer = addElement(sidebar, INSERTABLE_HTML.sidebarOption, ".sidebar-option", true)[1];
-  const archiveButton = addElement(archiveContainer, INSERTABLE_HTML.buttons.searchArchive);
-  const archiveInput = addElement(archiveContainer, INSERTABLE_HTML.archiveInput);
+  const archiveContainer = addElement(sidebar, createElement("div", { className: "sidebar-option" }));
+  const archiveButton = addElement(archiveContainer, createElement("button", {
+    id: "archive-button",
+    className: "sidebar-button",
+    text: "Search Archive"
+  }));
+  const archiveInput = addElement(archiveContainer, createElement("input", {
+    id: "archive-input",
+    className: "sidebar-input",
+    type: "date",
+    attrs: {
+      min: ARCHIVE_DATE.MIN,
+      max: ARCHIVE_DATE.MAX
+    }
+  }));
   archiveButton.addEventListener("click", (_) => searchArchive(archiveInput.value));
   archiveInput.addEventListener("keyup", (e) => {
     if (e.key == "Enter") searchArchive(archiveInput.value);
@@ -1496,16 +1630,27 @@ function addMainMenu(parent) {
     localStorage["emcdynmapplus-archive-date"] = URLDate;
   });
   const curMapMode = currentMapMode();
-  const switchMapModeButton = addElement(sidebar, INSERTABLE_HTML.buttons.switchMapMode);
+  const switchMapModeButton = addElement(sidebar, createElement("button", {
+    id: "switch-map-mode",
+    className: "sidebar-button",
+    text: "Switch Map Mode"
+  }));
   switchMapModeButton.addEventListener("click", (_) => switchMapMode(curMapMode));
   addOptions(sidebar, curMapMode);
-  const currentMapModeLabel = addElement(sidebar, INSERTABLE_HTML.currentMapModeLabel);
-  currentMapModeLabel.textContent = currentMapModeLabel.textContent.replace("{currentMapMode}", curMapMode);
+  addElement(sidebar, createElement("div", {
+    id: "current-map-mode-label",
+    className: "sidebar-option",
+    text: `Map Mode: ${curMapMode}`
+  }));
   return sidebar;
 }
 function addOptions(sidebar, curMapMode) {
-  const optionsButton = addElement(sidebar, INSERTABLE_HTML.buttons.options);
-  const optionsMenu = addElement(sidebar, INSERTABLE_HTML.options.menu);
+  const optionsButton = addElement(sidebar, createElement("button", {
+    id: "options-button",
+    className: "sidebar-button",
+    text: "Options"
+  }));
+  const optionsMenu = addElement(sidebar, createElement("div", { id: "options-menu" }));
   optionsMenu.style.display = "none";
   optionsButton.addEventListener("click", (_) => {
     optionsMenu.style.display = optionsMenu.style.display == "none" ? "grid" : "none";
@@ -1527,18 +1672,39 @@ function addOptions(sidebar, curMapMode) {
   }
 }
 function addCheckboxOption(menu, index, optionId, optionText, variable) {
-  const option = addElement(menu, INSERTABLE_HTML.options.option, ".option", true)[index];
-  option.insertAdjacentHTML("beforeend", INSERTABLE_HTML.options.label.replace("{option}", optionId).replace("{optionText}", optionText));
-  const checkbox = addElement(option, INSERTABLE_HTML.options.checkbox.replace("{option}", optionId), "#" + optionId);
+  const option = addElement(menu, createElement("div", { className: "option" }));
+  addElement(option, createElement("label", {
+    htmlFor: optionId,
+    text: optionText
+  }));
+  const checkbox = addElement(option, createElement("input", {
+    id: optionId,
+    type: "checkbox"
+  }));
   checkbox.checked = localStorage["emcdynmapplus-" + variable] == "true";
   return checkbox;
 }
 function addLocateMenu(sidebar) {
-  const locateMenu = addElement(sidebar, '<div id="locate-menu"></div>', "#locate-menu");
-  const locateButton = addElement(locateMenu, INSERTABLE_HTML.buttons.locate, "#locate-button");
-  const locateSubmenu = addElement(locateMenu, INSERTABLE_HTML.sidebarOption, ".sidebar-option");
-  const locateSelect = addElement(locateSubmenu, INSERTABLE_HTML.locateSelect, "#locate-select");
-  const locateInput = addElement(locateSubmenu, INSERTABLE_HTML.locateInput, "#locate-input");
+  const locateMenu = addElement(sidebar, createElement("div", { id: "locate-menu" }));
+  const locateButton = addElement(locateMenu, createElement("button", {
+    id: "locate-button",
+    className: "sidebar-button",
+    text: "Locate"
+  }));
+  const locateSubmenu = addElement(locateMenu, createElement("div", { className: "sidebar-option" }));
+  const locateSelect = addElement(locateSubmenu, createElement("select", {
+    id: "locate-select",
+    className: "sidebar-button"
+  }, [
+    createElement("option", { text: "Town" }),
+    createElement("option", { text: "Nation" }),
+    createElement("option", { text: "Resident" })
+  ]));
+  const locateInput = addElement(locateSubmenu, createElement("input", {
+    id: "locate-input",
+    className: "sidebar-input",
+    placeholder: "London"
+  }));
   locateSelect.addEventListener("change", () => {
     switch (locateSelect.value) {
       case "Town":
@@ -1617,11 +1783,72 @@ function toggleDarkMode(boxTicked) {
   return boxTicked ? loadDarkMode() : unloadDarkMode();
 }
 function insertCustomStylesheets() {
-  document.head.insertAdjacentHTML("beforeend", INSERTABLE_HTML.interFont);
+  if (!document.head.querySelector("#emcdynmapplus-preconnect-fonts")) {
+    addElement(document.head, createElement("link", {
+      id: "emcdynmapplus-preconnect-fonts",
+      rel: "preconnect",
+      href: "https://fonts.googleapis.com"
+    }));
+  }
+  if (!document.head.querySelector("#emcdynmapplus-preconnect-fonts-static")) {
+    addElement(document.head, createElement("link", {
+      id: "emcdynmapplus-preconnect-fonts-static",
+      rel: "preconnect",
+      href: "https://fonts.gstatic.com",
+      attrs: { crossorigin: "" }
+    }));
+  }
+  if (!document.head.querySelector("#emcdynmapplus-inter-font")) {
+    addElement(document.head, createElement("link", {
+      id: "emcdynmapplus-inter-font",
+      rel: "stylesheet",
+      href: "https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap"
+    }));
+  }
 }
 function loadDarkMode() {
   document.documentElement.style.colorScheme = "dark";
-  document.head.insertAdjacentHTML("beforeend", INSERTABLE_HTML.darkMode);
+  if (!document.head.querySelector("#dark-mode")) {
+    addElement(document.head, createElement("style", {
+      id: "dark-mode",
+      text: `
+				.leaflet-control, #alert,
+				.sidebar-button, .sidebar-input, .leaflet-bar > a,
+				.leaflet-tooltip-top, .leaflet-popup-content-wrapper,
+				.leaflet-popup-tip, .leaflet-bar > a.leaflet-disabled,
+				#alert-close, #player-lookup > .close-container {
+					background: #131313eb !important;
+					color: #dedede !important;
+					border-color: #4e4e4e !important;
+				}
+				.sidebar-button, .sidebar-input, #alert-close {
+					color-scheme: dark;
+				}
+				.sidebar-input::placeholder {
+					color: #a8a8a8 !important;
+				}
+				.sidebar-button option {
+					background: #161616 !important;
+					color: #dedede !important;
+				}
+				.leaflet-control.leaflet-control-layers,
+				#sidebar, #server-info, #nation-claims,
+				#player-lookup, #player-lookup-loading {
+					background: #131313eb !important;
+					border-color: #4e4e4e !important;
+				}
+				#current-map-mode-label, #options-menu, #options-menu label,
+				#options-menu .option, #player-lookup, #player-lookup-loading,
+				#server-info, #nation-claims, #nation-claims-titlebar,
+				.leaflet-popup-content, .leaflet-popup-content * {
+					color: #dedede !important;
+				}
+				div.leaflet-control-layers.link img {
+					filter: invert(1);
+				}
+			`
+    }));
+  }
 }
 function unloadDarkMode() {
   document.documentElement.style.removeProperty("color-scheme");
@@ -2147,24 +2374,21 @@ async function lookupPlayer(playerName, showOnlineStatus = true) {
   document.querySelector("#player-lookup-loading")?.remove();
   const leafletTL = document.querySelector(".leaflet-top.leaflet-left");
   if (!leafletTL) return showAlert("Error selecting element required to show player info popup.");
-  const loading = addElement(leafletTL, INSERTABLE_HTML.playerLookupLoading, "#player-lookup-loading");
+  const loading = addElement(leafletTL, createElement("div", {
+    id: "player-lookup-loading",
+    className: "leaflet-control-layers leaflet-control",
+    text: "Loading..."
+  }));
   const players = await postJSON(`${OAPI_BASE}/${CURRENT_MAP}/players`, { query: [playerName] });
   loading.remove();
   if (!players) return showAlert("Service is currently unavailable, please try later.", 5);
   if (players.length < 1) return showAlert(`Error looking up player: ${playerName}. They have possibly opted-out.`, 3);
   const player = players[0];
   const hasTown = player.town && player.town.uuid;
-  const lookup = addElement(leafletTL, INSERTABLE_HTML.playerLookup);
-  lookup.insertAdjacentHTML("beforeend", '<span class="close-container">X</span>');
-  lookup.insertAdjacentHTML("beforeend", "{show-online-status}<br>");
-  lookup.insertAdjacentHTML("beforeend", '<img id="player-lookup-avatar"/>');
-  lookup.insertAdjacentHTML("beforeend", '<center><b id="player-lookup-name">{player}</b>{about}</center>');
-  lookup.insertAdjacentHTML("beforeend", "<hr>{town}{nation}");
-  lookup.insertAdjacentHTML("beforeend", "Rank: <b>{rank}</b><br>");
-  lookup.insertAdjacentHTML("beforeend", "Balance: <b>{balance} gold</b><br>");
-  lookup.insertAdjacentHTML("beforeend", "{registered}");
-  if (hasTown) lookup.insertAdjacentHTML("beforeend", "{town-join}");
-  lookup.insertAdjacentHTML("beforeend", "{last-online}");
+  const lookup = addElement(leafletTL, createElement("div", {
+    id: "player-lookup",
+    className: "leaflet-control-layers leaflet-control"
+  }));
   const isOnline = player.status.isOnline;
   const balance = player.stats.balance;
   const town = player.town.name;
@@ -2172,8 +2396,7 @@ async function lookupPlayer(playerName, showOnlineStatus = true) {
   const registeredDate = new Date(player.timestamps.registered).toLocaleDateString();
   const townJoinDate = new Date(player.timestamps.joinedTownAt || 0).toLocaleDateString();
   const loDate = new Date(player.timestamps.lastOnline).toLocaleDateString();
-  let onlineStatus = '<span id="player-lookup-online" style="color: {online-color}">{online}</span>';
-  const about = !player.about || player.about == "/res set about [msg]" ? "" : `<br><i>${player.about}</i>`;
+  const about = !player.about || player.about == "/res set about [msg]" ? "" : player.about;
   let rank = "Townless";
   if (player.status.hasTown) rank = "Resident";
   if (player.ranks.townRanks.includes("Councillor")) rank = "Councillor";
@@ -2181,17 +2404,65 @@ async function lookupPlayer(playerName, showOnlineStatus = true) {
   if (player.ranks.nationRanks.includes("Chancellor")) rank = "Chancellor";
   if (player.status.isKing) rank = "Leader";
   const playerAvatarURL = `https://mc-heads.net/avatar/${player.uuid.replaceAll("-", "")}`;
-  document.querySelector("#player-lookup-avatar").setAttribute("src", playerAvatarURL);
-  lookup.innerHTML = lookup.innerHTML.replace("{player}", player.name || playerName).replace("{about}", about).replace("{show-online-status}", showOnlineStatus ? onlineStatus : "").replace("{online-color}", isOnline ? "green" : "red").replace("{online}", isOnline ? "\u26AB\uFE0E Online" : "\u25CB Offline").replace("{town}", town ? `Town: <b>${town}</b><br>` : "").replace("{nation}", nation ? `Nation: <b>${nation}</b><br>` : "").replace("{rank}", rank).replace("{balance}", balance).replace("{registered}", `Registered:<br><b>${registeredDate}</b> (${timeAgo(player.timestamps.registered)})`);
-  if (hasTown) {
-    const townJoinStr = `<br>Joined town:<br><b>${townJoinDate}</b> (${timeAgo(player.timestamps.joinedTownAt)})`;
-    lookup.innerHTML = lookup.innerHTML.replace("{town-join}", townJoinStr);
+  const appendBreak = () => addElement(lookup, createElement("br"));
+  const appendLabeledValue = (label, value, suffix = "") => {
+    appendChildren(lookup, [
+      `${label}: `,
+      createElement("b", { text: `${value}${suffix}` })
+    ]);
+    appendBreak();
+  };
+  const appendDateInfo = (label, dateText, relativeText) => {
+    appendChildren(lookup, [
+      label,
+      createElement("br"),
+      createElement("b", { text: dateText }),
+      ` (${relativeText})`
+    ]);
+  };
+  const closeButton = addElement(lookup, createElement("span", {
+    className: "close-container",
+    text: "X"
+  }));
+  if (showOnlineStatus) {
+    addElement(lookup, createElement("span", {
+      id: "player-lookup-online",
+      text: isOnline ? "\u26AB\uFE0E Online" : "\u25CB Offline",
+      style: { color: isOnline ? "green" : "red" }
+    }));
+    appendBreak();
   }
-  const onlineStr = !isOnline ? `<br>Last online:<br><b>${loDate}</b> (${timeAgo(player.timestamps.lastOnline)})` : "";
-  lookup.innerHTML = lookup.innerHTML.replace("{last-online}", onlineStr);
-  lookup.querySelector(".close-container").addEventListener("click", (event) => {
+  addElement(lookup, createElement("img", {
+    id: "player-lookup-avatar",
+    src: playerAvatarURL
+  }));
+  const nameBlock = addElement(lookup, createElement("center"));
+  addElement(nameBlock, createElement("b", {
+    id: "player-lookup-name",
+    text: player.name || playerName
+  }));
+  if (about) {
+    addElement(nameBlock, createElement("br"));
+    addElement(nameBlock, createElement("i", { text: about }));
+  }
+  addElement(lookup, createElement("hr"));
+  if (town) appendLabeledValue("Town", town);
+  if (nation) appendLabeledValue("Nation", nation);
+  appendLabeledValue("Rank", rank);
+  appendLabeledValue("Balance", balance, " gold");
+  appendDateInfo("Registered:", registeredDate, timeAgo(player.timestamps.registered));
+  if (hasTown) {
+    appendBreak();
+    appendDateInfo("Joined town:", townJoinDate, timeAgo(player.timestamps.joinedTownAt));
+  }
+  if (!isOnline) {
+    appendBreak();
+    appendDateInfo("Last online:", loDate, timeAgo(player.timestamps.lastOnline));
+  }
+  closeButton.addEventListener("click", (event) => {
     event.target.parentElement.remove();
   });
+  return;
 }
 var DAY_MS = 864e5;
 function timeAgo(ts) {
@@ -2923,10 +3194,16 @@ function checkForUpdate(manifest) {
   if (!cachedVer) return localStorage["emcdynmapplus-version"] = latestVer;
   if (cachedVer != latestVer) {
     const changelogURL = `${PROJECT_URL}/releases/v${latestVer}`;
-    showAlert(`
-            Extension has been automatically updated from ${cachedVer} to ${latestVer}. 
-            Read what has been changed <a href="${changelogURL}" target="_blank">here</a>.
-        `);
+    showAlert([
+      `Extension has been automatically updated from ${cachedVer} to ${latestVer}. Read what has been changed `,
+      createElement("a", {
+        href: changelogURL,
+        target: "_blank",
+        rel: "noopener noreferrer",
+        text: "here"
+      }),
+      "."
+    ]);
   }
   return localStorage["emcdynmapplus-version"] = latestVer;
 }

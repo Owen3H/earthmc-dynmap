@@ -64,12 +64,36 @@ const INSERTABLE_HTML = /** @type {const} */ ({
 		<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap">
 	`,
 	darkMode: `<style id="dark-mode">
-		.leaflet-control, .sidebar-input, #alert,
-		.sidebar-button, .leaflet-bar > a, .leaflet-tooltip-top,
-		.leaflet-popup-content-wrapper, .leaflet-popup-tip,
-		.leaflet-bar > a.leaflet-disabled {
-			background: #131313d4 !important;
-			color: #dedede;
+		.leaflet-control, #alert,
+		.sidebar-button, .sidebar-input, .leaflet-bar > a,
+		.leaflet-tooltip-top, .leaflet-popup-content-wrapper,
+		.leaflet-popup-tip, .leaflet-bar > a.leaflet-disabled,
+		#alert-close, #player-lookup > .close-container {
+			background: #131313eb !important;
+			color: #dedede !important;
+			border-color: #4e4e4e !important;
+		}
+		.sidebar-button, .sidebar-input, #alert-close {
+			color-scheme: dark;
+		}
+		.sidebar-input::placeholder {
+			color: #a8a8a8 !important;
+		}
+		.sidebar-button option {
+			background: #161616 !important;
+			color: #dedede !important;
+		}
+		.leaflet-control.leaflet-control-layers,
+		#sidebar, #server-info, #nation-claims,
+		#player-lookup, #player-lookup-loading {
+			background: #131313eb !important;
+			border-color: #4e4e4e !important;
+		}
+		#current-map-mode-label, #options-menu, #options-menu label,
+		#options-menu .option, #player-lookup, #player-lookup-loading,
+		#server-info, #nation-claims, #nation-claims-titlebar,
+		.leaflet-popup-content, .leaflet-popup-content * {
+			color: #dedede !important;
 		}
 		div.leaflet-control-layers.link img {
 			filter: invert(1);
