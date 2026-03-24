@@ -5,8 +5,8 @@
 // @author      3meraldK
 // @include     https://map.earthmc.net/*
 // @include     https://nostra.earthmc.net/*
-// @icon        https://raw.githubusercontent.com/JasonSolace/earthmc-dynmap-firefox/main/resources/icon48.png
-// @downloadURL https://raw.githubusercontent.com/JasonSolace/earthmc-dynmap-firefox/main/dist/emc-dynmapplus.user.js
+// @icon        https://raw.githubusercontent.com/JasonSolace/earthmc-dynmap-cross-browser/main/resources/icon48.png
+// @downloadURL https://raw.githubusercontent.com/JasonSolace/earthmc-dynmap-cross-browser/main/dist/emc-dynmapplus.user.js
 // @grant       GM_addStyle
 // ==/UserScript==
 
@@ -905,7 +905,7 @@ var __privateMethod = (obj, member, method) => (__accessCheck(obj, member, "acce
 
 // src/httputil.js
 var _TokenBucket_instances, save_fn;
-var PROJECT_URL = `https://github.com/JasonSolace/earthmc-dynmap-firefox`;
+var PROJECT_URL = `https://github.com/JasonSolace/earthmc-dynmap-cross-browser`;
 var PROXY_URL = `https://api.codetabs.com/v1/proxy/?quest=`;
 var EMC_DOMAIN = "earthmc.net";
 var CURRENT_MAP = "aurora";

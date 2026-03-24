@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync } from 'fs'
 import { build } from 'esbuild'
 import * as path from 'path'
 
-const FORK_REPO = 'JasonSolace/earthmc-dynmap-firefox'
+const FORK_REPO = 'JasonSolace/earthmc-dynmap-cross-browser'
 const STYLE_CSS = readFileSync('resources/style.css', 'utf8')
 const BORDERS = JSON.parse(readFileSync('resources/borders.json', 'utf8'))
 const MANIFEST = JSON.parse(readFileSync('manifest.json', 'utf8'))

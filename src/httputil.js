@@ -1,7 +1,7 @@
 /** ANYTHING RELATED TO NETWORKING BELONGS IN HERE */
 //console.log('emcdynmapplus: loaded httputil')
 
-const PROJECT_URL = `https://github.com/JasonSolace/earthmc-dynmap-firefox`
+const PROJECT_URL = `https://github.com/JasonSolace/earthmc-dynmap-cross-browser`
 const PROXY_URL = `https://api.codetabs.com/v1/proxy/?quest=`
 
 const EMC_DOMAIN = "earthmc.net"
