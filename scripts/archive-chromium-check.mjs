@@ -1,7 +1,7 @@
 import { runE2E } from "./e2e/run.mjs";
 
 const result = await runE2E({
-	browser: "firefox",
+	browser: "chromium",
 	test: "archive",
 });
 

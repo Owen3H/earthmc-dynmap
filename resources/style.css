@@ -390,6 +390,14 @@ input[type="color"]::-webkit-color-swatch {
 	backdrop-filter: blur(2px);
 }
 
+#emcdynmapplus-tile-darkener {
+	position: absolute;
+	inset: 0;
+	z-index: 1;
+	pointer-events: none;
+	background: #0c0c0c;
+}
+
 /* Make coords easier to read and nicer to look at */
 .leaflet-control-layers.coordinates {
 	font-family: "Inter", 'Open Sans', sans-serif;

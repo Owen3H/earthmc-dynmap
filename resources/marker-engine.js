@@ -1,0 +1,838 @@
+const MARKER_ENGINE_PREFIX = "emcdynmapplus[page-markers]";
+const MARKER_ENGINE_EVENT_PARSED = "EMCDYNMAPPLUS_SYNC_PARSED_MARKERS";
+const MARKER_ENGINE_EVENT_ALERT = "EMCDYNMAPPLUS_SHOW_ALERT";
+const MARKER_ENGINE_EVENT_ARCHIVE_LABEL = "EMCDYNMAPPLUS_UPDATE_ARCHIVE_LABEL";
+
+const MARKER_ENGINE_HTML = {
+	residentClickable: '<span class="resident-clickable">{player}</span>',
+	residentList: '<span class="resident-list">\t{list}</span>',
+	scrollableResidentList: '<div class="resident-list" id="scrollable-list">\t{list}</div>',
+	partOfLabel: '<span id="part-of-label">Part of <b>{allianceList}</b></span>',
+};
+
+const MARKER_ENGINE_RESOURCE_BASE = (() => {
+	try {
+		const src = document.currentScript?.src;
+		return src ? new URL(".", src).toString() : "";
+	} catch {
+		return "";
+	}
+})();
+
+const PROXY_URL = "https://api.codetabs.com/v1/proxy/?quest=";
+const EMC_DOMAIN = "earthmc.net";
+const CURRENT_MAP = "aurora";
+const CAPI_BASE = "https://emcstats.bot.nu";
+const OAPI_BASE = `https://api.${EMC_DOMAIN}/v3`;
+const OAPI_REQ_PER_MIN = 180;
+const OAPI_ITEMS_PER_REQ = 100;
+
+const BORDER_CHUNK_COORDS = {
+	L: -33280, R: 33088,
+	U: -16640, D: 16512,
+};
+
+const EXTRA_BORDER_OPTS = {
+	label: "Country Border",
+	opacity: 0.5,
+	weight: 3,
+	color: "#000000",
+	markup: false,
+};
+
+const DEFAULT_ALLIANCE_COLOURS = { fill: "#000000", outline: "#000000" };
+const DEFAULT_BLUE = "#3fb4ff";
+const DEFAULT_GREEN = "#89c500";
+const CHUNKS_PER_RES = 12;
+
+let parsedMarkers = [];
+let cachedAlliances = null;
+let cachedApiNations = null;
+let cachedStyledBorders = null;
+let pendingBordersLoad = null;
+
+const cachedArchives = new Map();
+const pendingArchiveLoads = new Map();
+
+function pageMarkersDebugEnabled() {
+	try {
+		return localStorage["emcdynmapplus-debug"] === "true";
+	} catch {
+		return false;
+	}
+}
+
+const pageMarkersDebugInfo = (...args) => {
+	if (pageMarkersDebugEnabled()) console.info(...args);
+};
+
+function dispatchPageMarkersEvent(name, detail) {
+	document.dispatchEvent(new CustomEvent(name, {
+		detail: JSON.stringify(detail),
+	}));
+}
+
+function syncParsedMarkers() {
+	dispatchPageMarkersEvent(MARKER_ENGINE_EVENT_PARSED, { parsedMarkers });
+}
+
+function showPageAlert(message, timeout = null) {
+	dispatchPageMarkersEvent(MARKER_ENGINE_EVENT_ALERT, { message, timeout });
+}
+
+function updateArchiveModeLabel(actualArchiveDate) {
+	dispatchPageMarkersEvent(MARKER_ENGINE_EVENT_ARCHIVE_LABEL, { actualArchiveDate });
+}
+
+function cloneSerializable(value) {
+	if (typeof value === "undefined") return undefined;
+
+	try {
+		return JSON.parse(JSON.stringify(value));
+	} catch {
+		try {
+			if (typeof structuredClone === "function") return structuredClone(value);
+		} catch {}
+
+		return null;
+	}
+}
+
+function getResourceUrl(name) {
+	if (!MARKER_ENGINE_RESOURCE_BASE) return name;
+	return new URL(name, MARKER_ENGINE_RESOURCE_BASE).toString();
+}
+
+class TokenBucket {
+	constructor(opts) {
+		this.capacity = opts.capacity;
+		this.refillRate = opts.refillRate;
+		this.storageKey = opts.storageKey;
+
+		const cachedBucket = localStorage[this.storageKey];
+		if (cachedBucket) {
+			const bucketData = JSON.parse(cachedBucket);
+			const elapsed = (Date.now() - bucketData.lastRefill) / 1000;
+			const added = elapsed * opts.refillRate;
+			this.tokens = Math.min(opts.capacity, bucketData.tokens + added);
+		} else {
+			this.tokens = opts.capacity;
+		}
+
+		this.lastRefill = Date.now();
+	}
+
+	save() {
+		localStorage[this.storageKey] = JSON.stringify({
+			tokens: this.tokens,
+			lastRefill: this.lastRefill,
+		});
+	}
+
+	refill() {
+		const now = Date.now();
+		const elapsed = (now - this.lastRefill) / 1000;
+		if (elapsed <= 0) return;
+
+		const added = elapsed * this.refillRate;
+		this.tokens = Math.min(this.capacity, this.tokens + added);
+		this.lastRefill = now;
+		this.save();
+	}
+
+	take = async () => new Promise((resolve) => {
+		const attempt = () => {
+			this.refill();
+			if (this.tokens >= 1) {
+				this.tokens -= 1;
+				this.save();
+				resolve();
+			} else {
+				const msUntilNext = Math.ceil((1 - this.tokens) / this.refillRate * 1000);
+				setTimeout(attempt, msUntilNext);
+			}
+		};
+
+		attempt();
+	});
+}
+
+const oapiBucket = new TokenBucket({
+	capacity: OAPI_REQ_PER_MIN,
+	refillRate: OAPI_REQ_PER_MIN / 60,
+	storageKey: "emcdynmapplus-oapi-bucket",
+});
+
+async function fetchJSON(url, options = null) {
+	if (url.includes(OAPI_BASE)) await oapiBucket.take();
+
+	const response = await fetch(url, options);
+	if (!response.ok && response.status !== 304) return null;
+
+	return response.json();
+}
+
+const postJSON = (url, body) =>
+	fetchJSON(url, { body: JSON.stringify(body), method: "POST" });
+
+function chunkArr(arr, chunkSize) {
+	const chunks = [];
+	for (let i = 0; i < arr.length; i += chunkSize) {
+		chunks.push(arr.slice(i, i + chunkSize));
+	}
+
+	return chunks;
+}
+
+async function sendBatch(url, chunk) {
+	return postJSON(url, { query: chunk.map((entry) => entry.uuid) }).catch((err) => {
+		console.error(`${MARKER_ENGINE_PREFIX}: error sending request`, err);
+		return [];
+	});
+}
+
+async function queryConcurrent(url, arr) {
+	const chunks = chunkArr(arr, OAPI_ITEMS_PER_REQ);
+	const promises = chunks.map(async (chunk) => {
+		await oapiBucket.take();
+		return sendBatch(url, chunk);
+	});
+
+	const batchResults = await Promise.all(promises);
+	return batchResults.flat();
+}
+
+const currentMapMode = () => localStorage["emcdynmapplus-mapmode"] ?? "meganations";
+const archiveDate = () => parseInt(localStorage["emcdynmapplus-archive-date"]);
+const nationClaimsInfo = () => JSON.parse(localStorage["emcdynmapplus-nation-claims-info"] || "[]");
+
+const isNumeric = (str) => Number.isFinite(+str);
+const roundTo16 = (num) => Math.round(num / 16) * 16;
+const roundToNearest16 = (num) => Math.round(num / 16) * 16;
+
+function hashCode(str) {
+	let hexValue = 0x811c9dc5;
+	for (let i = 0; i < str.length; i++) {
+		hexValue ^= str.charCodeAt(i);
+		hexValue += (hexValue << 1) + (hexValue << 4) + (hexValue << 7) + (hexValue << 8) + (hexValue << 24);
+	}
+
+	return `#${((hexValue >>> 0) % 16777216).toString(16).padStart(6, "0")}`;
+}
+
+function calcPolygonArea(vertices) {
+	let area = 0;
+	for (let i = 0; i < vertices.length; i++) {
+		const j = (i + 1) % vertices.length;
+		area += roundTo16(vertices[i].x) * roundTo16(vertices[j].z);
+		area -= roundTo16(vertices[j].x) * roundTo16(vertices[i].z);
+	}
+
+	return (Math.abs(area) / 2) / (16 * 16);
+}
+
+function pointInPolygon(vertex, polygon) {
+	const { x, z } = vertex;
+	let inside = false;
+	for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+		const xi = polygon[i].x;
+		const xj = polygon[j].x;
+		const zi = polygon[i].z;
+		const zj = polygon[j].z;
+
+		const intersect = ((zi > z) !== (zj > z))
+			&& (x < (xj - xi) * (z - zi) / (zj - zi) + xi);
+		if (intersect) inside = !inside;
+	}
+
+	return inside;
+}
+
+function calcMarkerArea(marker) {
+	if (marker.type !== "polygon") return 0;
+
+	let area = 0;
+	const processed = [];
+	for (const multiPolygon of marker.points || []) {
+		for (let polygon of multiPolygon) {
+			if (!polygon || polygon.length < 3) continue;
+
+			polygon = polygon
+				.map((vertex) => ({ x: Number(vertex.x), z: Number(vertex.z) }))
+				.filter((vertex) => Number.isFinite(vertex.x) && Number.isFinite(vertex.z));
+			if (polygon.length < 3) continue;
+
+			const isHole = processed.some((prev) => polygon.every((vertex) => pointInPolygon(vertex, prev)));
+			area += isHole ? -calcPolygonArea(polygon) : calcPolygonArea(polygon);
+			processed.push(polygon);
+		}
+	}
+
+	return area;
+}
+
+function midrange(vertices) {
+	let minX = Infinity;
+	let maxX = -Infinity;
+	let minZ = Infinity;
+	let maxZ = -Infinity;
+
+	for (const vertex of vertices) {
+		if (vertex.x < minX) minX = vertex.x;
+		if (vertex.x > maxX) maxX = vertex.x;
+		if (vertex.z < minZ) minZ = vertex.z;
+		if (vertex.z > maxZ) maxZ = vertex.z;
+	}
+
+	return {
+		x: roundToNearest16((minX + maxX) / 2),
+		z: roundToNearest16((minZ + maxZ) / 2),
+	};
+}
+
+const makePolyline = (linePoints, weight = 1, colour = "#ffffff") => ({
+	type: "polyline",
+	points: linePoints,
+	weight,
+	color: colour,
+});
+
+async function getStyledBorders() {
+	if (cachedStyledBorders != null) return cachedStyledBorders;
+
+	if (typeof BORDERS !== "undefined") {
+		cachedStyledBorders = Object.fromEntries(
+			Object.entries(BORDERS).map(([key, border]) => [key, { ...border, ...EXTRA_BORDER_OPTS }]),
+		);
+		return cachedStyledBorders;
+	}
+
+	if (!pendingBordersLoad) {
+		pendingBordersLoad = fetch(getResourceUrl("borders.json"))
+			.then(async (response) => {
+				if (!response.ok) return null;
+
+				const borders = await response.json();
+				return Object.fromEntries(
+					Object.entries(borders).map(([key, border]) => [key, { ...border, ...EXTRA_BORDER_OPTS }]),
+				);
+			})
+			.catch((err) => {
+				console.error(`${MARKER_ENGINE_PREFIX}: failed to load borders resource`, err);
+				return null;
+			})
+			.finally(() => {
+				pendingBordersLoad = null;
+			});
+	}
+
+	cachedStyledBorders = await pendingBordersLoad;
+	return cachedStyledBorders;
+}
+
+function addChunksLayer(data) {
+	const { L, R, U, D } = BORDER_CHUNK_COORDS;
+	const ver = (x) => [{ x, z: U }, { x, z: D }, { x, z: U }];
+	const hor = (z) => [{ x: L, z }, { x: R, z }, { x: L, z }];
+
+	const chunkLines = [];
+	for (let x = L; x <= R; x += 16) chunkLines.push(ver(x));
+	for (let z = U; z <= D; z += 16) chunkLines.push(hor(z));
+
+	const nextData = data.slice();
+	nextData[2] = {
+		name: "Chunks",
+		id: "chunks",
+		hide: true,
+		control: true,
+		markers: [makePolyline(chunkLines, 0.33, "#000000")],
+	};
+
+	return nextData;
+}
+
+function addCountryBordersLayer(data, borders) {
+	try {
+		const points = Object.keys(borders).map((country) => {
+			const countryPoly = [];
+			const line = borders[country];
+			for (let i = 0; i < line.x.length; i++) {
+				if (!isNumeric(line.x[i])) continue;
+				countryPoly.push({ x: line.x[i], z: line.z[i] });
+			}
+
+			return countryPoly;
+		});
+
+		const nextData = data.slice();
+		nextData[3] = {
+			name: "Country Borders",
+			id: "borders",
+			order: 999,
+			hide: true,
+			control: true,
+			markers: [makePolyline(points)],
+		};
+
+		return nextData;
+	} catch (err) {
+		showPageAlert("Could not set up a layer of country borders. You may need to clear this website's data. If problem persists, contact the developer.");
+		console.error(err);
+		return null;
+	}
+}
+
+function getNationAlliances(nationName, mapMode) {
+	if (cachedAlliances == null) return [];
+
+	const nationAlliances = [];
+	for (const alliance of cachedAlliances) {
+		if (alliance.modeType !== mapMode) continue;
+
+		const nations = [...alliance.ownNations, ...alliance.puppetNations];
+		if (!nations.includes(nationName)) continue;
+
+		nationAlliances.push({ name: alliance.name, colours: alliance.colours });
+	}
+
+	return nationAlliances;
+}
+
+function modifyDescription(marker, mapMode) {
+	const town = marker.tooltip.match(/<b>(.*)<\/b>/)[1];
+	const nation = marker.tooltip.match(/\(\b(?:Member|Capital)\b of (.*)\)\n/)?.[1];
+	const isCapital = marker.tooltip.match(/\(Capital of (.*)\)/) != null;
+	const mayor = marker.popup.match(/Mayor: <b>(.*)<\/b>/)?.[1];
+
+	const residents = marker.popup.match(/<\/summary>\n    \t(.*)\n   \t<\/details>/)?.[1];
+	const residentListRaw = residents.split(", ");
+	const residentNum = residentListRaw.length;
+
+	const councillors = marker.popup.match(/Councillors: <b>(.*)<\/b>/)?.[1]
+		.split(", ")
+		.filter((councillor) => councillor !== "None");
+
+	const fixedTownName = town.replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+	const fixedNationName = nation?.replaceAll("<", "&lt;").replaceAll(">", "&gt;") ?? nation;
+	const area = calcMarkerArea(marker);
+
+	let location = { x: 0, z: 0 };
+	if (marker.points) location = midrange(marker.points.flat(2));
+
+	const isArchiveMode = mapMode === "archive";
+	const residentList = isArchiveMode ? residents :
+		residentListRaw.map((resident) => MARKER_ENGINE_HTML.residentClickable.replaceAll("{player}", resident)).join(", ");
+	const councillorList = isArchiveMode ? councillors :
+		councillors.map((councillor) => MARKER_ENGINE_HTML.residentClickable.replaceAll("{player}", councillor)).join(", ");
+
+	if (residentNum > 50) {
+		marker.popup = marker.popup.replace(residents, MARKER_ENGINE_HTML.scrollableResidentList.replace("{list}", residentList));
+	} else {
+		marker.popup = marker.popup.replace(
+			`${residents}\n`,
+			`${MARKER_ENGINE_HTML.residentList.replace("{list}", residentList)}\n`,
+		);
+	}
+
+	marker.popup = marker.popup
+		.replace("</details>\n   \t<br>", "</details>")
+		.replace("Councillors:", `Size: <b>${area} chunks</b><br/>Councillors:`)
+		.replace("<i>/town set board [msg]</i>", "<i></i>")
+		.replace("<i></i> \n    <br>\n", "")
+		.replace("\n    <i>", '\n    <i style="overflow-wrap: break-word">')
+		.replace("Councillors: <b>None</b>\n\t<br>", "")
+		.replace("Size: <b>0 chunks</b><br/>", "")
+		.replace(town, fixedTownName)
+		.replace(nation, fixedNationName)
+		.replaceAll("<b>false</b>", '<b><span style="color: red">No</span></b>')
+		.replaceAll("<b>true</b>", '<b><span style="color: green">Yes</span></b>');
+
+	if (!isArchiveMode) {
+		marker.popup = marker.popup
+			.replace(/Mayor: <b>(.*)<\/b>/, `Mayor: <b>${MARKER_ENGINE_HTML.residentClickable.replaceAll("{player}", mayor)}</b>`)
+			.replace(/Councillors: <b>(.*)<\/b>/, `Councillors: <b>${councillorList}</b>`);
+	}
+
+	if (isCapital) {
+		marker.popup = marker.popup.replace('<span style="font-size:120%;">', '<span style="font-size: 120%">&#9733; ');
+	}
+
+	marker.tooltip = marker.tooltip
+		.replace("<i>/town set board [msg]</i>", "<i></i>")
+		.replace("<br>\n    <i></i>", "")
+		.replace("\n    <i>", '\n    <i id="clamped-board">')
+		.replace(town, fixedTownName)
+		.replace(nation, fixedNationName);
+
+	if (mapMode === "alliances" || mapMode === "meganations") {
+		const nationAlliances = getNationAlliances(nation, mapMode);
+		if (nationAlliances.length > 0) {
+			const allianceList = nationAlliances.map((alliance) => alliance.name).join(", ");
+			const partOfLabel = MARKER_ENGINE_HTML.partOfLabel.replace("{allianceList}", allianceList);
+			marker.popup = marker.popup.replace("</span>\n", `</span></br>${partOfLabel}`);
+		}
+	}
+
+	return {
+		townName: fixedTownName,
+		nationName: fixedNationName,
+		residentNum,
+		residentList: residentListRaw,
+		isCapital,
+		mayor,
+		area,
+		...location,
+	};
+}
+
+function modifyDynmapDescription(marker, curArchiveDate) {
+	const residents = marker.popup.match(/Members <span style="font-weight:bold">(.*)<\/span><br \/>Flags/)?.[1];
+	const residentList = residents?.split(", ") ?? [];
+	const residentNum = residentList.length;
+	const isCapital = marker.popup.match(/capital: true/) != null;
+	const area = calcPolygonArea(marker.points);
+	const location = midrange(marker.points.flat(2));
+
+	if (isCapital) marker.popup = marker.popup.replace('120%">', '120%">&#9733; ');
+	if (curArchiveDate < 20220906) {
+		marker.popup = marker.popup.replace(/">hasUpkeep:.+?(?<=<br \/>)/, '; white-space:pre">');
+	} else {
+		marker.popup = marker.popup.replace('">pvp:', '; white-space:pre">pvp:');
+	}
+
+	marker.popup = marker.popup
+		.replace("Mayor", "Mayor:")
+		.replace("Flags<br />", "<br>Flags<br>")
+		.replace(">pvp:", ">PVP allowed:")
+		.replace(">mobs:", ">Mob spawning:")
+		.replace(">public:", ">Public status:")
+		.replace(">explosion:", ">Explosions:&#9;")
+		.replace(">fire:", ">Fire spread:&#9;")
+		.replace(/<br \/>capital:.*<\/span>/, "</span>")
+		.replaceAll("true<", '&#9;<span style="color:green">Yes</span><')
+		.replaceAll("false<", '&#9;<span style="color:red">No</span><')
+		.replace(`Members <span`, `Members <b>[${residentNum}]</b> <span`);
+	if (area > 0) {
+		marker.popup = marker.popup
+			.replace(`</span><br /> Members`, `</span><br>Size:<span style="font-weight:bold"> ${area} chunks</span><br> Members`);
+	}
+	if (residentNum > 50) {
+		marker.popup = marker.popup
+			.replace(`<b>[${residentNum}]</b> <span style="font-weight:bold">`, `<b>[${residentNum}]</b> <div id="scrollable-list"><span style="font-weight:bold">`)
+			.replace("<br>Flags", "</div><br>Flags");
+	}
+
+	const clean = marker.popup.replace(/<[^>]+>/g, "").trim().replace(/^\u2605\s*/, "");
+	const [, town, nation] = clean.match(/^(.+?)\s*\((.+?)\)/) || [];
+
+	return {
+		townName: town?.trim() || null,
+		nationName: nation?.trim() || null,
+		residentList,
+		residentNum,
+		isCapital,
+		area,
+		...location,
+	};
+}
+
+const colorMarker = (marker, fill, outline, weight = null) => {
+	marker.fillColor = fill;
+	marker.color = outline;
+	if (weight) marker.weight = weight;
+};
+
+function colorTown(rawMarker, parsedMarker, mapMode) {
+	const mayor = rawMarker.popup.match(/Mayor: <b>(.*)<\/b>/)?.[1];
+	const isRuin = !!mayor?.match(/NPC[0-9]+/);
+	if (isRuin) return colorMarker(rawMarker, "#000000", "#000000");
+
+	const { nationName } = parsedMarker;
+	if (mapMode === "meganations") {
+		const isDefaultCol = rawMarker.color === DEFAULT_BLUE && rawMarker.fillColor === DEFAULT_BLUE;
+		rawMarker.color = isDefaultCol ? "#363636" : DEFAULT_GREEN;
+		rawMarker.fillColor = isDefaultCol ? hashCode(nationName) : rawMarker.fillColor;
+	} else if (mapMode === "overclaim") {
+		const nation = nationName ? cachedApiNations.get(nationName.toLowerCase()) : null;
+		const overclaimInfo = !nation
+			? checkOverclaimedNationless(parsedMarker.area, parsedMarker.residentNum)
+			: checkOverclaimed(parsedMarker.area, parsedMarker.residentNum, nation.stats.numResidents);
+
+		const colour = overclaimInfo.isOverclaimed ? "#ff0000" : "#00ff00";
+		colorMarker(rawMarker, colour, colour, overclaimInfo.isOverclaimed ? 2 : 0.5);
+	} else {
+		colorMarker(rawMarker, "#000000", "#000000", 1);
+	}
+
+	const nationAlliances = getNationAlliances(nationName, mapMode);
+	if (nationAlliances.length === 0) return;
+
+	const { colours } = nationAlliances[0];
+	const newWeight = nationAlliances.length > 1 ? 1.5 : 0.75;
+	return colorMarker(rawMarker, colours.fill, colours.outline, newWeight);
+}
+
+function colorTownNationClaims(marker, nationName, claimsCustomizerInfo, useOpaque, showExcluded) {
+	const nationColorInput = claimsCustomizerInfo.get(nationName?.toLowerCase());
+	if (!nationColorInput) {
+		if (useOpaque) marker.fillOpacity = marker.opacity = 0.5;
+		if (!showExcluded) marker.fillOpacity = marker.opacity = 0;
+		return colorMarker(marker, "#000000", "#000000", 1);
+	}
+
+	if (useOpaque) marker.fillOpacity = marker.opacity = 1;
+	return colorMarker(marker, nationColorInput, nationColorInput, 1.5);
+}
+
+function parseColours(colours) {
+	if (!colours) return DEFAULT_ALLIANCE_COLOURS;
+	colours.fill = `#${colours.fill.replaceAll("#", "")}`;
+	colours.outline = `#${colours.outline.replaceAll("#", "")}`;
+	return colours;
+}
+
+async function getAlliances() {
+	const alliances = await fetchJSON(`${CAPI_BASE}/${CURRENT_MAP}/alliances`);
+	if (!alliances) {
+		const cache = JSON.parse(localStorage["emcdynmapplus-alliances"] || "null");
+		if (cache == null) {
+			showPageAlert("Service responsible for loading alliances will be available later.");
+			return [];
+		}
+
+		showPageAlert("Service responsible for loading alliances is unavailable, falling back to locally cached data.", 5);
+		return cache;
+	}
+
+	const childrenByParent = new Map();
+	for (const alliance of alliances) {
+		if (!alliance.parentAlliance) continue;
+		const arr = childrenByParent.get(alliance.parentAlliance) || [];
+		arr.push(alliance);
+		childrenByParent.set(alliance.parentAlliance, arr);
+	}
+
+	const allianceData = [];
+	for (const alliance of alliances) {
+		const allianceType = alliance.type?.toLowerCase() || "mega";
+		const children = childrenByParent.get(alliance.identifier) || [];
+		allianceData.push({
+			name: alliance.label || alliance.identifier,
+			modeType: allianceType === "mega" ? "meganations" : "alliances",
+			ownNations: alliance.ownNations || [],
+			puppetNations: children.flatMap((entry) => entry.ownNations || []),
+			colours: parseColours(alliance.optional.colours),
+		});
+	}
+
+	localStorage["emcdynmapplus-alliances"] = JSON.stringify(allianceData);
+	return allianceData;
+}
+
+const getArchiveURL = (date, markersURL) => `https://web.archive.org/web/${date}id_/${markersURL}`;
+
+async function loadArchiveForDate(date, data) {
+	const markersURL =
+		date < 20230212 ? "https://earthmc.net/map/aurora/tiles/_markers_/marker_earth.json" :
+		date < 20240701 ? "https://earthmc.net/map/aurora/standalone/MySQL_markers.php?marker=_markers_/marker_earth.json" :
+		"https://map.earthmc.net/tiles/minecraft_overworld/markers.json";
+
+	const archive = await fetchJSON(PROXY_URL + getArchiveURL(date, markersURL));
+	if (!archive) {
+		console.warn(`${MARKER_ENGINE_PREFIX}: archive fetch returned no data`, { requestedDate: date, markersURL });
+		return null;
+	}
+
+	let normalizedData = cloneSerializable(data);
+	let actualArchiveDate;
+	if (date < 20240701) {
+		if (!normalizedData?.[0]) return null;
+		normalizedData[0].markers = convertOldMarkersStructure(archive.sets["townyPlugin.markerset"]);
+		actualArchiveDate = archive.timestamp;
+	} else {
+		normalizedData = cloneSerializable(archive);
+		actualArchiveDate = archive[0]?.timestamp;
+	}
+
+	if (!normalizedData || !actualArchiveDate) return null;
+
+	const formattedArchiveDate = new Date(parseInt(actualArchiveDate)).toLocaleDateString("en-ca");
+	return { data: normalizedData, actualArchiveDate: formattedArchiveDate };
+}
+
+async function getArchive(data) {
+	const date = archiveDate();
+	pageMarkersDebugInfo(`${MARKER_ENGINE_PREFIX}: getArchive started`, { requestedDate: date });
+
+	let archiveResult = cachedArchives.get(date) ?? null;
+	if (!archiveResult) {
+		let pendingLoad = pendingArchiveLoads.get(date);
+		if (!pendingLoad) {
+			pendingLoad = loadArchiveForDate(date, data).finally(() => pendingArchiveLoads.delete(date));
+			pendingArchiveLoads.set(date, pendingLoad);
+		}
+
+		archiveResult = await pendingLoad;
+		if (archiveResult) cachedArchives.set(date, archiveResult);
+	}
+
+	if (!archiveResult) {
+		showPageAlert("Archive service is currently unavailable, please try later.");
+		const cachedArchive = cachedArchives.get(date);
+		if (cachedArchive) {
+			updateArchiveModeLabel(cachedArchive.actualArchiveDate);
+			return cloneSerializable(cachedArchive.data) || data;
+		}
+
+		return data;
+	}
+
+	updateArchiveModeLabel(archiveResult.actualArchiveDate);
+	if (archiveResult.actualArchiveDate.replaceAll("-", "") !== String(date)) {
+		showPageAlert(`The closest archive to your prompt comes from ${archiveResult.actualArchiveDate}.`);
+	}
+
+	return cloneSerializable(archiveResult.data) || data;
+}
+
+function convertOldMarkersStructure(markerset) {
+	return Object.entries(markerset.areas)
+		.filter(([key]) => !key.includes("_Shop"))
+		.map(([_, value]) => ({
+			fillColor: value.fillcolor,
+			color: value.color,
+			popup: value.desc ?? `<div><b>${value.label}</b></div>`,
+			weight: value.weight,
+			opacity: value.opacity,
+			type: "polygon",
+			points: value.x.map((x, i) => ({ x, z: value.z[i] })),
+		}));
+}
+
+function checkOverclaimedNationless(claimedChunks, numResidents) {
+	const resLimit = numResidents * CHUNKS_PER_RES;
+	const isOverclaimed = claimedChunks > resLimit;
+	return {
+		isOverclaimed,
+		chunksOverclaimed: isOverclaimed ? claimedChunks - resLimit : 0,
+		resLimit,
+	};
+}
+
+function auroraNationBonus(numNationResidents) {
+	return numNationResidents >= 200 ? 100 :
+		numNationResidents >= 120 ? 80 :
+		numNationResidents >= 80 ? 60 :
+		numNationResidents >= 60 ? 50 :
+		numNationResidents >= 40 ? 30 :
+		numNationResidents >= 20 ? 10 : 0;
+}
+
+function checkOverclaimed(claimedChunks, numResidents, numNationResidents) {
+	const resLimit = numResidents * CHUNKS_PER_RES;
+	const bonus = auroraNationBonus(numNationResidents);
+	const totalClaimLimit = resLimit + bonus;
+	const isOverclaimed = claimedChunks > totalClaimLimit;
+	return {
+		isOverclaimed,
+		chunksOverclaimed: isOverclaimed ? claimedChunks - totalClaimLimit : 0,
+		nationBonus: bonus,
+		resLimit,
+		totalClaimLimit,
+	};
+}
+
+async function modifyMarkersInPage(data) {
+	let result = data;
+	const mapMode = currentMapMode();
+
+	pageMarkersDebugInfo(`${MARKER_ENGINE_PREFIX}: modifyMarkers started`, {
+		mapMode,
+		layerCount: Array.isArray(result) ? result.length : null,
+		initialMarkerCount: Array.isArray(result?.[0]?.markers) ? result[0].markers.length : null,
+	});
+
+	if (mapMode === "archive") {
+		result = await getArchive(result);
+	}
+
+	if (!result?.[0]?.markers?.length) {
+		parsedMarkers = [];
+		syncParsedMarkers();
+		showPageAlert("Unexpected error occurred while loading the map, EarthMC may be down. Try again later.");
+		return result;
+	}
+
+	const isAllianceMode = mapMode === "alliances" || mapMode === "meganations";
+	if (isAllianceMode && cachedAlliances == null) {
+		cachedAlliances = await getAlliances();
+	}
+
+	if (mapMode === "overclaim" && cachedApiNations == null) {
+		const nlist = await fetchJSON(`${OAPI_BASE}/${CURRENT_MAP}/nations`);
+		const apiNations = await queryConcurrent(`${OAPI_BASE}/${CURRENT_MAP}/nations`, nlist);
+		cachedApiNations = new Map(apiNations.map((nation) => [nation.name.toLowerCase(), nation]));
+	}
+
+	parsedMarkers = [];
+	result = addChunksLayer(result);
+
+	const borders = await getStyledBorders();
+	if (!borders) {
+		showPageAlert("An unexpected error occurred fetching the borders resource file.");
+	} else {
+		result = addCountryBordersLayer(result, borders) || result;
+	}
+
+	const date = archiveDate();
+	const isSquaremap = mapMode !== "archive" || date >= 20240701;
+	const claimsCustomizerInfo = new Map(
+		nationClaimsInfo()
+			.filter((obj) => obj.input != null)
+			.map((obj) => [obj.input?.toLowerCase(), obj.color]),
+	);
+	const useOpaque = localStorage["emcdynmapplus-nation-claims-opaque-colors"] === "true";
+	const showExcluded = localStorage["emcdynmapplus-nation-claims-show-excluded"] === "true";
+
+	for (const marker of result[0].markers) {
+		if (marker.type !== "polygon" && marker.type !== "icon") continue;
+
+		try {
+			const parsedInfo = isSquaremap ? modifyDescription(marker, mapMode) : modifyDynmapDescription(marker, date);
+			if (marker.type !== "polygon") continue;
+
+			parsedMarkers.push(parsedInfo);
+			marker.opacity = 1;
+			marker.fillOpacity = 0.33;
+			marker.weight = 1.5;
+
+			if (mapMode === "default" || mapMode === "archive") continue;
+			if (mapMode === "nationclaims") {
+				colorTownNationClaims(marker, parsedInfo.nationName, claimsCustomizerInfo, useOpaque, showExcluded);
+				continue;
+			}
+
+			colorTown(marker, parsedInfo, mapMode);
+		} catch (err) {
+			console.error(`${MARKER_ENGINE_PREFIX}: failed to process marker`, {
+				type: marker?.type,
+				tooltip: marker?.tooltip?.slice?.(0, 120) || null,
+				error: err,
+			});
+		}
+	}
+
+	syncParsedMarkers();
+
+	pageMarkersDebugInfo(`${MARKER_ENGINE_PREFIX}: modifyMarkers completed`, {
+		mapMode,
+		parsedMarkersCount: parsedMarkers.length,
+		markerCount: Array.isArray(result?.[0]?.markers) ? result[0].markers.length : null,
+	});
+
+	return result;
+}
+
+window.EMCDYNMAPPLUS_PAGE_MARKERS = {
+	modifyMarkers: modifyMarkersInPage,
+};

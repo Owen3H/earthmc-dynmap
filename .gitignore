@@ -1,8 +1,8 @@
 bun.lockb
-package-lock.json
 
 node_modules/
-archive-firefox-check.log
+archive-*.log
+.tools/
 dist/emc-dynmapplus.zip
 dist/chromium/
 dist/firefox/
