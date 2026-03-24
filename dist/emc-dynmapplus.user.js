@@ -1001,7 +1001,7 @@ async function sendBatch(url, chunk) {
 // src/dom.js
 var ARCHIVE_DATE = {
   MIN: "2022-05-01",
-  MAX: (/* @__PURE__ */ new Date()).toLocaleDateString()
+  MAX: (/* @__PURE__ */ new Date()).toISOString().slice(0, 10)
 };
 var MAX_NATION_CLAIM_ENTRIES = 300;
 var SCROLL_BASE_ZOOM = 90;
@@ -1323,8 +1323,16 @@ function insertSidebarMenu() {
     return addMainMenu(el);
   });
 }
+function insertLayerOptionsMenu() {
+  return waitForElement(".leaflet-control-layers-list").then((el) => {
+    const control = el.closest(".leaflet-control-layers");
+    if (control instanceof HTMLElement) disablePanAndZoom(control);
+    return addOptions(el, currentMapMode());
+  });
+}
 function disablePanAndZoom(element) {
   element.addEventListener("mousedown", (e) => e.stopPropagation());
+  element.addEventListener("wheel", (e) => e.stopPropagation(), { passive: true });
   element.addEventListener("dblclick", (e) => {
     e.stopPropagation();
     e.preventDefault();
@@ -1460,19 +1468,27 @@ function addServerInfoPanel(parent) {
   return panel;
 }
 function addServerInfoPlaceholder(parent, id, label) {
-  return addElement(parent, createElement("div", {
+  const entry = addElement(parent, createElement("div", {
     id,
-    className: "server-info-entry",
-    text: `${label}: Loading..`
+    className: "server-info-entry"
   }));
+  renderServerInfoEntry(entry, label, "Loading...");
+  return entry;
 }
 function renderServerInfoEntry(element, name, value) {
   if (!element) return;
-  const colour = value == "Yes" ? "green" : value == "No" ? "red" : "white";
-  replaceChildrenSafe(element, createElement("p", { style: { margin: "0" } }, [
-    `${name}: `,
-    createElement("b", { text: String(value), style: { color: colour } })
-  ]));
+  const colour = value == "Yes" ? "var(--success-color)" : value == "No" ? "var(--danger-color)" : "var(--text-strong)";
+  replaceChildrenSafe(element, [
+    createElement("span", {
+      className: "server-info-label",
+      text: name
+    }),
+    createElement("strong", {
+      className: "server-info-value",
+      text: String(value),
+      style: { color: colour }
+    })
+  ]);
 }
 var serverInfoEntry = (name, value) => {
   const colour = value == "Yes" ? "green" : value == "No" ? "red" : "white";
@@ -1598,21 +1614,155 @@ function drawMarkers(ctx) {
 }
 
 // src/menu.js
+var MAP_MODE_METADATA = [
+  {
+    value: "meganations",
+    label: "Mega Nations",
+    description: "Show mega-alliance colors directly on town claims."
+  },
+  {
+    value: "alliances",
+    label: "Alliances",
+    description: "Color towns by alliance ownership with clean borders."
+  },
+  {
+    value: "nationclaims",
+    label: "Nation Claims",
+    description: "Load the nation-claims customizer for manual color maps."
+  },
+  {
+    value: "overclaim",
+    label: "Overclaim",
+    description: "Highlight towns that exceed their current claim limits."
+  },
+  {
+    value: "default",
+    label: "Live Map",
+    description: "Use the base map styling with only the shared enhancements."
+  },
+  {
+    value: "archive",
+    label: "Archive",
+    description: "Load the nearest historical snapshot from the Wayback archive."
+  }
+];
+var getMapModeMeta = (mode) => MAP_MODE_METADATA.find((option) => option.value === mode) || MAP_MODE_METADATA[0];
+var formatMapModeLabel = (mode) => `Map Mode: ${mode}`;
+var SIDEBAR_EXPANDED_KEY = "emcdynmapplus-sidebar-expanded";
 function addMainMenu(parent) {
   const existingSidebar = parent.querySelector("#sidebar");
   if (existingSidebar) return existingSidebar;
-  const sidebar = addElement(parent, createElement("div", {
+  const curMapMode = currentMapMode();
+  const isExpanded = localStorage[SIDEBAR_EXPANDED_KEY] == "true";
+  const sidebar = addElement(parent, createElement("details", {
     id: "sidebar",
-    className: "leaflet-control-layers leaflet-control"
+    className: "leaflet-control-layers leaflet-control",
+    attrs: {
+      "data-active-mode": curMapMode,
+      ...isExpanded ? { open: "" } : {}
+    }
   }));
-  addLocateMenu(sidebar);
-  const archiveContainer = addElement(sidebar, createElement("div", { className: "sidebar-option" }));
-  const archiveButton = addElement(archiveContainer, createElement("button", {
-    id: "archive-button",
-    className: "sidebar-button",
-    text: "Search Archive"
+  sidebar.addEventListener("toggle", () => {
+    localStorage[SIDEBAR_EXPANDED_KEY] = String(sidebar.open);
+  });
+  addSidebarSummary(sidebar, curMapMode);
+  const sidebarContent = addElement(sidebar, createElement("div", { id: "sidebar-content" }));
+  addSidebarHeader(sidebarContent, curMapMode);
+  addLocateMenu(sidebarContent);
+  addMapModeSection(sidebarContent, curMapMode);
+  return sidebar;
+}
+function addSidebarSummary(sidebar, curMapMode) {
+  const modeMeta = getMapModeMeta(curMapMode);
+  return addElement(sidebar, createElement("summary", {
+    id: "sidebar-toggle"
+  }, [
+    createElement("span", { className: "sidebar-summary-copy" }, [
+      createElement("span", {
+        className: "sidebar-summary-eyebrow",
+        text: "Dynmap+"
+      }),
+      createElement("strong", {
+        className: "sidebar-summary-title",
+        text: "Map Toolkit"
+      }),
+      createElement("span", {
+        id: "sidebar-summary-mode",
+        className: "sidebar-summary-mode",
+        text: modeMeta.label
+      })
+    ]),
+    createElement("span", {
+      className: "sidebar-summary-indicator",
+      text: "v"
+    })
+  ]));
+}
+function addSidebarHeader(sidebar, curMapMode) {
+  const header = addElement(sidebar, createElement("div", { className: "sidebar-header" }));
+  addElement(header, createElement("div", {
+    className: "sidebar-eyebrow",
+    text: "EarthMC Dynmap+"
   }));
-  const archiveInput = addElement(archiveContainer, createElement("input", {
+  addElement(header, createElement("h2", {
+    className: "sidebar-title",
+    text: "Map Toolkit"
+  }));
+  const status = addElement(header, createElement("div", { className: "sidebar-status-row" }));
+  addElement(status, createElement("div", {
+    id: "current-map-mode-label",
+    className: "sidebar-mode-pill",
+    text: formatMapModeLabel(curMapMode)
+  }));
+}
+function addSidebarSection(parent, title, description) {
+  const section = addElement(parent, createElement("section", { className: "sidebar-section" }));
+  const header = addElement(section, createElement("div", { className: "sidebar-section-header" }));
+  addElement(header, createElement("h3", {
+    className: "sidebar-section-title",
+    text: title
+  }));
+  addElement(header, createElement("p", {
+    className: "sidebar-section-copy",
+    text: description
+  }));
+  return section;
+}
+function addMapModeSection(sidebar, curMapMode) {
+  const section = addSidebarSection(
+    sidebar,
+    "Map View",
+    "Pick an overlay directly."
+  );
+  section.id = "map-mode-section";
+  addElement(section, createElement("label", {
+    className: "sidebar-field-label",
+    htmlFor: "map-mode-select",
+    text: "View mode"
+  }));
+  const modeSelect = addElement(section, createElement("select", {
+    id: "map-mode-select",
+    className: "sidebar-input sidebar-select"
+  }, MAP_MODE_METADATA.map((mode) => createElement("option", {
+    value: mode.value,
+    text: mode.label
+  }))));
+  modeSelect.value = curMapMode;
+  const modeDescription = addElement(section, createElement("p", {
+    id: "map-mode-description",
+    className: "sidebar-help",
+    text: getMapModeMeta(curMapMode).description
+  }));
+  const archiveField = addElement(section, createElement("div", {
+    id: "archive-date-group",
+    className: "sidebar-field-group"
+  }));
+  addElement(archiveField, createElement("label", {
+    className: "sidebar-field-label",
+    htmlFor: "archive-input",
+    text: "Archive date"
+  }));
+  const archiveInput = addElement(archiveField, createElement("input", {
     id: "archive-input",
     className: "sidebar-input",
     type: "date",
@@ -1621,89 +1771,178 @@ function addMainMenu(parent) {
       max: ARCHIVE_DATE.MAX
     }
   }));
-  archiveButton.addEventListener("click", (_) => searchArchive(archiveInput.value));
-  archiveInput.addEventListener("keyup", (e) => {
-    if (e.key == "Enter") searchArchive(archiveInput.value);
-  });
-  archiveInput.addEventListener("change", (_) => {
-    const URLDate = archiveInput.value.replaceAll("-", "");
-    localStorage["emcdynmapplus-archive-date"] = URLDate;
-  });
-  const curMapMode = currentMapMode();
-  const switchMapModeButton = addElement(sidebar, createElement("button", {
+  const actions = addElement(section, createElement("div", { className: "sidebar-action-row" }));
+  const switchMapModeButton = addElement(actions, createElement("button", {
     id: "switch-map-mode",
-    className: "sidebar-button",
-    text: "Switch Map Mode"
+    className: "sidebar-button sidebar-button-primary",
+    text: "Apply Selected View"
   }));
-  switchMapModeButton.addEventListener("click", (_) => switchMapMode(curMapMode));
-  addOptions(sidebar, curMapMode);
-  addElement(sidebar, createElement("div", {
-    id: "current-map-mode-label",
-    className: "sidebar-option",
-    text: `Map Mode: ${curMapMode}`
+  const archiveButton = addElement(actions, createElement("button", {
+    id: "archive-button",
+    className: "sidebar-button sidebar-button-secondary",
+    text: "Open Archive"
   }));
-  return sidebar;
-}
-function addOptions(sidebar, curMapMode) {
-  const optionsButton = addElement(sidebar, createElement("button", {
-    id: "options-button",
-    className: "sidebar-button",
-    text: "Options"
-  }));
-  const optionsMenu = addElement(sidebar, createElement("div", { id: "options-menu" }));
-  optionsMenu.style.display = "none";
-  optionsButton.addEventListener("click", (_) => {
-    optionsMenu.style.display = optionsMenu.style.display == "none" ? "grid" : "none";
+  const syncModeUI = () => {
+    const selectedMode = modeSelect.value;
+    const selectedMeta = getMapModeMeta(selectedMode);
+    modeDescription.textContent = selectedMeta.description;
+    section.setAttribute("data-archive-selected", String(selectedMode === "archive"));
+    switchMapModeButton.textContent = selectedMode === "archive" ? "Open Selected Archive" : "Apply Selected View";
+  };
+  switchMapModeButton.addEventListener("click", () => applyMapModeSelection(modeSelect.value, archiveInput.value));
+  archiveButton.addEventListener("click", () => searchArchive(archiveInput.value));
+  modeSelect.addEventListener("change", syncModeUI);
+  archiveInput.addEventListener("keyup", (e) => {
+    if (e.key !== "Enter") return;
+    if (modeSelect.value === "archive") applyMapModeSelection(modeSelect.value, archiveInput.value);
+    else searchArchive(archiveInput.value);
   });
-  let i = 0;
+  archiveInput.addEventListener("change", () => {
+    if (!isValidArchiveDateInput(archiveInput.value)) return;
+    localStorage["emcdynmapplus-archive-date"] = archiveInput.value.replaceAll("-", "");
+  });
+  syncModeUI();
+}
+function applyMapModeSelection(nextMode, archiveDateInput) {
+  if (nextMode === "archive") return searchArchive(archiveDateInput);
+  localStorage["emcdynmapplus-mapmode"] = nextMode;
+  location.reload();
+}
+function addOptions(layersList, curMapMode) {
+  const existingOptions = layersList.querySelector("#emcdynmapplus-layer-options");
+  if (existingOptions) return existingOptions;
+  addElement(layersList, createElement("div", {
+    className: "leaflet-control-layers-separator emcdynmapplus-layer-separator"
+  }));
+  const section = addElement(layersList, createElement("div", {
+    id: "emcdynmapplus-layer-options",
+    className: "emcdynmapplus-layer-options"
+  }));
+  addElement(section, createElement("div", {
+    className: "emcdynmapplus-layer-title",
+    text: "Dynmap+ Options"
+  }));
+  const optionsMenu = addElement(section, createElement("div", { id: "options-menu" }));
   const checkboxes = {
-    normalizeScroll: addCheckboxOption(optionsMenu, i++, "toggle-normalize-scroll", "Normalize scroll inputs", "normalize-scroll"),
-    decreaseBrightness: addCheckboxOption(optionsMenu, i++, "toggle-darkened", "Decrease brightness", "darkened"),
-    darkMode: addCheckboxOption(optionsMenu, i++, "toggle-darkmode", "Toggle dark mode", "darkmode"),
-    serverInfo: addCheckboxOption(optionsMenu, i++, "toggle-serverinfo", "Display server info", "serverinfo")
+    normalizeScroll: addLayerCheckboxOption(
+      optionsMenu,
+      "toggle-normalize-scroll",
+      "Normalize scroll inputs",
+      "Smoother zoom input.",
+      "normalize-scroll"
+    ),
+    decreaseBrightness: addLayerCheckboxOption(
+      optionsMenu,
+      "toggle-darkened",
+      "Reduce tile brightness",
+      "Dims bright tiles.",
+      "darkened"
+    ),
+    darkMode: addLayerCheckboxOption(
+      optionsMenu,
+      "toggle-darkmode",
+      "Use dark theme",
+      "Darker panel theme.",
+      "darkmode"
+    ),
+    serverInfo: addLayerCheckboxOption(
+      optionsMenu,
+      "toggle-serverinfo",
+      "Show server info",
+      "Live stats panel.",
+      "serverinfo"
+    )
   };
   checkboxes.normalizeScroll.addEventListener("change", (e) => toggleScrollNormalize(e.target.checked));
   checkboxes.decreaseBrightness.addEventListener("change", (e) => toggleDarkened(e.target.checked));
   checkboxes.darkMode.addEventListener("change", (e) => toggleDarkMode(e.target.checked));
   checkboxes.serverInfo.addEventListener("change", (e) => toggleServerInfo(e.target.checked));
   if (curMapMode != "archive") {
-    const showCapitalStars = addCheckboxOption(optionsMenu, i++, "toggle-capital-stars", "Show capital stars", "capital-stars");
+    const showCapitalStars = addLayerCheckboxOption(
+      optionsMenu,
+      "toggle-capital-stars",
+      "Show capital stars",
+      "Keep capital markers visible.",
+      "capital-stars"
+    );
     showCapitalStars.addEventListener("change", (e) => toggleShowCapitalStars(e.target.checked));
   }
+  return section;
 }
-function addCheckboxOption(menu, index, optionId, optionText, variable) {
-  const option = addElement(menu, createElement("div", { className: "option" }));
-  addElement(option, createElement("label", {
-    htmlFor: optionId,
+function addCheckboxOption(menu, optionId, optionText, optionDescription, variable) {
+  const option = addElement(menu, createElement("label", {
+    className: "option sidebar-setting",
+    htmlFor: optionId
+  }));
+  const copy = addElement(option, createElement("span", { className: "sidebar-toggle-copy" }));
+  addElement(copy, createElement("span", {
+    className: "sidebar-toggle-title",
     text: optionText
+  }));
+  addElement(copy, createElement("span", {
+    className: "sidebar-toggle-description",
+    text: optionDescription
   }));
   const checkbox = addElement(option, createElement("input", {
     id: optionId,
-    type: "checkbox"
+    className: "sidebar-switch-input",
+    type: "checkbox",
+    attrs: {
+      role: "switch"
+    }
+  }));
+  checkbox.checked = localStorage["emcdynmapplus-" + variable] == "true";
+  return checkbox;
+}
+function addLayerCheckboxOption(menu, optionId, optionText, optionDescription, variable) {
+  const label = addElement(menu, createElement("label", {
+    className: "emcdynmapplus-layer-option",
+    attrs: {
+      title: optionDescription
+    }
+  }));
+  const wrapper = addElement(label, createElement("span"));
+  const checkbox = addElement(wrapper, createElement("input", {
+    id: optionId,
+    className: "leaflet-control-layers-selector emcdynmapplus-layer-checkbox",
+    type: "checkbox",
+    attrs: {
+      role: "switch",
+      "aria-label": optionText
+    }
+  }));
+  addElement(wrapper, createElement("span", {
+    text: ` ${optionText}`
   }));
   checkbox.checked = localStorage["emcdynmapplus-" + variable] == "true";
   return checkbox;
 }
 function addLocateMenu(sidebar) {
-  const locateMenu = addElement(sidebar, createElement("div", { id: "locate-menu" }));
-  const locateButton = addElement(locateMenu, createElement("button", {
-    id: "locate-button",
-    className: "sidebar-button",
-    text: "Locate"
-  }));
-  const locateSubmenu = addElement(locateMenu, createElement("div", { className: "sidebar-option" }));
+  const locateMenu = addSidebarSection(
+    sidebar,
+    "Locate",
+    "Jump to a town, nation, or resident."
+  );
+  locateMenu.id = "locate-menu";
+  const locateSubmenu = addElement(locateMenu, createElement("div", { className: "sidebar-split" }));
   const locateSelect = addElement(locateSubmenu, createElement("select", {
     id: "locate-select",
-    className: "sidebar-button"
+    className: "sidebar-input sidebar-select"
   }, [
     createElement("option", { text: "Town" }),
     createElement("option", { text: "Nation" }),
     createElement("option", { text: "Resident" })
   ]));
-  const locateInput = addElement(locateSubmenu, createElement("input", {
+  const locateInput = addElement(locateMenu, createElement("input", {
     id: "locate-input",
     className: "sidebar-input",
+    type: "search",
     placeholder: "London"
+  }));
+  const locateButton = addElement(locateMenu, createElement("button", {
+    id: "locate-button",
+    className: "sidebar-button sidebar-button-primary",
+    text: "Locate On Map"
   }));
   locateSelect.addEventListener("change", () => {
     switch (locateSelect.value) {
@@ -1765,7 +2004,7 @@ function removeFirefoxTileDarkener() {
 function toggleServerInfo(boxTicked) {
   localStorage["emcdynmapplus-serverinfo"] = boxTicked;
   const serverInfoPanel = document.querySelector("#server-info");
-  serverInfoPanel?.setAttribute("style", `visibility: ${boxTicked ? "visible" : "hidden"}`);
+  if (serverInfoPanel instanceof HTMLElement) serverInfoPanel.hidden = !boxTicked;
   if (!boxTicked) {
     if (serverInfoScheduler != null) clearTimeout(serverInfoScheduler);
     serverInfoScheduler = null;
@@ -1798,62 +2037,23 @@ function insertCustomStylesheets() {
       attrs: { crossorigin: "" }
     }));
   }
-  if (!document.head.querySelector("#emcdynmapplus-inter-font")) {
+  if (!document.head.querySelector("#emcdynmapplus-ui-fonts")) {
     addElement(document.head, createElement("link", {
-      id: "emcdynmapplus-inter-font",
+      id: "emcdynmapplus-ui-fonts",
       rel: "stylesheet",
-      href: "https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap"
+      href: "https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap"
     }));
   }
 }
 function loadDarkMode() {
   document.documentElement.style.colorScheme = "dark";
-  if (!document.head.querySelector("#dark-mode")) {
-    addElement(document.head, createElement("style", {
-      id: "dark-mode",
-      text: `
-				.leaflet-control, #alert,
-				.sidebar-button, .sidebar-input, .leaflet-bar > a,
-				.leaflet-tooltip-top, .leaflet-popup-content-wrapper,
-				.leaflet-popup-tip, .leaflet-bar > a.leaflet-disabled,
-				#alert-close, #player-lookup > .close-container {
-					background: #131313eb !important;
-					color: #dedede !important;
-					border-color: #4e4e4e !important;
-				}
-				.sidebar-button, .sidebar-input, #alert-close {
-					color-scheme: dark;
-				}
-				.sidebar-input::placeholder {
-					color: #a8a8a8 !important;
-				}
-				.sidebar-button option {
-					background: #161616 !important;
-					color: #dedede !important;
-				}
-				.leaflet-control.leaflet-control-layers,
-				#sidebar, #server-info, #nation-claims,
-				#player-lookup, #player-lookup-loading {
-					background: #131313eb !important;
-					border-color: #4e4e4e !important;
-				}
-				#current-map-mode-label, #options-menu, #options-menu label,
-				#options-menu .option, #player-lookup, #player-lookup-loading,
-				#server-info, #nation-claims, #nation-claims-titlebar,
-				.leaflet-popup-content, .leaflet-popup-content * {
-					color: #dedede !important;
-				}
-				div.leaflet-control-layers.link img {
-					filter: invert(1);
-				}
-			`
-    }));
-  }
+  document.documentElement.setAttribute("data-emcdynmapplus-theme", "dark");
+  document.head.querySelector("#dark-mode")?.remove();
 }
 function unloadDarkMode() {
-  document.documentElement.style.removeProperty("color-scheme");
-  const darkModeEl = document.querySelector("#dark-mode");
-  if (darkModeEl) darkModeEl.remove();
+  document.documentElement.style.colorScheme = "light";
+  document.documentElement.removeAttribute("data-emcdynmapplus-theme");
+  document.head.querySelector("#dark-mode")?.remove();
   waitForElement(".leaflet-map-pane").then((el) => el.style.filter = "");
 }
 var scrollListener = null;
@@ -1888,11 +2088,18 @@ function locate(selectValue, inputValue) {
   }
 }
 function searchArchive(date) {
-  if (date == "") return;
+  if (!isValidArchiveDateInput(date)) {
+    showAlert(`Choose a valid archive date between ${ARCHIVE_DATE.MIN} and ${ARCHIVE_DATE.MAX}.`, 4);
+    return;
+  }
   const URLDate = date.replaceAll("-", "");
   localStorage["emcdynmapplus-archive-date"] = URLDate;
   localStorage["emcdynmapplus-mapmode"] = "archive";
   location.reload();
+}
+function isValidArchiveDateInput(date) {
+  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
+  return date >= ARCHIVE_DATE.MIN && date <= ARCHIVE_DATE.MAX;
 }
 async function locateTown(townName, isArchiveMode) {
   townName = townName.trim().toLowerCase();
@@ -2404,61 +2611,71 @@ async function lookupPlayer(playerName, showOnlineStatus = true) {
   if (player.ranks.nationRanks.includes("Chancellor")) rank = "Chancellor";
   if (player.status.isKing) rank = "Leader";
   const playerAvatarURL = `https://mc-heads.net/avatar/${player.uuid.replaceAll("-", "")}`;
-  const appendBreak = () => addElement(lookup, createElement("br"));
-  const appendLabeledValue = (label, value, suffix = "") => {
-    appendChildren(lookup, [
-      `${label}: `,
-      createElement("b", { text: `${value}${suffix}` })
-    ]);
-    appendBreak();
-  };
-  const appendDateInfo = (label, dateText, relativeText) => {
-    appendChildren(lookup, [
-      label,
-      createElement("br"),
-      createElement("b", { text: dateText }),
-      ` (${relativeText})`
-    ]);
-  };
-  const closeButton = addElement(lookup, createElement("span", {
+  const closeButton = addElement(lookup, createElement("button", {
     className: "close-container",
-    text: "X"
+    text: "Close",
+    type: "button"
   }));
-  if (showOnlineStatus) {
-    addElement(lookup, createElement("span", {
-      id: "player-lookup-online",
-      text: isOnline ? "\u26AB\uFE0E Online" : "\u25CB Offline",
-      style: { color: isOnline ? "green" : "red" }
-    }));
-    appendBreak();
-  }
-  addElement(lookup, createElement("img", {
+  const top = addElement(lookup, createElement("div", { className: "player-lookup-top" }));
+  addElement(top, createElement("img", {
     id: "player-lookup-avatar",
     src: playerAvatarURL
   }));
-  const nameBlock = addElement(lookup, createElement("center"));
-  addElement(nameBlock, createElement("b", {
+  const identity = addElement(top, createElement("div", { className: "player-lookup-identity" }));
+  addElement(identity, createElement("b", {
     id: "player-lookup-name",
     text: player.name || playerName
   }));
+  if (showOnlineStatus) {
+    addElement(identity, createElement("span", {
+      id: "player-lookup-online",
+      text: isOnline ? "Online" : "Offline",
+      style: { color: isOnline ? "var(--success-color)" : "var(--danger-color)" }
+    }));
+  }
   if (about) {
-    addElement(nameBlock, createElement("br"));
-    addElement(nameBlock, createElement("i", { text: about }));
+    addElement(identity, createElement("p", {
+      className: "player-lookup-about",
+      text: about
+    }));
   }
-  addElement(lookup, createElement("hr"));
-  if (town) appendLabeledValue("Town", town);
-  if (nation) appendLabeledValue("Nation", nation);
-  appendLabeledValue("Rank", rank);
-  appendLabeledValue("Balance", balance, " gold");
-  appendDateInfo("Registered:", registeredDate, timeAgo(player.timestamps.registered));
-  if (hasTown) {
-    appendBreak();
-    appendDateInfo("Joined town:", townJoinDate, timeAgo(player.timestamps.joinedTownAt));
-  }
-  if (!isOnline) {
-    appendBreak();
-    appendDateInfo("Last online:", loDate, timeAgo(player.timestamps.lastOnline));
-  }
+  const stats = addElement(lookup, createElement("div", { className: "player-lookup-stats" }));
+  const appendStat = (label, value) => addElement(stats, createElement("div", {
+    className: "player-lookup-stat"
+  }, [
+    createElement("span", {
+      className: "player-lookup-stat-label",
+      text: label
+    }),
+    createElement("strong", {
+      className: "player-lookup-stat-value",
+      text: value
+    })
+  ]));
+  if (town) appendStat("Town", town);
+  if (nation) appendStat("Nation", nation);
+  appendStat("Rank", rank);
+  appendStat("Balance", `${balance} gold`);
+  const dates = addElement(lookup, createElement("div", { className: "player-lookup-meta" }));
+  const appendDateInfo = (label, dateText, relativeText) => addElement(dates, createElement("div", {
+    className: "player-lookup-meta-row"
+  }, [
+    createElement("span", {
+      className: "player-lookup-meta-label",
+      text: label
+    }),
+    createElement("strong", {
+      className: "player-lookup-meta-value",
+      text: dateText
+    }),
+    createElement("span", {
+      className: "player-lookup-meta-subtle",
+      text: relativeText
+    })
+  ]));
+  appendDateInfo("Registered", registeredDate, timeAgo(player.timestamps.registered));
+  if (hasTown) appendDateInfo("Joined town", townJoinDate, timeAgo(player.timestamps.joinedTownAt));
+  if (!isOnline) appendDateInfo("Last online", loDate, timeAgo(player.timestamps.lastOnline));
   closeButton.addEventListener("click", (event) => {
     event.target.parentElement.remove();
   });
@@ -2730,440 +2947,7 @@ async function init(manifest) {
   root?.setAttribute(INIT_GUARD_ATTR, "true");
   const isUserscript2 = true;
   if (isUserscript2) {
-    GM_addStyle(`:root {\r
-	--max-menu-width: 210px;\r
-  	--player-lookup-width: 200px;\r
-	--map-mode-btn-width: 130px;\r
-	/** TODO: Make these more robust. Probably not my best idea */\r
-	--screenshot-bg-image: url("https://raw.githubusercontent.com/Owen3H/earthmc-dynmap/refs/heads/main/resources/icon-screenshot.png");\r
-	--show-icon: url("https://raw.githubusercontent.com/Owen3H/earthmc-dynmap/refs/heads/main/resources/icon-show.png");\r
-	--hide-icon: url("https://raw.githubusercontent.com/Owen3H/earthmc-dynmap/refs/heads/main/resources/icon-hide.png");\r
-}\r
-\r
-#nation-claims {\r
-	min-width: min-content;\r
-    width: 45vw;\r
-	max-width: max-content;\r
-	padding: 10px 20px 10px 20px;\r
-	/* Position in the center of the screen, 10px from the top */\r
-    position: fixed;\r
-	text-align: center;\r
-    top: 10px;\r
-    left: 50%;\r
-    transform: translateX(-50%);\r
-}\r
-\r
-#nation-claims-titlebar {\r
-    display: flex;\r
-    flex-direction: row;\r
-    align-items: center;\r
-	justify-content: center;\r
-	gap: 10px;\r
-	line-height: 5px;\r
-	font-family: "Inter", 'Open Sans', sans-serif;\r
-	font-size: large;\r
-    font-weight: 700;\r
-}\r
-\r
-/* Button to show/hide the nation claims panel */\r
-#nation-claims-titlebar > a {\r
-	font-size: small;\r
-    /* background: rgb(174, 14, 14); */\r
-	padding: 4px 8px 4px 8px;\r
-	border-radius: 3px;\r
-}\r
-\r
-#nation-claims-titlebar img {\r
-	width: 30px;\r
-	background-image: var(--show-icon);\r
-	background-repeat: no-repeat;\r
-    background-position: 50% 50%;\r
-	background-color: transparent;\r
-}\r
-\r
-#nation-claims-titlebar img.active {\r
-    background-image: var(--hide-icon);\r
-}\r
-\r
-/* Container that holds the input/colour entries */\r
-#nation-claims-entry-container {\r
-    display: grid;\r
-    grid-template-columns: repeat(3, 1fr);\r
-	min-height: 40vh;\r
-    max-height: calc(100vh - 200px);\r
-    overflow-y: auto;\r
-	margin-bottom: 5px;\r
-	margin-top: 10px;\r
-	row-gap: 10px;\r
-	column-gap: 20px;\r
-}\r
-\r
-/* Container of the buttons at the bottom of the nation claims panel */\r
-#nation-claims-btn-container {\r
-	display: flex;\r
-    justify-content: center;\r
-	margin-top: 5px;\r
-}\r
-\r
-/* Buttons at the bottom of the nation claims panel */\r
-#nation-claims-apply, #nation-claims-reset-all {\r
-	height: 30px;\r
-	max-width: 200px;\r
-	margin: 5px;\r
-}\r
-\r
-#nation-claims-apply {\r
-	background-color: rgb(31, 137, 52) !important;\r
-	flex-grow: 1;\r
-}\r
-\r
-#nation-claims-reset-all {\r
-	background-color: rgb(218, 69, 69) !important;\r
-	flex-grow: 1;\r
-}\r
-\r
-.nation-claims-entry {\r
-    display: flex;\r
-    align-items: center;\r
-    gap: 5px;\r
-    width: 100%; /* ensure it doesn\u2019t overflow horizontally */\r
-}\r
-\r
-.nation-claims-checkbox-option {\r
-	display: inline-block;\r
-	align-items: center;\r
-	margin: 5px;\r
-	font-family: "Inter", 'Open Sans', sans-serif;\r
-	font-size: 12.5px;\r
-}\r
-\r
-.nation-claims-checkbox-option > input[type="checkbox"] {\r
-	min-height: 15px;\r
-}\r
-\r
-input[type="color"] {\r
-	position: relative;\r
-    padding: 0;\r
-	/* Make a pill shape */\r
-	height: 19px;\r
-    width: 34px;\r
-	border: 2px solid white;\r
-	border-radius: 8px;\r
-}\r
-input[type="color"]::-moz-color-swatch {\r
-  	border: none;\r
-}\r
-input[type="color"]::-webkit-color-swatch-wrapper {\r
-	padding: 0;\r
-	border-radius: 0;\r
-}\r
-input[type="color"]::-webkit-color-swatch {\r
-  	border: none;\r
-}\r
-\r
-/* Server info */\r
-#server-info {\r
-	width: 190px;\r
-	max-width: var(--max-menu-width);\r
-	padding: 10px;\r
-	text-align: right;\r
-	font-family: "Inter", 'Open Sans', sans-serif;\r
-}\r
-\r
-#server-info-title {\r
-	font-weight: 700;\r
-	font-size: large;\r
-	text-align: center;\r
-}\r
-\r
-/* A single div with a var like Online Players: 98 */\r
-.server-info-entry {\r
-	font-weight: 400;\r
-	font-size: medium;\r
-	text-align: center;\r
-}\r
-\r
-/* Player popup */\r
-\r
-#player-lookup-loading {\r
-	font-size: larger;\r
-	font-weight: 500;\r
-	font-family: "Inter", 'Open Sans', sans-serif;\r
-	padding: 5px;\r
-	/* ensure it stays on the left below the menu */\r
-	clear: both !important;\r
-	display: block !important;\r
-	width: auto;\r
-}\r
-\r
-#player-lookup {\r
-	width: var(--player-lookup-width);\r
-	font-size: larger;\r
-	font-family: "Inter", 'Open Sans', sans-serif;\r
-	padding: 8px;\r
-	box-sizing: border-box;\r
-	/* ensure it stays on the left below the menu */\r
-	clear: both !important;\r
-	display: block !important;\r
-	float: left !important;\r
-}\r
-\r
-#player-lookup > .close-container {\r
-	position: relative;\r
-	cursor: pointer;\r
-	font-size: medium;\r
-	bottom: 7px;\r
-	left: calc(var(--player-lookup-width) - 36px);\r
-	padding-top: 1.5px;\r
-	padding-bottom: 2px;\r
-	padding-left: 8px;\r
-	padding-right: 8px;\r
-	background: rgb(174, 14, 14);\r
-	border: white 1px solid;\r
-	border-radius: 0px 3px 0px 0px;\r
-}\r
-\r
-#player-lookup > .close-container:hover {\r
-	background-color: rgba(127, 127, 125, 0.5);\r
-}\r
-\r
-#player-lookup-online {\r
-	position: absolute;\r
-	top: 5px;\r
-	left: 5px;\r
-}\r
-\r
-#player-lookup-avatar {\r
-	margin: 5px auto auto auto;\r
-	display: block;\r
-	width: 32px;\r
-	box-shadow: 0 0 10px 1px #131313;\r
-}\r
-\r
-#player-lookup-name {\r
-	line-height: 30px;\r
-}\r
-\r
-/* Main sidebar */\r
-#sidebar {\r
-	width: auto;\r
-	max-width: 210px;\r
-	padding: 5px;\r
-	float: left !important;\r
-}\r
-\r
-.option {\r
-	display: flex;\r
-	justify-content: space-between;\r
-	padding-top: 2px;\r
-	padding-left: 5px;\r
-	padding-right: 5px;\r
-}\r
-\r
-.sidebar-option {\r
-	width: inherit;\r
-	height: fit-content;\r
-	display: flex;\r
-	align-items: stretch;\r
-	margin-bottom: 10px;\r
-}\r
-\r
-.sidebar-input {\r
-	width: 100%;\r
-}\r
-\r
-.sidebar-button {\r
-	height: 30px;\r
-	font-kerning: none;\r
-    font-weight: 500;\r
-    font-size: 12px;\r
-    font-family: "Inter", 'Open Sans', sans-serif;\r
-    border: 1px solid;\r
-    border-radius: 3px;\r
-}\r
-\r
-#archive-button {\r
-	flex-grow: 1;\r
-}\r
-\r
-#archive-input {\r
-	width: inherit;\r
-	max-width: 100px;\r
-	border-radius: 0px 3px 4px 0px;\r
-    border-right: white 1px solid;\r
-    border-top: white 1px solid;\r
-}\r
-\r
-#locate-menu {\r
-	display: grid;\r
-}\r
-\r
-#locate-select {\r
-	text-align: center;\r
-}\r
-\r
-#locate-button {\r
-	width: inherit;\r
-}\r
-\r
-#switch-map-mode {\r
-	width: var(--map-mode-btn-width);\r
-}\r
-\r
-#options-button {\r
-	width: calc(var(--max-menu-width) - var(--map-mode-btn-width));\r
-}\r
-\r
-#options-menu {\r
-	font-family: "Inter", 'Open Sans', sans-serif;\r
-	width: inherit;\r
-    margin-top: 5px;\r
-	gap: 1px;\r
-}\r
-\r
-#current-map-mode-label {\r
-	display: block;\r
-	box-sizing: border-box;\r
-	margin: 5px 5px 5px 5px;\r
-	font-size: 16px;\r
-	font-weight: bold;\r
-	font-family: "Inter", 'Open Sans', sans-serif;\r
-	text-align: center;\r
-}\r
-\r
-/* Town popup */\r
-\r
-#scrollable-list {\r
-	overflow: auto;\r
-	max-height: 200px;\r
-}\r
-\r
-#clamped-board {\r
-	max-width: 400px;\r
-	text-overflow: ellipsis;\r
-	overflow: hidden;\r
-	display: inline-block;\r
-}\r
-\r
-.resident-list {\r
-	white-space: pre-wrap;\r
-}\r
-\r
-#part-of-label {\r
-	font-size: 85%;\r
-}\r
-\r
-.resident-clickable:hover {\r
-	background-color: rgba(127, 127, 125, 0.5);\r
-	cursor: pointer;\r
-}\r
-\r
-/* Alert */\r
-#alert {\r
-	position: absolute;\r
-	width: 300px;\r
-	font-family: "Inter", 'Open Sans', sans-serif;\r
-	top: 50%;\r
-	left: 50%;\r
-	transform: translate(-50%, -50%);\r
-	z-index: 1000;\r
-	background-color: white;\r
-	color: #131313d4;\r
-	backdrop-filter: blur(5px);\r
-	font-size: large;\r
-	box-sizing: border-box;\r
-	padding: 8px;\r
-	text-align: center;\r
-}\r
-\r
-#alert-message {\r
-	margin-block: 0;\r
-}\r
-\r
-#alert-close {\r
-	font-size: 14px;\r
-	font-family: "Inter", 'Open Sans', sans-serif;\r
-    background: #e12a2a52;\r
-	border-radius: 2px;\r
-    border: 1px solid;\r
-	padding: 4px 8px 4px 8px;\r
-	margin-bottom: 7.5px;\r
-    margin-top: 15px;\r
-}\r
-\r
-/* Clickable nameplates */\r
-.leaflet-tooltip {\r
-	pointer-events: unset !important;\r
-}\r
-\r
-.leaflet-tooltip:hover {\r
-	background-color: rgba(127, 127, 127, 0.5);\r
-	cursor: pointer;\r
-}\r
-\r
-.leaflet-control {\r
-	float: inline-end !important; /** sidebar and player lookup are float: left !important */\r
-	clear: none !important;\r
-	backdrop-filter: blur(5px);\r
-}\r
-\r
-.leaflet-control-layers {\r
-	border: none !important;\r
-	border-radius: 3px !important;\r
-	background: #ffffffa6 !important; /** INSERTABLE_HTML.darkMode will override this if enabled */\r
-}\r
-\r
-.leaflet-bottom.leaflet-left {\r
-	display: flex;\r
-	flex-direction: row;\r
-}\r
-\r
-.leaflet-popup {
-	backdrop-filter: blur(2px);
-}
-
-#emcdynmapplus-tile-darkener {
-	position: absolute;
-	inset: 0;
-	z-index: 1;
-	pointer-events: none;
-	background: #0c0c0c;
-}
-
-/* Make coords easier to read and nicer to look at */
-.leaflet-control-layers.coordinates {
-	font-family: "Inter", 'Open Sans', sans-serif;
-	font-weight: 500 !important;\r
-}\r
-\r
-/* Fix blurry link icon */\r
-div.leaflet-control-layers.link img {\r
-	width: 35px !important;\r
-	height: 35px !important;\r
-	background-size: 23px, 22.5px !important;\r
-}\r
-\r
-div.leaflet-control-layers.screenshot img {\r
-	width: 35px !important;\r
-	height: 35px !important;\r
-	background-image: var(--screenshot-bg-image) !important;\r
-}\r
-\r
-#coords-container {\r
-	display: flex;\r
-	flex-direction: row;\r
-	align-self: end;\r
-}\r
-\r
-.crisp-edges {\r
-	image-rendering: optimizeSpeed;             /* Legal fallback	*/\r
-	image-rendering: -moz-crisp-edges;          /* Firefox        	*/\r
-	image-rendering: -o-crisp-edges;            /* Opera			*/\r
-	image-rendering: -webkit-optimize-contrast; /* Chrome + Safari	*/\r
-	image-rendering: optimize-contrast;         /* CSS3 Proposed	*/\r
-	image-rendering: crisp-edges;               /* CSS4 Proposed  	*/\r
-}
-`);
+    GM_addStyle(':root {\n	--font-sans: "Manrope", "Segoe UI", sans-serif;\n	--font-display: "Space Grotesk", "Segoe UI", sans-serif;\n	--panel-width: min(292px, calc(100vw - 20px));\n	--player-lookup-width: min(290px, calc(100vw - 20px));\n	--toast-width: min(420px, calc(100vw - 24px));\n	--control-height: 38px;\n	--radius-sm: 10px;\n	--radius-md: 16px;\n	--radius-lg: 22px;\n	--panel-bg: rgba(245, 239, 228, 0.82);\n	--panel-strong-bg: rgba(255, 251, 243, 0.94);\n	--panel-muted-bg: rgba(255, 255, 255, 0.52);\n	--panel-border: rgba(99, 81, 48, 0.18);\n	--panel-shadow: 0 24px 60px rgba(37, 27, 10, 0.18);\n	--text-strong: #1f1b15;\n	--text-muted: #665946;\n	--accent-color: #d1892d;\n	--accent-strong: #b86d12;\n	--accent-soft: rgba(209, 137, 45, 0.14);\n	--surface-elevated: rgba(255, 255, 255, 0.72);\n	--surface-pressed: rgba(235, 221, 194, 0.78);\n	--input-bg: rgba(255, 255, 255, 0.72);\n	--input-border: rgba(102, 80, 43, 0.18);\n	--success-color: #21754c;\n	--danger-color: #c44f45;\n	--shadow-soft: 0 12px 28px rgba(39, 25, 8, 0.12);\n	--screenshot-bg-image: url("https://raw.githubusercontent.com/Owen3H/earthmc-dynmap/refs/heads/main/resources/icon-screenshot.png");\n	--show-icon: url("https://raw.githubusercontent.com/Owen3H/earthmc-dynmap/refs/heads/main/resources/icon-show.png");\n	--hide-icon: url("https://raw.githubusercontent.com/Owen3H/earthmc-dynmap/refs/heads/main/resources/icon-hide.png");\n}\n\n:root[data-emcdynmapplus-theme="dark"] {\n	--panel-bg: rgba(18, 20, 22, 0.82);\n	--panel-strong-bg: rgba(24, 27, 30, 0.94);\n	--panel-muted-bg: rgba(36, 40, 46, 0.82);\n	--panel-border: rgba(255, 255, 255, 0.08);\n	--panel-shadow: 0 26px 70px rgba(0, 0, 0, 0.4);\n	--text-strong: #eef0f4;\n	--text-muted: #9ca5b3;\n	--accent-color: #e0a54f;\n	--accent-strong: #f0b96a;\n	--accent-soft: rgba(224, 165, 79, 0.16);\n	--surface-elevated: rgba(38, 42, 48, 0.92);\n	--surface-pressed: rgba(48, 54, 61, 0.96);\n	--input-bg: rgba(30, 34, 39, 0.92);\n	--input-border: rgba(255, 255, 255, 0.1);\n	--success-color: #63c988;\n	--danger-color: #ff7a70;\n	--shadow-soft: 0 14px 34px rgba(0, 0, 0, 0.28);\n}\n\nbutton,\ninput,\nselect {\n	font: inherit;\n}\n\n#server-info,\n#player-lookup,\n#player-lookup-loading,\n#nation-claims,\n#alert,\n.leaflet-control-layers.coordinates,\n.leaflet-bar > a,\n.leaflet-popup-content-wrapper,\n.leaflet-popup-tip,\n.leaflet-tooltip-top {\n	color: var(--text-strong) !important;\n}\n\n#server-info,\n#player-lookup,\n#player-lookup-loading,\n#nation-claims,\n#alert,\n.leaflet-popup-content-wrapper {\n	font-family: var(--font-sans);\n}\n\n#server-info,\n#player-lookup,\n#player-lookup-loading,\n#nation-claims,\n#alert,\n.leaflet-control-layers,\n.leaflet-bar > a,\n.leaflet-popup-content-wrapper,\n.leaflet-popup-tip,\n.leaflet-tooltip-top {\n	background: var(--panel-bg) !important;\n	border: 1px solid var(--panel-border) !important;\n	box-shadow: var(--panel-shadow);\n}\n\n#server-info,\n#player-lookup,\n#player-lookup-loading,\n#nation-claims,\n#alert {\n	backdrop-filter: blur(20px) saturate(145%);\n}\n\n.leaflet-control {\n	float: inline-end !important;\n	clear: none !important;\n	border-radius: var(--radius-md) !important;\n}\n\n.leaflet-control-layers {\n	border-radius: var(--radius-md) !important;\n}\n\n.leaflet-top.leaflet-left,\n.leaflet-top.leaflet-right {\n	margin-top: 12px;\n}\n\n#sidebar {\n	position: relative;\n	width: auto;\n	padding: 0;\n	float: left !important;\n	background: transparent !important;\n	border: none !important;\n	box-shadow: none;\n	backdrop-filter: none;\n	overflow: visible;\n}\n\n#sidebar[open] {\n	z-index: 1001;\n}\n\n#sidebar-toggle {\n	list-style: none;\n	display: flex;\n	align-items: center;\n	justify-content: space-between;\n	gap: 12px;\n	min-width: 176px;\n	padding: 10px 12px;\n	background: var(--panel-bg) !important;\n	border: 1px solid var(--panel-border) !important;\n	border-radius: var(--radius-md);\n	box-shadow: var(--panel-shadow);\n	backdrop-filter: blur(20px) saturate(145%);\n	cursor: pointer;\n}\n\n#sidebar-toggle::-webkit-details-marker {\n	display: none;\n}\n\n.sidebar-summary-copy {\n	display: grid;\n	gap: 2px;\n}\n\n.sidebar-summary-eyebrow {\n	font-size: 10px;\n	font-weight: 800;\n	letter-spacing: 0.16em;\n	text-transform: uppercase;\n	color: var(--accent-strong);\n}\n\n.sidebar-summary-title {\n	font-family: var(--font-display);\n	font-size: 16px;\n	line-height: 1;\n}\n\n.sidebar-summary-mode {\n	font-size: 11px;\n	color: var(--text-muted);\n}\n\n.sidebar-summary-indicator {\n	display: inline-flex;\n	align-items: center;\n	justify-content: center;\n	width: 26px;\n	height: 26px;\n	border-radius: 999px;\n	background: var(--surface-elevated);\n	color: var(--text-muted);\n	font-size: 12px;\n	font-weight: 800;\n	transition: transform 0.18s ease;\n}\n\n#sidebar[open] .sidebar-summary-indicator {\n	transform: rotate(180deg);\n}\n\n#sidebar-content {\n	position: absolute;\n	top: calc(100% + 8px);\n	left: 0;\n	width: var(--panel-width);\n	height: min(430px, calc(100vh - 88px));\n	padding: 14px;\n	display: grid;\n	gap: 10px;\n	background: var(--panel-bg) !important;\n	border: 1px solid var(--panel-border) !important;\n	border-radius: var(--radius-md);\n	box-shadow: var(--panel-shadow);\n	backdrop-filter: blur(20px) saturate(145%);\n	overflow-y: auto;\n	overscroll-behavior: contain;\n	scrollbar-gutter: stable;\n}\n\n.sidebar-header {\n	display: grid;\n	gap: 8px;\n}\n\n.sidebar-eyebrow {\n	font-size: 10px;\n	font-weight: 800;\n	letter-spacing: 0.18em;\n	text-transform: uppercase;\n	color: var(--accent-strong);\n}\n\n.sidebar-title,\n.sidebar-section-title,\n#server-info-title {\n	margin: 0;\n	font-family: var(--font-display);\n}\n\n.sidebar-title {\n	font-size: 24px;\n	line-height: 0.95;\n}\n\n.sidebar-subtitle,\n.sidebar-section-copy,\n.sidebar-help,\n.sidebar-mode-hint,\n.sidebar-toggle-description,\n.player-lookup-about,\n.player-lookup-meta-subtle {\n	margin: 0;\n	color: var(--text-muted);\n	line-height: 1.35;\n	font-size: 12px;\n}\n\n.sidebar-status-row {\n	display: flex;\n	align-items: center;\n	justify-content: space-between;\n	gap: 10px;\n	flex-wrap: wrap;\n}\n\n#current-map-mode-label {\n	display: inline-flex;\n	align-items: center;\n	padding: 6px 10px;\n	border-radius: 999px;\n	background: linear-gradient(135deg, var(--accent-soft), rgba(255, 255, 255, 0.06));\n	border: 1px solid rgba(255, 255, 255, 0.1);\n	font-size: 11px;\n	font-weight: 800;\n	letter-spacing: 0.06em;\n	text-transform: uppercase;\n}\n\n.sidebar-mode-hint {\n	font-size: 11px;\n	font-weight: 700;\n}\n\n.sidebar-section {\n	display: grid;\n	gap: 8px;\n	padding: 11px;\n	background: var(--panel-strong-bg);\n	border: 1px solid var(--panel-border);\n	border-radius: var(--radius-md);\n	box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);\n}\n\n.sidebar-section-header {\n	display: grid;\n	gap: 4px;\n}\n\n.sidebar-section-title {\n	font-size: 15px;\n}\n\n.sidebar-section-copy,\n.sidebar-help,\n.sidebar-toggle-description {\n	font-size: 11px;\n}\n\n.sidebar-field-group {\n	display: grid;\n	gap: 6px;\n	padding: 10px;\n	background: var(--panel-muted-bg);\n	border: 1px solid transparent;\n	border-radius: var(--radius-sm);\n}\n\n#map-mode-section[data-archive-selected="true"] #archive-date-group {\n	border-color: rgba(209, 137, 45, 0.45);\n	background: linear-gradient(135deg, var(--accent-soft), var(--panel-muted-bg));\n}\n\n.sidebar-field-label {\n	font-size: 11px;\n	font-weight: 800;\n	letter-spacing: 0.08em;\n	text-transform: uppercase;\n	color: var(--text-muted);\n}\n\n.sidebar-input,\n.sidebar-button,\n#nation-claims input[type="text"] {\n	min-height: var(--control-height);\n	padding: 0 12px;\n	font-size: 13px;\n	font-weight: 600;\n	border-radius: 12px;\n	border: 1px solid var(--input-border);\n	background: var(--input-bg);\n	color: var(--text-strong);\n	box-sizing: border-box;\n	transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;\n}\n\n.sidebar-input:focus,\n.sidebar-button:focus,\n#nation-claims input[type="text"]:focus {\n	outline: none;\n	border-color: var(--accent-color);\n	box-shadow: 0 0 0 3px rgba(209, 137, 45, 0.18);\n}\n\n.sidebar-input::placeholder,\n#nation-claims input[type="text"]::placeholder {\n	color: var(--text-muted);\n}\n\n.sidebar-select {\n	width: 100%;\n	appearance: none;\n	background-image:\n		linear-gradient(45deg, transparent 50%, var(--text-muted) 50%),\n		linear-gradient(135deg, var(--text-muted) 50%, transparent 50%);\n	background-position:\n		calc(100% - 16px) calc(50% - 2px),\n		calc(100% - 10px) calc(50% - 2px);\n	background-size: 6px 6px, 6px 6px;\n	background-repeat: no-repeat;\n	padding-right: 28px;\n}\n\n.sidebar-button {\n	display: inline-flex;\n	align-items: center;\n	justify-content: center;\n	cursor: pointer;\n	box-shadow: var(--shadow-soft);\n}\n\n.sidebar-button:hover,\n#alert-close:hover,\n#player-lookup > .close-container:hover {\n	transform: translateY(-1px);\n}\n\n.sidebar-button:active,\n#alert-close:active,\n#player-lookup > .close-container:active {\n	transform: translateY(0);\n}\n\n.sidebar-button-primary {\n	background: linear-gradient(135deg, var(--accent-color), var(--accent-strong));\n	color: #fff;\n	border-color: transparent;\n}\n\n.sidebar-button-secondary {\n	background: var(--surface-elevated);\n}\n\n.sidebar-action-row {\n	display: grid;\n	grid-template-columns: minmax(0, 1fr) auto;\n	gap: 8px;\n}\n\n.sidebar-split {\n	display: grid;\n	grid-template-columns: minmax(0, 110px);\n}\n\n#locate-menu {\n	display: grid;\n}\n\n#locate-button,\n#switch-map-mode {\n	width: 100%;\n}\n\n#archive-button {\n	min-width: 108px;\n}\n\n#options-menu {\n	display: grid !important;\n	gap: 8px;\n}\n\n.leaflet-control-layers-list {\n	max-height: min(360px, 60vh);\n	overflow-y: auto;\n	overscroll-behavior: contain;\n	scrollbar-gutter: stable;\n}\n\n:root[data-emcdynmapplus-theme="dark"] .leaflet-control-layers-list label,\n:root[data-emcdynmapplus-theme="dark"] .leaflet-control-layers-list label span {\n	color: var(--text-strong) !important;\n}\n\n.option {\n	margin: 0;\n}\n\n.sidebar-setting {\n	display: flex;\n	align-items: center;\n	justify-content: space-between;\n	gap: 10px;\n	padding: 10px 11px;\n	background: var(--panel-muted-bg);\n	border: 1px solid rgba(255, 255, 255, 0.06);\n	border-radius: 14px;\n	cursor: pointer;\n}\n\n.sidebar-toggle-copy {\n	display: grid;\n	gap: 4px;\n	flex: 1;\n}\n\n.sidebar-toggle-title {\n	font-size: 13px;\n	font-weight: 700;\n}\n\n.sidebar-switch-input {\n	appearance: none;\n	-webkit-appearance: none;\n	flex: none;\n	width: 42px;\n	height: 26px;\n	margin: 0;\n	border-radius: 999px;\n	border: 1px solid transparent;\n	background: rgba(127, 136, 148, 0.38);\n	box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);\n	cursor: pointer;\n	position: relative;\n	transition: background-color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;\n}\n\n.sidebar-switch-input::after {\n	content: "";\n	position: absolute;\n	top: 2px;\n	left: 2px;\n	width: 20px;\n	height: 20px;\n	border-radius: 50%;\n	background: #fff;\n	box-shadow: 0 6px 14px rgba(0, 0, 0, 0.2);\n	transition: transform 0.18s ease;\n}\n\n.sidebar-switch-input:checked {\n	background: linear-gradient(135deg, var(--accent-color), var(--accent-strong));\n}\n\n.sidebar-switch-input:checked::after {\n	transform: translateX(16px);\n}\n\n.sidebar-switch-input:focus-visible {\n	outline: none;\n	box-shadow: 0 0 0 3px rgba(209, 137, 45, 0.18);\n}\n\n.emcdynmapplus-layer-separator {\n	display: block !important;\n	margin: 8px 0 6px;\n}\n\n.emcdynmapplus-layer-options {\n	padding: 0 2px 2px;\n}\n\n.emcdynmapplus-layer-title {\n	margin: 0 0 6px;\n	font-size: 11px;\n	font-weight: 800;\n	letter-spacing: 0.08em;\n	text-transform: uppercase;\n	color: var(--text-muted);\n}\n\n.emcdynmapplus-layer-option {\n	display: block;\n	margin-bottom: 4px;\n	color: var(--text-strong);\n}\n\n.emcdynmapplus-layer-option:last-child {\n	margin-bottom: 0;\n}\n\n.emcdynmapplus-layer-option > span {\n	display: inline-flex;\n	align-items: center;\n	gap: 6px;\n}\n\n.emcdynmapplus-layer-checkbox {\n	accent-color: var(--accent-color);\n}\n\n#server-info {\n	width: min(260px, calc(100vw - 24px));\n	padding: 16px;\n	display: grid;\n	gap: 10px;\n	font-size: 13px;\n}\n\n#server-info[hidden] {\n	display: none !important;\n}\n\n#server-info-title {\n	font-size: 21px;\n}\n\n.server-info-entry {\n	display: flex;\n	align-items: center;\n	justify-content: space-between;\n	gap: 12px;\n	padding: 11px 12px;\n	background: var(--panel-strong-bg);\n	border: 1px solid var(--panel-border);\n	border-radius: 14px;\n}\n\n.server-info-label {\n	color: var(--text-muted);\n	font-weight: 700;\n}\n\n.server-info-value {\n	font-weight: 800;\n	text-align: right;\n}\n\n#player-lookup-loading {\n	width: var(--player-lookup-width);\n	padding: 14px;\n	clear: both !important;\n	display: block !important;\n	float: left !important;\n	font-size: 15px;\n	font-weight: 700;\n}\n\n#player-lookup {\n	position: relative;\n	width: var(--player-lookup-width);\n	padding: 16px;\n	box-sizing: border-box;\n	clear: both !important;\n	display: grid !important;\n	float: left !important;\n	gap: 14px;\n}\n\n#player-lookup > .close-container {\n	position: absolute;\n	top: 14px;\n	right: 14px;\n	min-height: 34px;\n	padding: 0 12px;\n	border-radius: 999px;\n	border: 1px solid var(--input-border);\n	background: var(--surface-elevated);\n	color: var(--text-strong);\n	cursor: pointer;\n}\n\n.player-lookup-top {\n	display: flex;\n	gap: 12px;\n	align-items: center;\n	padding-right: 76px;\n}\n\n#player-lookup-avatar {\n	width: 54px;\n	height: 54px;\n	border-radius: 16px;\n	box-shadow: var(--shadow-soft);\n}\n\n.player-lookup-identity {\n	display: grid;\n	gap: 6px;\n}\n\n#player-lookup-name {\n	font-size: 21px;\n	line-height: 1;\n	font-family: var(--font-display);\n}\n\n#player-lookup-online {\n	display: inline-flex;\n	align-items: center;\n	width: max-content;\n	padding: 5px 10px;\n	border-radius: 999px;\n	background: var(--accent-soft);\n	font-size: 12px;\n	font-weight: 800;\n	letter-spacing: 0.04em;\n	text-transform: uppercase;\n}\n\n.player-lookup-about {\n	font-size: 13px;\n	font-style: italic;\n}\n\n.player-lookup-stats {\n	display: grid;\n	grid-template-columns: repeat(2, minmax(0, 1fr));\n	gap: 10px;\n}\n\n.player-lookup-stat,\n.player-lookup-meta-row {\n	display: grid;\n	gap: 4px;\n	padding: 12px;\n	background: var(--panel-strong-bg);\n	border: 1px solid var(--panel-border);\n	border-radius: 14px;\n}\n\n.player-lookup-stat-label,\n.player-lookup-meta-label {\n	color: var(--text-muted);\n	font-size: 12px;\n	font-weight: 800;\n	letter-spacing: 0.05em;\n	text-transform: uppercase;\n}\n\n.player-lookup-stat-value,\n.player-lookup-meta-value {\n	font-size: 15px;\n}\n\n.player-lookup-meta {\n	display: grid;\n	gap: 10px;\n}\n\n#nation-claims {\n	width: min(1040px, calc(100vw - 32px));\n	padding: 18px;\n	position: fixed;\n	top: 12px;\n	left: 50%;\n	transform: translateX(-50%);\n	text-align: left;\n}\n\n#nation-claims-titlebar {\n	display: flex;\n	align-items: center;\n	justify-content: space-between;\n	gap: 12px;\n	font-family: var(--font-display);\n	font-size: 24px;\n	font-weight: 700;\n	line-height: 1;\n}\n\n#nation-claims-titlebar p {\n	margin: 0;\n}\n\n#nation-claims-titlebar > .leaflet-control-layers.link.leaflet-control {\n	background: var(--surface-elevated) !important;\n	box-shadow: none;\n}\n\n#nation-claims-titlebar > a {\n	font-size: 12px;\n	padding: 4px 8px;\n	border-radius: 999px;\n}\n\n#nation-claims-titlebar img {\n	width: 30px;\n	background-image: var(--show-icon);\n	background-repeat: no-repeat;\n	background-position: 50% 50%;\n	background-color: transparent;\n}\n\n#nation-claims-titlebar img.active {\n	background-image: var(--hide-icon);\n}\n\n#nation-claims-content {\n	display: grid;\n	gap: 12px;\n	margin-top: 14px;\n}\n\n#nation-claims-entry-container {\n	display: grid;\n	grid-template-columns: repeat(3, minmax(0, 1fr));\n	min-height: 34vh;\n	max-height: calc(100vh - 250px);\n	overflow-y: auto;\n	padding-right: 6px;\n	row-gap: 10px;\n	column-gap: 12px;\n}\n\n.nation-claims-entry {\n	display: grid;\n	grid-template-columns: 44px minmax(0, 1fr);\n	align-items: center;\n	gap: 8px;\n	width: 100%;\n	padding: 10px;\n	background: var(--panel-strong-bg);\n	border: 1px solid var(--panel-border);\n	border-radius: 14px;\n}\n\n.nation-claims-checkbox-option {\n	display: flex;\n	align-items: center;\n	gap: 8px;\n	font-size: 13px;\n	font-weight: 700;\n}\n\n#nation-claims input[type="color"] {\n	padding: 0;\n	height: 34px;\n	width: 34px;\n	border: 2px solid rgba(255, 255, 255, 0.18);\n	border-radius: 12px;\n	background: transparent;\n}\n\n#nation-claims input[type="color"]::-moz-color-swatch {\n	border: none;\n	border-radius: 10px;\n}\n\n#nation-claims input[type="color"]::-webkit-color-swatch-wrapper {\n	padding: 0;\n	border-radius: 10px;\n}\n\n#nation-claims input[type="color"]::-webkit-color-swatch {\n	border: none;\n	border-radius: 10px;\n}\n\n#nation-claims-btn-container {\n	display: flex;\n	justify-content: flex-end;\n	flex-wrap: wrap;\n	gap: 10px;\n}\n\n#nation-claims-apply,\n#nation-claims-reset-all {\n	min-width: 150px;\n}\n\n#nation-claims-apply {\n	background: linear-gradient(135deg, #28995d, #1f7448) !important;\n	color: #fff;\n}\n\n#nation-claims-reset-all {\n	background: linear-gradient(135deg, #cf5a4f, #a83a31) !important;\n	color: #fff;\n}\n\n#scrollable-list {\n	overflow: auto;\n	max-height: 200px;\n}\n\n#clamped-board {\n	max-width: 400px;\n	text-overflow: ellipsis;\n	overflow: hidden;\n	display: inline-block;\n}\n\n.resident-list {\n	white-space: pre-wrap;\n}\n\n#part-of-label {\n	font-size: 85%;\n}\n\n.resident-clickable:hover,\n.leaflet-tooltip:hover {\n	background-color: var(--accent-soft);\n	cursor: pointer;\n}\n\n#alert {\n	position: fixed;\n	top: 16px;\n	right: 16px;\n	left: auto;\n	transform: none;\n	z-index: 1000;\n	width: var(--toast-width);\n	padding: 14px;\n	display: grid;\n	gap: 10px;\n	text-align: left;\n}\n\n#alert-message {\n	margin: 0;\n	line-height: 1.5;\n}\n\n#alert a {\n	color: var(--accent-strong);\n	font-weight: 700;\n}\n\n#alert-close {\n	justify-self: end;\n	min-height: 36px;\n	padding: 0 12px;\n	border-radius: 999px;\n	border: 1px solid var(--input-border);\n	background: var(--surface-elevated);\n	color: var(--text-strong);\n	cursor: pointer;\n}\n\n.leaflet-tooltip {\n	pointer-events: unset !important;\n}\n\n.leaflet-popup {\n	backdrop-filter: blur(2px);\n}\n\n.leaflet-popup-content-wrapper,\n.leaflet-popup-tip {\n	background: var(--panel-strong-bg) !important;\n}\n\n.leaflet-popup-content,\n.leaflet-popup-content * {\n	color: var(--text-strong) !important;\n	font-family: var(--font-sans);\n}\n\n.leaflet-bar > a {\n	display: flex;\n	align-items: center;\n	justify-content: center;\n	width: 42px;\n	height: 42px;\n	font-size: 18px;\n}\n\n.leaflet-bar > a.leaflet-disabled {\n	opacity: 0.45;\n}\n\n#emcdynmapplus-tile-darkener {\n	position: absolute;\n	inset: 0;\n	z-index: 1;\n	pointer-events: none;\n	background: #0c0c0c;\n}\n\n.leaflet-control-layers.coordinates {\n	padding: 0 14px;\n	font-family: var(--font-display);\n	font-size: 12px;\n	font-weight: 700 !important;\n	letter-spacing: 0.05em;\n}\n\ndiv.leaflet-control-layers.link img {\n	width: 35px !important;\n	height: 35px !important;\n	background-size: 23px 22.5px !important;\n}\n\n:root[data-emcdynmapplus-theme="dark"] div.leaflet-control-layers.link img {\n	filter: invert(1);\n}\n\ndiv.leaflet-control-layers.screenshot img {\n	width: 35px !important;\n	height: 35px !important;\n	background-image: var(--screenshot-bg-image) !important;\n}\n\n.leaflet-bottom.leaflet-left {\n	display: flex;\n	flex-direction: row;\n	gap: 8px;\n}\n\n#coords-container {\n	display: flex;\n	flex-direction: row;\n	align-self: end;\n	gap: 8px;\n}\n\n.crisp-edges {\n	image-rendering: optimizeSpeed;\n	image-rendering: -moz-crisp-edges;\n	image-rendering: -o-crisp-edges;\n	image-rendering: -webkit-optimize-contrast;\n	image-rendering: optimize-contrast;\n	image-rendering: crisp-edges;\n}\n\n@media (max-width: 1120px) {\n	#nation-claims-entry-container {\n		grid-template-columns: repeat(2, minmax(0, 1fr));\n	}\n}\n\n@media (max-width: 820px) {\n	#sidebar,\n	#server-info,\n	#player-lookup,\n	#player-lookup-loading {\n		width: min(calc(100vw - 16px), 360px);\n	}\n\n	#sidebar {\n		padding: 0;\n	}\n\n	#sidebar-content {\n		height: min(390px, calc(100vh - 72px));\n	}\n\n	.sidebar-action-row,\n	.player-lookup-stats {\n		grid-template-columns: 1fr;\n	}\n\n	#archive-button {\n		width: 100%;\n	}\n\n	#nation-claims {\n		width: calc(100vw - 16px);\n		padding: 14px;\n		top: 8px;\n	}\n\n	#nation-claims-entry-container {\n		grid-template-columns: 1fr;\n		max-height: 46vh;\n	}\n\n	#alert {\n		top: auto;\n		right: 8px;\n		bottom: 8px;\n	}\n\n	#coords-container {\n		flex-wrap: wrap;\n	}\n}\n');
   }
   localStorage["emcdynmapplus-mapmode"] ?? (localStorage["emcdynmapplus-mapmode"] = "meganations");
   localStorage["emcdynmapplus-archive-date"] ?? (localStorage["emcdynmapplus-archive-date"] = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10).replaceAll("-", ""));
@@ -3179,6 +2963,7 @@ div.leaflet-control-layers.screenshot img {\r
   });
   insertCustomStylesheets();
   await insertSidebarMenu();
+  await insertLayerOptionsMenu();
   updateServerInfo(await insertServerInfoPanel());
   await editUILayout();
   await insertScreenshotBtn();

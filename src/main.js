@@ -691,64 +691,74 @@ async function lookupPlayer(playerName, showOnlineStatus = true) {
 
 	// Place data
 	const playerAvatarURL = `https://mc-heads.net/avatar/${player.uuid.replaceAll('-', '')}`
-	const appendBreak = () => addElement(lookup, createElement('br'))
-	const appendLabeledValue = (label, value, suffix = '') => {
-		appendChildren(lookup, [
-			`${label}: `,
-			createElement('b', { text: `${value}${suffix}` }),
-		])
-		appendBreak()
-	}
-	const appendDateInfo = (label, dateText, relativeText) => {
-		appendChildren(lookup, [
-			label,
-			createElement('br'),
-			createElement('b', { text: dateText }),
-			` (${relativeText})`,
-		])
-	}
-
-	const closeButton = addElement(lookup, createElement('span', {
+	const closeButton = addElement(lookup, createElement('button', {
 		className: 'close-container',
-		text: 'X',
+		text: 'Close',
+		type: 'button',
 	}))
-	if (showOnlineStatus) {
-		addElement(lookup, createElement('span', {
-			id: 'player-lookup-online',
-			text: isOnline ? '\u26AB\uFE0E Online' : '\u25CB Offline',
-			style: { color: isOnline ? 'green' : 'red' },
-		}))
-		appendBreak()
-	}
-
-	addElement(lookup, createElement('img', {
+	const top = addElement(lookup, createElement('div', { className: 'player-lookup-top' }))
+	addElement(top, createElement('img', {
 		id: 'player-lookup-avatar',
 		src: playerAvatarURL,
 	}))
-	const nameBlock = addElement(lookup, createElement('center'))
-	addElement(nameBlock, createElement('b', {
+	const identity = addElement(top, createElement('div', { className: 'player-lookup-identity' }))
+	addElement(identity, createElement('b', {
 		id: 'player-lookup-name',
 		text: player.name || playerName,
 	}))
+	if (showOnlineStatus) {
+		addElement(identity, createElement('span', {
+			id: 'player-lookup-online',
+			text: isOnline ? 'Online' : 'Offline',
+			style: { color: isOnline ? 'var(--success-color)' : 'var(--danger-color)' },
+		}))
+	}
 	if (about) {
-		addElement(nameBlock, createElement('br'))
-		addElement(nameBlock, createElement('i', { text: about }))
+		addElement(identity, createElement('p', {
+			className: 'player-lookup-about',
+			text: about,
+		}))
 	}
+	const stats = addElement(lookup, createElement('div', { className: 'player-lookup-stats' }))
+	const appendStat = (label, value) => addElement(stats, createElement('div', {
+		className: 'player-lookup-stat',
+	}, [
+		createElement('span', {
+			className: 'player-lookup-stat-label',
+			text: label,
+		}),
+		createElement('strong', {
+			className: 'player-lookup-stat-value',
+			text: value,
+		}),
+	]))
 
-	addElement(lookup, createElement('hr'))
-	if (town) appendLabeledValue('Town', town)
-	if (nation) appendLabeledValue('Nation', nation)
-	appendLabeledValue('Rank', rank)
-	appendLabeledValue('Balance', balance, ' gold')
-	appendDateInfo('Registered:', registeredDate, timeAgo(player.timestamps.registered))
-	if (hasTown) {
-		appendBreak()
-		appendDateInfo('Joined town:', townJoinDate, timeAgo(player.timestamps.joinedTownAt))
-	}
-	if (!isOnline) {
-		appendBreak()
-		appendDateInfo('Last online:', loDate, timeAgo(player.timestamps.lastOnline))
-	}
+	if (town) appendStat('Town', town)
+	if (nation) appendStat('Nation', nation)
+	appendStat('Rank', rank)
+	appendStat('Balance', `${balance} gold`)
+
+	const dates = addElement(lookup, createElement('div', { className: 'player-lookup-meta' }))
+	const appendDateInfo = (label, dateText, relativeText) => addElement(dates, createElement('div', {
+		className: 'player-lookup-meta-row',
+	}, [
+		createElement('span', {
+			className: 'player-lookup-meta-label',
+			text: label,
+		}),
+		createElement('strong', {
+			className: 'player-lookup-meta-value',
+			text: dateText,
+		}),
+		createElement('span', {
+			className: 'player-lookup-meta-subtle',
+			text: relativeText,
+		}),
+	]))
+
+	appendDateInfo('Registered', registeredDate, timeAgo(player.timestamps.registered))
+	if (hasTown) appendDateInfo('Joined town', townJoinDate, timeAgo(player.timestamps.joinedTownAt))
+	if (!isOnline) appendDateInfo('Last online', loDate, timeAgo(player.timestamps.lastOnline))
 
 	closeButton.addEventListener('click', event => { event.target.parentElement.remove() })
 	return

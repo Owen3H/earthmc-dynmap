@@ -144,6 +144,7 @@ async function init(manifest) {
 	insertCustomStylesheets()
     
 	await insertSidebarMenu()
+	await insertLayerOptionsMenu()
 	updateServerInfo(await insertServerInfoPanel())
     await editUILayout()
 	await insertScreenshotBtn()

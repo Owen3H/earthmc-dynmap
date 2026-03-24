@@ -3,25 +3,186 @@
 
 // TODO: Use Custom Element Registry and convert the main menu into one.
 
+const MAP_MODE_METADATA = [
+	{
+		value: 'meganations',
+		label: 'Mega Nations',
+		description: 'Show mega-alliance colors directly on town claims.',
+	},
+	{
+		value: 'alliances',
+		label: 'Alliances',
+		description: 'Color towns by alliance ownership with clean borders.',
+	},
+	{
+		value: 'nationclaims',
+		label: 'Nation Claims',
+		description: 'Load the nation-claims customizer for manual color maps.',
+	},
+	{
+		value: 'overclaim',
+		label: 'Overclaim',
+		description: 'Highlight towns that exceed their current claim limits.',
+	},
+	{
+		value: 'default',
+		label: 'Live Map',
+		description: 'Use the base map styling with only the shared enhancements.',
+	},
+	{
+		value: 'archive',
+		label: 'Archive',
+		description: 'Load the nearest historical snapshot from the Wayback archive.',
+	},
+]
+
+const getMapModeMeta = mode => MAP_MODE_METADATA.find(option => option.value === mode) || MAP_MODE_METADATA[0]
+const formatMapModeLabel = mode => `Map Mode: ${mode}`
+const SIDEBAR_EXPANDED_KEY = 'emcdynmapplus-sidebar-expanded'
+
 /** @param {HTMLElement} parent - The "leaflet-top leaflet-left" element. */
 function addMainMenu(parent) {
 	const existingSidebar = parent.querySelector('#sidebar')
 	if (existingSidebar) return existingSidebar
 
-	const sidebar = addElement(parent, createElement('div', {
+	const curMapMode = currentMapMode()
+	const isExpanded = localStorage[SIDEBAR_EXPANDED_KEY] == 'true'
+	const sidebar = addElement(parent, createElement('details', {
 		id: 'sidebar',
 		className: 'leaflet-control-layers leaflet-control',
+		attrs: {
+			'data-active-mode': curMapMode,
+			...(isExpanded ? { open: '' } : {}),
+		},
 	}))
-	addLocateMenu(sidebar) // Locator button and input box
+	sidebar.addEventListener('toggle', () => {
+		localStorage[SIDEBAR_EXPANDED_KEY] = String(sidebar.open)
+	})
+	addSidebarSummary(sidebar, curMapMode)
 
-	//#region Archive search and date input
-	const archiveContainer = addElement(sidebar, createElement('div', { className: 'sidebar-option' }))
-	const archiveButton = addElement(archiveContainer, createElement('button', {
-		id: 'archive-button',
-		className: 'sidebar-button',
-		text: 'Search Archive',
+	const sidebarContent = addElement(sidebar, createElement('div', { id: 'sidebar-content' }))
+	addSidebarHeader(sidebarContent, curMapMode)
+	addLocateMenu(sidebarContent) // Locator button and input box
+	addMapModeSection(sidebarContent, curMapMode)
+
+	return sidebar
+}
+
+/**
+ * @param {HTMLElement} sidebar
+ * @param {MapMode | "archive"} curMapMode
+ */
+function addSidebarSummary(sidebar, curMapMode) {
+	const modeMeta = getMapModeMeta(curMapMode)
+	return addElement(sidebar, createElement('summary', {
+		id: 'sidebar-toggle',
+	}, [
+		createElement('span', { className: 'sidebar-summary-copy' }, [
+			createElement('span', {
+				className: 'sidebar-summary-eyebrow',
+				text: 'Dynmap+',
+			}),
+			createElement('strong', {
+				className: 'sidebar-summary-title',
+				text: 'Map Toolkit',
+			}),
+			createElement('span', {
+				id: 'sidebar-summary-mode',
+				className: 'sidebar-summary-mode',
+				text: modeMeta.label,
+			}),
+		]),
+		createElement('span', {
+			className: 'sidebar-summary-indicator',
+			text: 'v',
+		}),
+	]))
+}
+
+/**
+ * @param {HTMLElement} sidebar
+ * @param {MapMode | "archive"} curMapMode
+ */
+function addSidebarHeader(sidebar, curMapMode) {
+	const header = addElement(sidebar, createElement('div', { className: 'sidebar-header' }))
+	addElement(header, createElement('div', {
+		className: 'sidebar-eyebrow',
+		text: 'EarthMC Dynmap+',
 	}))
-	const archiveInput = addElement(archiveContainer, createElement('input', {
+	addElement(header, createElement('h2', {
+		className: 'sidebar-title',
+		text: 'Map Toolkit',
+	}))
+
+	const status = addElement(header, createElement('div', { className: 'sidebar-status-row' }))
+	addElement(status, createElement('div', {
+		id: 'current-map-mode-label',
+		className: 'sidebar-mode-pill',
+		text: formatMapModeLabel(curMapMode),
+	}))
+}
+
+/**
+ * @param {HTMLElement} parent
+ * @param {string} title
+ * @param {string} description
+ */
+function addSidebarSection(parent, title, description) {
+	const section = addElement(parent, createElement('section', { className: 'sidebar-section' }))
+	const header = addElement(section, createElement('div', { className: 'sidebar-section-header' }))
+	addElement(header, createElement('h3', {
+		className: 'sidebar-section-title',
+		text: title,
+	}))
+	addElement(header, createElement('p', {
+		className: 'sidebar-section-copy',
+		text: description,
+	}))
+	return section
+}
+
+/**
+ * @param {HTMLElement} sidebar
+ * @param {MapMode | "archive"} curMapMode
+ */
+function addMapModeSection(sidebar, curMapMode) {
+	const section = addSidebarSection(
+		sidebar,
+		'Map View',
+		'Pick an overlay directly.'
+	)
+	section.id = 'map-mode-section'
+
+	addElement(section, createElement('label', {
+		className: 'sidebar-field-label',
+		htmlFor: 'map-mode-select',
+		text: 'View mode',
+	}))
+	const modeSelect = addElement(section, createElement('select', {
+		id: 'map-mode-select',
+		className: 'sidebar-input sidebar-select',
+	}, MAP_MODE_METADATA.map(mode => createElement('option', {
+		value: mode.value,
+		text: mode.label,
+	}))))
+	modeSelect.value = curMapMode
+
+	const modeDescription = addElement(section, createElement('p', {
+		id: 'map-mode-description',
+		className: 'sidebar-help',
+		text: getMapModeMeta(curMapMode).description,
+	}))
+
+	const archiveField = addElement(section, createElement('div', {
+		id: 'archive-date-group',
+		className: 'sidebar-field-group',
+	}))
+	addElement(archiveField, createElement('label', {
+		className: 'sidebar-field-label',
+		htmlFor: 'archive-input',
+		text: 'Archive date',
+	}))
+	const archiveInput = addElement(archiveField, createElement('input', {
 		id: 'archive-input',
 		className: 'sidebar-input',
 		type: 'date',
@@ -30,62 +191,104 @@ function addMainMenu(parent) {
 			max: ARCHIVE_DATE.MAX,
 		},
 	}))
-	
-	archiveButton.addEventListener('click', _ => searchArchive(archiveInput.value))
 
-	// TODO: Typing in a bogus date will cause infinite "Loading archive..."
-	archiveInput.addEventListener('keyup', e => { if (e.key == 'Enter') searchArchive(archiveInput.value) })
-	archiveInput.addEventListener('change', _ => {
-		const URLDate = archiveInput.value.replaceAll('-', '')
-		localStorage['emcdynmapplus-archive-date'] = URLDate
-	})
-	//#endregion
-
-	const curMapMode = currentMapMode()
-
-	// Switch map mode button
-	const switchMapModeButton = addElement(sidebar, createElement('button', {
+	const actions = addElement(section, createElement('div', { className: 'sidebar-action-row' }))
+	const switchMapModeButton = addElement(actions, createElement('button', {
 		id: 'switch-map-mode',
-		className: 'sidebar-button',
-		text: 'Switch Map Mode',
+		className: 'sidebar-button sidebar-button-primary',
+		text: 'Apply Selected View',
 	}))
-	switchMapModeButton.addEventListener('click', _ => switchMapMode(curMapMode))
-
-	// Options button and checkboxes
-	addOptions(sidebar, curMapMode)
-
-	// Current map mode label
-	addElement(sidebar, createElement('div', {
-		id: 'current-map-mode-label',
-		className: 'sidebar-option',
-		text: `Map Mode: ${curMapMode}`,
+	const archiveButton = addElement(actions, createElement('button', {
+		id: 'archive-button',
+		className: 'sidebar-button sidebar-button-secondary',
+		text: 'Open Archive',
 	}))
 
-	return sidebar
+	const syncModeUI = () => {
+		const selectedMode = modeSelect.value
+		const selectedMeta = getMapModeMeta(selectedMode)
+		modeDescription.textContent = selectedMeta.description
+		section.setAttribute('data-archive-selected', String(selectedMode === 'archive'))
+		switchMapModeButton.textContent = selectedMode === 'archive' ? 'Open Selected Archive' : 'Apply Selected View'
+	}
+
+	switchMapModeButton.addEventListener('click', () => applyMapModeSelection(modeSelect.value, archiveInput.value))
+	archiveButton.addEventListener('click', () => searchArchive(archiveInput.value))
+	modeSelect.addEventListener('change', syncModeUI)
+	archiveInput.addEventListener('keyup', e => {
+		if (e.key !== 'Enter') return
+		if (modeSelect.value === 'archive') applyMapModeSelection(modeSelect.value, archiveInput.value)
+		else searchArchive(archiveInput.value)
+	})
+	archiveInput.addEventListener('change', () => {
+		if (!isValidArchiveDateInput(archiveInput.value)) return
+		localStorage['emcdynmapplus-archive-date'] = archiveInput.value.replaceAll('-', '')
+	})
+
+	syncModeUI()
+}
+
+/**
+ * @param {MapMode | "archive"} nextMode
+ * @param {string} archiveDateInput
+ */
+function applyMapModeSelection(nextMode, archiveDateInput) {
+	if (nextMode === 'archive') return searchArchive(archiveDateInput)
+
+	localStorage['emcdynmapplus-mapmode'] = nextMode
+	location.reload()
 }
 
 /** 
- * @param {HTMLElement} sidebar 
+ * @param {HTMLElement} layersList
  * @param {MapMode} curMapMode 
 */
-function addOptions(sidebar, curMapMode) {
-	const optionsButton = addElement(sidebar, createElement('button', {
-		id: 'options-button',
-		className: 'sidebar-button',
-		text: 'Options',
-	}))
-	const optionsMenu = addElement(sidebar, createElement('div', { id: 'options-menu' }))
-	optionsMenu.style.display = 'none'
-	optionsButton.addEventListener('click', _ => {
-		optionsMenu.style.display = (optionsMenu.style.display == 'none') ? 'grid' : 'none'
-	})
+function addOptions(layersList, curMapMode) {
+	const existingOptions = layersList.querySelector('#emcdynmapplus-layer-options')
+	if (existingOptions) return existingOptions
 
-	let i = 0
+	addElement(layersList, createElement('div', {
+		className: 'leaflet-control-layers-separator emcdynmapplus-layer-separator',
+	}))
+	const section = addElement(layersList, createElement('div', {
+		id: 'emcdynmapplus-layer-options',
+		className: 'emcdynmapplus-layer-options',
+	}))
+	addElement(section, createElement('div', {
+		className: 'emcdynmapplus-layer-title',
+		text: 'Dynmap+ Options',
+	}))
+	const optionsMenu = addElement(section, createElement('div', { id: 'options-menu' }))
+
 	const checkboxes = {
-		normalizeScroll: addCheckboxOption(optionsMenu, i++, 'toggle-normalize-scroll', 'Normalize scroll inputs', 'normalize-scroll'),
-		decreaseBrightness: addCheckboxOption(optionsMenu, i++, 'toggle-darkened', 'Decrease brightness', 'darkened'),
-		darkMode: addCheckboxOption(optionsMenu, i++, 'toggle-darkmode', 'Toggle dark mode', 'darkmode'),
-		serverInfo: addCheckboxOption(optionsMenu, i++, 'toggle-serverinfo', 'Display server info', 'serverinfo'),
+		normalizeScroll: addLayerCheckboxOption(
+			optionsMenu,
+			'toggle-normalize-scroll',
+			'Normalize scroll inputs',
+			'Smoother zoom input.',
+			'normalize-scroll'
+		),
+		decreaseBrightness: addLayerCheckboxOption(
+			optionsMenu,
+			'toggle-darkened',
+			'Reduce tile brightness',
+			'Dims bright tiles.',
+			'darkened'
+		),
+		darkMode: addLayerCheckboxOption(
+			optionsMenu,
+			'toggle-darkmode',
+			'Use dark theme',
+			'Darker panel theme.',
+			'darkmode'
+		),
+		serverInfo: addLayerCheckboxOption(
+			optionsMenu,
+			'toggle-serverinfo',
+			'Show server info',
+			'Live stats panel.',
+			'serverinfo'
+		),
 	}
 
 	checkboxes.normalizeScroll.addEventListener('change', e => toggleScrollNormalize(e.target.checked))
@@ -94,29 +297,81 @@ function addOptions(sidebar, curMapMode) {
 	checkboxes.serverInfo.addEventListener('change', e => toggleServerInfo(e.target.checked))
 	
 	if (curMapMode != 'archive') {
-		const showCapitalStars = addCheckboxOption(optionsMenu, i++, 'toggle-capital-stars', 'Show capital stars', 'capital-stars')
+		const showCapitalStars = addLayerCheckboxOption(
+			optionsMenu,
+			'toggle-capital-stars',
+			'Show capital stars',
+			'Keep capital markers visible.',
+			'capital-stars'
+		)
 		showCapitalStars.addEventListener('change', e => toggleShowCapitalStars(e.target.checked))
 	}
+
+	return section
 }
 
 /**
  * Adds a option which displays a checkbox
- * @param {number} index - The number determining the order of this option in the list 
  * @param {string} optionId - The unique string used to query this option
  * @param {string} optionText - The text to display next to the checkbox
+ * @param {string} optionDescription - Supporting copy shown beneath the title
  * @param {string} variable - The variable name in storage used to keep the 'checked' state 
  */
-function addCheckboxOption(menu, index, optionId, optionText, variable) {
-	const option = addElement(menu, createElement('div', { className: 'option' }))
-	addElement(option, createElement('label', {
+function addCheckboxOption(menu, optionId, optionText, optionDescription, variable) {
+	const option = addElement(menu, createElement('label', {
+		className: 'option sidebar-setting',
 		htmlFor: optionId,
+	}))
+	const copy = addElement(option, createElement('span', { className: 'sidebar-toggle-copy' }))
+	addElement(copy, createElement('span', {
+		className: 'sidebar-toggle-title',
 		text: optionText,
+	}))
+	addElement(copy, createElement('span', {
+		className: 'sidebar-toggle-description',
+		text: optionDescription,
 	}))
 	
 	// Initialize checkbox state
 	const checkbox = addElement(option, createElement('input', {
 		id: optionId,
+		className: 'sidebar-switch-input',
 		type: 'checkbox',
+		attrs: {
+			role: 'switch',
+		},
+	}))
+	checkbox.checked = (localStorage['emcdynmapplus-' + variable] == 'true')
+	return checkbox
+}
+
+/**
+ * Adds an option to the Leaflet layer control using its native label structure.
+ * @param {HTMLElement} menu
+ * @param {string} optionId
+ * @param {string} optionText
+ * @param {string} optionDescription
+ * @param {string} variable
+ */
+function addLayerCheckboxOption(menu, optionId, optionText, optionDescription, variable) {
+	const label = addElement(menu, createElement('label', {
+		className: 'emcdynmapplus-layer-option',
+		attrs: {
+			title: optionDescription,
+		},
+	}))
+	const wrapper = addElement(label, createElement('span'))
+	const checkbox = addElement(wrapper, createElement('input', {
+		id: optionId,
+		className: 'leaflet-control-layers-selector emcdynmapplus-layer-checkbox',
+		type: 'checkbox',
+		attrs: {
+			role: 'switch',
+			'aria-label': optionText,
+		},
+	}))
+	addElement(wrapper, createElement('span', {
+		text: ` ${optionText}`,
 	}))
 	checkbox.checked = (localStorage['emcdynmapplus-' + variable] == 'true')
 	return checkbox
@@ -124,25 +379,31 @@ function addCheckboxOption(menu, index, optionId, optionText, variable) {
 
 /** @param {HTMLElement} sidebar */
 function addLocateMenu(sidebar) {
-	const locateMenu = addElement(sidebar, createElement('div', { id: 'locate-menu' }))
-	const locateButton = addElement(locateMenu, createElement('button', {
-		id: 'locate-button',
-		className: 'sidebar-button',
-		text: 'Locate',
-	}))
-	const locateSubmenu = addElement(locateMenu, createElement('div', { className: 'sidebar-option' }))
+	const locateMenu = addSidebarSection(
+		sidebar,
+		'Locate',
+		'Jump to a town, nation, or resident.'
+	)
+	locateMenu.id = 'locate-menu'
+	const locateSubmenu = addElement(locateMenu, createElement('div', { className: 'sidebar-split' }))
 	const locateSelect = addElement(locateSubmenu, createElement('select', {
 		id: 'locate-select',
-		className: 'sidebar-button',
+		className: 'sidebar-input sidebar-select',
 	}, [
 		createElement('option', { text: 'Town' }),
 		createElement('option', { text: 'Nation' }),
 		createElement('option', { text: 'Resident' }),
 	]))
-	const locateInput = addElement(locateSubmenu, createElement('input', {
+	const locateInput = addElement(locateMenu, createElement('input', {
 		id: 'locate-input',
 		className: 'sidebar-input',
+		type: 'search',
 		placeholder: 'London',
+	}))
+	const locateButton = addElement(locateMenu, createElement('button', {
+		id: 'locate-button',
+		className: 'sidebar-button sidebar-button-primary',
+		text: 'Locate On Map',
 	}))
 	locateSelect.addEventListener('change', () => {
 		switch (locateSelect.value) {
@@ -214,7 +475,7 @@ function removeFirefoxTileDarkener() {
 function toggleServerInfo(boxTicked) {
 	localStorage['emcdynmapplus-serverinfo'] = boxTicked
 	const serverInfoPanel = document.querySelector('#server-info')
-	serverInfoPanel?.setAttribute('style', `visibility: ${boxTicked ? 'visible' : 'hidden'}`)
+	if (serverInfoPanel instanceof HTMLElement) serverInfoPanel.hidden = !boxTicked
 
 	if (!boxTicked) {
 		if (serverInfoScheduler != null) clearTimeout(serverInfoScheduler) // stop future runs
@@ -256,11 +517,11 @@ function insertCustomStylesheets() {
 			attrs: { crossorigin: '' },
 		}))
 	}
-	if (!document.head.querySelector('#emcdynmapplus-inter-font')) {
+	if (!document.head.querySelector('#emcdynmapplus-ui-fonts')) {
 		addElement(document.head, createElement('link', {
-			id: 'emcdynmapplus-inter-font',
+			id: 'emcdynmapplus-ui-fonts',
 			rel: 'stylesheet',
-			href: 'https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap',
+			href: 'https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap',
 		}))
 	}
 	// other stylesheet html links ... 
@@ -270,54 +531,14 @@ function loadDarkMode() {
 	// tell browser not to apply its auto dark mode.
 	// this fixes some inverted elements when both are enabled.
 	document.documentElement.style.colorScheme = 'dark'
-	if (!document.head.querySelector('#dark-mode')) {
-		addElement(document.head, createElement('style', {
-			id: 'dark-mode',
-			text: `
-				.leaflet-control, #alert,
-				.sidebar-button, .sidebar-input, .leaflet-bar > a,
-				.leaflet-tooltip-top, .leaflet-popup-content-wrapper,
-				.leaflet-popup-tip, .leaflet-bar > a.leaflet-disabled,
-				#alert-close, #player-lookup > .close-container {
-					background: #131313eb !important;
-					color: #dedede !important;
-					border-color: #4e4e4e !important;
-				}
-				.sidebar-button, .sidebar-input, #alert-close {
-					color-scheme: dark;
-				}
-				.sidebar-input::placeholder {
-					color: #a8a8a8 !important;
-				}
-				.sidebar-button option {
-					background: #161616 !important;
-					color: #dedede !important;
-				}
-				.leaflet-control.leaflet-control-layers,
-				#sidebar, #server-info, #nation-claims,
-				#player-lookup, #player-lookup-loading {
-					background: #131313eb !important;
-					border-color: #4e4e4e !important;
-				}
-				#current-map-mode-label, #options-menu, #options-menu label,
-				#options-menu .option, #player-lookup, #player-lookup-loading,
-				#server-info, #nation-claims, #nation-claims-titlebar,
-				.leaflet-popup-content, .leaflet-popup-content * {
-					color: #dedede !important;
-				}
-				div.leaflet-control-layers.link img {
-					filter: invert(1);
-				}
-			`,
-		}))
-	}
+	document.documentElement.setAttribute('data-emcdynmapplus-theme', 'dark')
+	document.head.querySelector('#dark-mode')?.remove()
 }
 
 function unloadDarkMode() {
-	document.documentElement.style.removeProperty('color-scheme')
-
-	const darkModeEl = document.querySelector('#dark-mode')
-	if (darkModeEl) darkModeEl.remove()
+	document.documentElement.style.colorScheme = 'light'
+	document.documentElement.removeAttribute('data-emcdynmapplus-theme')
+	document.head.querySelector('#dark-mode')?.remove()
 	waitForElement('.leaflet-map-pane').then(el => el.style.filter = '')
 }
 //#endregion
@@ -368,11 +589,21 @@ function locate(selectValue, inputValue) {
 
 /** @param {string} date */
 function searchArchive(date) {
-	if (date == '') return
+	if (!isValidArchiveDateInput(date)) {
+		showAlert(`Choose a valid archive date between ${ARCHIVE_DATE.MIN} and ${ARCHIVE_DATE.MAX}.`, 4)
+		return
+	}
+
 	const URLDate = date.replaceAll('-', '') // 2026-06-01 -> 20260601
 	localStorage['emcdynmapplus-archive-date'] = URLDate // In case 'change' event doesn't already update it
 	localStorage['emcdynmapplus-mapmode'] = 'archive'
 	location.reload()
+}
+
+/** @param {string} date */
+function isValidArchiveDateInput(date) {
+	if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return false
+	return date >= ARCHIVE_DATE.MIN && date <= ARCHIVE_DATE.MAX
 }
 
 /** 

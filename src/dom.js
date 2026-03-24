@@ -3,7 +3,7 @@
 
 const ARCHIVE_DATE = {
 	MIN: "2022-05-01",
-	MAX: new Date().toLocaleDateString()
+	MAX: new Date().toISOString().slice(0, 10)
 }
 
 const MAX_NATION_CLAIM_ENTRIES = 300
@@ -465,11 +465,21 @@ function insertSidebarMenu() {
     })
 }
 
-/** @param {HTMLElement} element - The element to prevent dblckick and mousedown events on. */
+/** @returns {Promise<Element | null>} The Dynmap+ options block inside the Leaflet layers control. */
+function insertLayerOptionsMenu() {
+	return waitForElement('.leaflet-control-layers-list').then(el => {
+		const control = el.closest('.leaflet-control-layers')
+		if (control instanceof HTMLElement) disablePanAndZoom(control)
+		return addOptions(el, currentMapMode())
+	})
+}
+
+/** @param {HTMLElement} element - The element to prevent Leaflet pan/zoom interactions on. */
 function disablePanAndZoom(element) {
 	// Prevents panning the map when on this element by
 	// stopping the mouse event from propogating to Leaflet.
 	element.addEventListener('mousedown', e => e.stopPropagation())
+	element.addEventListener('wheel', e => e.stopPropagation(), { passive: true })
 
 	// blocks the map (Leaflet) from zooming when 
 	// double clicking in the sidebar main menu.
@@ -636,11 +646,12 @@ function addServerInfoPanel(parent) {
  * @param {string} label
  */
 function addServerInfoPlaceholder(parent, id, label) {
-	return addElement(parent, createElement('div', {
+	const entry = addElement(parent, createElement('div', {
 		id,
 		className: 'server-info-entry',
-		text: `${label}: Loading..`,
 	}))
+	renderServerInfoEntry(entry, label, 'Loading...')
+	return entry
 }
 
 /**
@@ -651,11 +662,22 @@ function addServerInfoPlaceholder(parent, id, label) {
 function renderServerInfoEntry(element, name, value) {
 	if (!element) return
 
-	const colour = value == 'Yes' ? 'green' : value == 'No' ? 'red' : 'white'
-	replaceChildrenSafe(element, createElement('p', { style: { margin: '0' } }, [
-		`${name}: `,
-		createElement('b', { text: String(value), style: { color: colour } }),
-	]))
+	const colour = value == 'Yes'
+		? 'var(--success-color)'
+		: value == 'No'
+			? 'var(--danger-color)'
+			: 'var(--text-strong)'
+	replaceChildrenSafe(element, [
+		createElement('span', {
+			className: 'server-info-label',
+			text: name,
+		}),
+		createElement('strong', {
+			className: 'server-info-value',
+			text: String(value),
+			style: { color: colour },
+		}),
+	])
 }
 
 /**
