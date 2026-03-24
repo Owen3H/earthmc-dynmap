@@ -164,10 +164,16 @@ function checkForUpdate(manifest) {
     if (!cachedVer) return localStorage['emcdynmapplus-version'] = latestVer
     if (cachedVer != latestVer) {
         const changelogURL = `${PROJECT_URL}/releases/v${latestVer}`
-        showAlert(`
-            Extension has been automatically updated from ${cachedVer} to ${latestVer}. 
-            Read what has been changed <a href="${changelogURL}" target="_blank">here</a>.
-        `)
+        showAlert([
+            `Extension has been automatically updated from ${cachedVer} to ${latestVer}. Read what has been changed `,
+            createElement('a', {
+                href: changelogURL,
+                target: '_blank',
+                rel: 'noopener noreferrer',
+                text: 'here',
+            }),
+            '.',
+        ])
     }
 
     return localStorage['emcdynmapplus-version'] = latestVer

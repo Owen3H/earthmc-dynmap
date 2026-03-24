@@ -61,10 +61,13 @@ function copyDirIgnore(srcDir, destDir, ignore = []) {
 function getTargetManifest(target) {
 	const manifest = structuredClone(ROOT_MANIFEST)
 	if (target === 'firefox') {
+		const gecko = manifest.browser_specific_settings?.gecko || {}
 		manifest.browser_specific_settings = {
+			...manifest.browser_specific_settings,
 			gecko: {
-				id: 'earthmc-dynmapplus@jasonsolace'
-			}
+				...gecko,
+				id: 'earthmc-dynmapplus@jasonsolace',
+			},
 		}
 	}
 

@@ -8,6 +8,13 @@
 		"48": "resources/icon48.png",
 		"128": "resources/icon128.png"
 	},
+	"browser_specific_settings": {
+		"gecko": {
+			"data_collection_permissions": {
+				"required": ["searchTerms"]
+			}
+		}
+	},
 	"web_accessible_resources": [{
 		"matches": ["https://map.earthmc.net/*", "https://nostra.earthmc.net/*"],
 		"resources": [

@@ -8,13 +8,28 @@ function addMainMenu(parent) {
 	const existingSidebar = parent.querySelector('#sidebar')
 	if (existingSidebar) return existingSidebar
 
-	const sidebar = addElement(parent, INSERTABLE_HTML.sidebar)
+	const sidebar = addElement(parent, createElement('div', {
+		id: 'sidebar',
+		className: 'leaflet-control-layers leaflet-control',
+	}))
 	addLocateMenu(sidebar) // Locator button and input box
 
 	//#region Archive search and date input
-	const archiveContainer = addElement(sidebar, INSERTABLE_HTML.sidebarOption, '.sidebar-option', true)[1]
-	const archiveButton = addElement(archiveContainer, INSERTABLE_HTML.buttons.searchArchive)
-	const archiveInput = addElement(archiveContainer, INSERTABLE_HTML.archiveInput)
+	const archiveContainer = addElement(sidebar, createElement('div', { className: 'sidebar-option' }))
+	const archiveButton = addElement(archiveContainer, createElement('button', {
+		id: 'archive-button',
+		className: 'sidebar-button',
+		text: 'Search Archive',
+	}))
+	const archiveInput = addElement(archiveContainer, createElement('input', {
+		id: 'archive-input',
+		className: 'sidebar-input',
+		type: 'date',
+		attrs: {
+			min: ARCHIVE_DATE.MIN,
+			max: ARCHIVE_DATE.MAX,
+		},
+	}))
 	
 	archiveButton.addEventListener('click', _ => searchArchive(archiveInput.value))
 
@@ -29,15 +44,22 @@ function addMainMenu(parent) {
 	const curMapMode = currentMapMode()
 
 	// Switch map mode button
-	const switchMapModeButton = addElement(sidebar, INSERTABLE_HTML.buttons.switchMapMode)
+	const switchMapModeButton = addElement(sidebar, createElement('button', {
+		id: 'switch-map-mode',
+		className: 'sidebar-button',
+		text: 'Switch Map Mode',
+	}))
 	switchMapModeButton.addEventListener('click', _ => switchMapMode(curMapMode))
 
 	// Options button and checkboxes
 	addOptions(sidebar, curMapMode)
 
 	// Current map mode label
-	const currentMapModeLabel = addElement(sidebar, INSERTABLE_HTML.currentMapModeLabel)
-	currentMapModeLabel.textContent = currentMapModeLabel.textContent.replace('{currentMapMode}', curMapMode)
+	addElement(sidebar, createElement('div', {
+		id: 'current-map-mode-label',
+		className: 'sidebar-option',
+		text: `Map Mode: ${curMapMode}`,
+	}))
 
 	return sidebar
 }
@@ -47,8 +69,12 @@ function addMainMenu(parent) {
  * @param {MapMode} curMapMode 
 */
 function addOptions(sidebar, curMapMode) {
-	const optionsButton = addElement(sidebar, INSERTABLE_HTML.buttons.options)
-	const optionsMenu = addElement(sidebar, INSERTABLE_HTML.options.menu)
+	const optionsButton = addElement(sidebar, createElement('button', {
+		id: 'options-button',
+		className: 'sidebar-button',
+		text: 'Options',
+	}))
+	const optionsMenu = addElement(sidebar, createElement('div', { id: 'options-menu' }))
 	optionsMenu.style.display = 'none'
 	optionsButton.addEventListener('click', _ => {
 		optionsMenu.style.display = (optionsMenu.style.display == 'none') ? 'grid' : 'none'
@@ -81,26 +107,43 @@ function addOptions(sidebar, curMapMode) {
  * @param {string} variable - The variable name in storage used to keep the 'checked' state 
  */
 function addCheckboxOption(menu, index, optionId, optionText, variable) {
-	/** @type {HTMLElement} */
-	const option = addElement(menu, INSERTABLE_HTML.options.option, '.option', true)[index]
-	option.insertAdjacentHTML('beforeend', INSERTABLE_HTML.options.label
-		.replace('{option}', optionId)
-		.replace('{optionText}', optionText))
+	const option = addElement(menu, createElement('div', { className: 'option' }))
+	addElement(option, createElement('label', {
+		htmlFor: optionId,
+		text: optionText,
+	}))
 	
 	// Initialize checkbox state
-	/** @type {HTMLInputElement} */
-	const checkbox = addElement(option, INSERTABLE_HTML.options.checkbox.replace('{option}', optionId), '#' + optionId)
+	const checkbox = addElement(option, createElement('input', {
+		id: optionId,
+		type: 'checkbox',
+	}))
 	checkbox.checked = (localStorage['emcdynmapplus-' + variable] == 'true')
 	return checkbox
 }
 
 /** @param {HTMLElement} sidebar */
 function addLocateMenu(sidebar) {
-	const locateMenu = addElement(sidebar, '<div id="locate-menu"></div>', '#locate-menu')
-	const locateButton = addElement(locateMenu, INSERTABLE_HTML.buttons.locate, '#locate-button')
-	const locateSubmenu = addElement(locateMenu, INSERTABLE_HTML.sidebarOption, '.sidebar-option')
-	const locateSelect = addElement(locateSubmenu, INSERTABLE_HTML.locateSelect, '#locate-select')
-	const locateInput = addElement(locateSubmenu, INSERTABLE_HTML.locateInput, '#locate-input')
+	const locateMenu = addElement(sidebar, createElement('div', { id: 'locate-menu' }))
+	const locateButton = addElement(locateMenu, createElement('button', {
+		id: 'locate-button',
+		className: 'sidebar-button',
+		text: 'Locate',
+	}))
+	const locateSubmenu = addElement(locateMenu, createElement('div', { className: 'sidebar-option' }))
+	const locateSelect = addElement(locateSubmenu, createElement('select', {
+		id: 'locate-select',
+		className: 'sidebar-button',
+	}, [
+		createElement('option', { text: 'Town' }),
+		createElement('option', { text: 'Nation' }),
+		createElement('option', { text: 'Resident' }),
+	]))
+	const locateInput = addElement(locateSubmenu, createElement('input', {
+		id: 'locate-input',
+		className: 'sidebar-input',
+		placeholder: 'London',
+	}))
 	locateSelect.addEventListener('change', () => {
 		switch (locateSelect.value) {
 			case 'Town': locateInput.placeholder = 'London'; break
@@ -198,7 +241,28 @@ function toggleDarkMode(boxTicked) {
 }
 
 function insertCustomStylesheets() {
-	document.head.insertAdjacentHTML('beforeend', INSERTABLE_HTML.interFont)
+	if (!document.head.querySelector('#emcdynmapplus-preconnect-fonts')) {
+		addElement(document.head, createElement('link', {
+			id: 'emcdynmapplus-preconnect-fonts',
+			rel: 'preconnect',
+			href: 'https://fonts.googleapis.com',
+		}))
+	}
+	if (!document.head.querySelector('#emcdynmapplus-preconnect-fonts-static')) {
+		addElement(document.head, createElement('link', {
+			id: 'emcdynmapplus-preconnect-fonts-static',
+			rel: 'preconnect',
+			href: 'https://fonts.gstatic.com',
+			attrs: { crossorigin: '' },
+		}))
+	}
+	if (!document.head.querySelector('#emcdynmapplus-inter-font')) {
+		addElement(document.head, createElement('link', {
+			id: 'emcdynmapplus-inter-font',
+			rel: 'stylesheet',
+			href: 'https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap',
+		}))
+	}
 	// other stylesheet html links ... 
 }
 
@@ -206,7 +270,23 @@ function loadDarkMode() {
 	// tell browser not to apply its auto dark mode.
 	// this fixes some inverted elements when both are enabled.
 	document.documentElement.style.colorScheme = 'dark'
-	document.head.insertAdjacentHTML('beforeend', INSERTABLE_HTML.darkMode)
+	if (!document.head.querySelector('#dark-mode')) {
+		addElement(document.head, createElement('style', {
+			id: 'dark-mode',
+			text: `
+				.leaflet-control, .sidebar-input, #alert,
+				.sidebar-button, .leaflet-bar > a, .leaflet-tooltip-top,
+				.leaflet-popup-content-wrapper, .leaflet-popup-tip,
+				.leaflet-bar > a.leaflet-disabled {
+					background: #131313d4 !important;
+					color: #dedede;
+				}
+				div.leaflet-control-layers.link img {
+					filter: invert(1);
+				}
+			`,
+		}))
+	}
 }
 
 function unloadDarkMode() {

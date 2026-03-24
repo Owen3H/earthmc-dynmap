@@ -651,7 +651,11 @@ async function lookupPlayer(playerName, showOnlineStatus = true) {
 	const leafletTL = document.querySelector('.leaflet-top.leaflet-left')
 	if (!leafletTL) return showAlert('Error selecting element required to show player info popup.')
 
-	const loading = addElement(leafletTL, INSERTABLE_HTML.playerLookupLoading, '#player-lookup-loading')
+	const loading = addElement(leafletTL, createElement('div', {
+		id: 'player-lookup-loading',
+		className: 'leaflet-control-layers leaflet-control',
+		text: 'Loading...',
+	}))
 	const players = await postJSON(`${OAPI_BASE}/${CURRENT_MAP}/players`, { query: [playerName] })
 
 	loading.remove()
@@ -662,18 +666,10 @@ async function lookupPlayer(playerName, showOnlineStatus = true) {
 	const player = players[0]
 	const hasTown = player.town && player.town.uuid
 
-	// Insert and populate with placeholders
-	const lookup = addElement(leafletTL, INSERTABLE_HTML.playerLookup)
-	lookup.insertAdjacentHTML('beforeend', '<span class="close-container">X</span>')
-	lookup.insertAdjacentHTML('beforeend', '{show-online-status}<br>')
-	lookup.insertAdjacentHTML('beforeend', '<img id="player-lookup-avatar"/>')
-	lookup.insertAdjacentHTML('beforeend', '<center><b id="player-lookup-name">{player}</b>{about}</center>')
-	lookup.insertAdjacentHTML('beforeend', '<hr>{town}{nation}')
-	lookup.insertAdjacentHTML('beforeend', 'Rank: <b>{rank}</b><br>')
-	lookup.insertAdjacentHTML('beforeend', 'Balance: <b>{balance} gold</b><br>')
-	lookup.insertAdjacentHTML('beforeend', '{registered}')
-	if (hasTown) lookup.insertAdjacentHTML('beforeend', '{town-join}')
-	lookup.insertAdjacentHTML('beforeend', '{last-online}')
+	const lookup = addElement(leafletTL, createElement('div', {
+		id: 'player-lookup',
+		className: 'leaflet-control-layers leaflet-control',
+	}))
 
 	// Gather data
 	const isOnline = player.status.isOnline
@@ -685,8 +681,7 @@ async function lookupPlayer(playerName, showOnlineStatus = true) {
 	const townJoinDate = new Date(player.timestamps.joinedTownAt || 0).toLocaleDateString()
 	const loDate = new Date(player.timestamps.lastOnline).toLocaleDateString()
 
-	let onlineStatus = '<span id="player-lookup-online" style="color: {online-color}">{online}</span>'
-	const about = (!player.about || player.about == '/res set about [msg]') ? '' : `<br><i>${player.about}</i>`
+	const about = (!player.about || player.about == '/res set about [msg]') ? '' : player.about
 	let rank = 'Townless'
 	if (player.status.hasTown) rank = 'Resident'
 	if (player.ranks.townRanks.includes('Councillor')) rank = 'Councillor'
@@ -696,7 +691,68 @@ async function lookupPlayer(playerName, showOnlineStatus = true) {
 
 	// Place data
 	const playerAvatarURL = `https://mc-heads.net/avatar/${player.uuid.replaceAll('-', '')}`
-	document.querySelector('#player-lookup-avatar').setAttribute('src', playerAvatarURL)
+	const appendBreak = () => addElement(lookup, createElement('br'))
+	const appendLabeledValue = (label, value, suffix = '') => {
+		appendChildren(lookup, [
+			`${label}: `,
+			createElement('b', { text: `${value}${suffix}` }),
+		])
+		appendBreak()
+	}
+	const appendDateInfo = (label, dateText, relativeText) => {
+		appendChildren(lookup, [
+			label,
+			createElement('br'),
+			createElement('b', { text: dateText }),
+			` (${relativeText})`,
+		])
+	}
+
+	const closeButton = addElement(lookup, createElement('span', {
+		className: 'close-container',
+		text: 'X',
+	}))
+	if (showOnlineStatus) {
+		addElement(lookup, createElement('span', {
+			id: 'player-lookup-online',
+			text: isOnline ? '\u26AB\uFE0E Online' : '\u25CB Offline',
+			style: { color: isOnline ? 'green' : 'red' },
+		}))
+		appendBreak()
+	}
+
+	addElement(lookup, createElement('img', {
+		id: 'player-lookup-avatar',
+		src: playerAvatarURL,
+	}))
+	const nameBlock = addElement(lookup, createElement('center'))
+	addElement(nameBlock, createElement('b', {
+		id: 'player-lookup-name',
+		text: player.name || playerName,
+	}))
+	if (about) {
+		addElement(nameBlock, createElement('br'))
+		addElement(nameBlock, createElement('i', { text: about }))
+	}
+
+	addElement(lookup, createElement('hr'))
+	if (town) appendLabeledValue('Town', town)
+	if (nation) appendLabeledValue('Nation', nation)
+	appendLabeledValue('Rank', rank)
+	appendLabeledValue('Balance', balance, ' gold')
+	appendDateInfo('Registered:', registeredDate, timeAgo(player.timestamps.registered))
+	if (hasTown) {
+		appendBreak()
+		appendDateInfo('Joined town:', townJoinDate, timeAgo(player.timestamps.joinedTownAt))
+	}
+	if (!isOnline) {
+		appendBreak()
+		appendDateInfo('Last online:', loDate, timeAgo(player.timestamps.lastOnline))
+	}
+
+	closeButton.addEventListener('click', event => { event.target.parentElement.remove() })
+	return
+	/* legacy placeholder rendering removed
 	lookup.innerHTML = lookup.innerHTML
 		.replace('{player}', player.name || playerName)
 		.replace('{about}', about)
@@ -718,6 +774,7 @@ async function lookupPlayer(playerName, showOnlineStatus = true) {
 	lookup.innerHTML = lookup.innerHTML.replace('{last-online}', onlineStr)
 
 	lookup.querySelector('.close-container').addEventListener('click', event => { event.target.parentElement.remove() })
+	*/
 }
 
 const DAY_MS = 86400000

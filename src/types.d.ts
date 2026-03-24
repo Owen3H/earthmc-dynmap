@@ -12,6 +12,10 @@ declare global {
             gecko?: {
                 id?: string
                 strict_min_version?: string
+                data_collection_permissions?: {
+                    required?: Array<'none' | 'technicalAndInteractionData' | 'browsingActivity' | 'searchTerms'>
+                    optional?: Array<'technicalAndInteractionData' | 'browsingActivity' | 'searchTerms'>
+                }
             }
         }
         web_accessible_resources: Array<{

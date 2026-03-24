@@ -81,70 +81,137 @@ const INSERTABLE_HTML = /** @type {const} */ ({
 let alertTimeout = null
 
 /**
- * Shows an alert message in a box at the center of the screen.
- * @param {string} message - The important text to show inside the alert box.
- * @param {number} timeout - The time (in sec) until the alert box is auto closed. null = manual dismiss
+ * Appends nodes or strings to a parent element.
+ * @param {Node} parent
+ * @param {Node | string | number | boolean | null | undefined | Array<Node | string | number | boolean | null | undefined>} children
  */
-function showAlert(message, timeout = null) {
-	let alert = document.querySelector('#alert')
-	if (!alert) {
-		alert = addElement(document.body, INSERTABLE_HTML.alertBox.replace('{message}', message))
-		alert.querySelector('#alert-close').addEventListener('click', () => {
-			clearTimeout(alertTimeout)
-			alert.remove()
-		})
-	} else alert.querySelector('#alert-message').textContent = message
+function appendChildren(parent, children) {
+	if (Array.isArray(children)) {
+		children.forEach(child => appendChildren(parent, child))
+		return parent
+	}
 
-	clearTimeout(alertTimeout)
-	if (timeout) alertTimeout = setTimeout(() => alert.remove(), timeout*1000)
+	if (children == null || children === false) return parent
+	parent.append(children instanceof Node ? children : document.createTextNode(String(children)))
+	return parent
+}
+
+/**
+ * Creates a DOM element using safe node APIs.
+ * @template {keyof HTMLElementTagNameMap} T
+ * @param {T} tagName
+ * @param {Object} [options]
+ * @param {string} [options.id]
+ * @param {string} [options.className]
+ * @param {string} [options.text]
+ * @param {string} [options.type]
+ * @param {string} [options.placeholder]
+ * @param {string} [options.value]
+ * @param {string} [options.htmlFor]
+ * @param {string} [options.href]
+ * @param {string} [options.rel]
+ * @param {string} [options.target]
+ * @param {string} [options.src]
+ * @param {boolean} [options.checked]
+ * @param {Record<string, string>} [options.attrs]
+ * @param {Partial<CSSStyleDeclaration>} [options.style]
+ * @param {Array<Node | string | number | boolean | null | undefined> | Node | string | number | boolean | null | undefined} [children]
+ * @returns {HTMLElementTagNameMap[T]}
+ */
+function createElement(tagName, options = {}, children = []) {
+	const element = document.createElement(tagName)
+	const {
+		id,
+		className,
+		text,
+		type,
+		placeholder,
+		value,
+		htmlFor,
+		href,
+		rel,
+		target,
+		src,
+		checked,
+		attrs = {},
+		style = {},
+	} = options
+
+	if (id) element.id = id
+	if (className) element.className = className
+	if (text != null) element.textContent = text
+	if (type != null && 'type' in element) element.type = type
+	if (placeholder != null && 'placeholder' in element) element.placeholder = placeholder
+	if (value != null && 'value' in element) element.value = value
+	if (htmlFor != null && 'htmlFor' in element) element.htmlFor = htmlFor
+	if (href != null && 'href' in element) element.href = href
+	if (rel != null && 'rel' in element) element.rel = rel
+	if (target != null && 'target' in element) element.target = target
+	if (src != null && 'src' in element) element.src = src
+	if (checked != null && 'checked' in element) element.checked = checked
+
+	Object.entries(attrs).forEach(([key, val]) => {
+		if (val != null) element.setAttribute(key, val)
+	})
+	Object.assign(element.style, style)
+	appendChildren(element, children)
+
+	return element
+}
+
+/**
+ * Appends an element to a parent and returns it.
+ * @template {Node} T
+ * @param {Node} parent
+ * @param {T} element
+ * @returns {T}
+ */
+function addElement(parent, element) {
+	parent.appendChild(element)
+	return element
+}
+
+/**
+ * Replaces all children on an element using safe node APIs.
+ * @param {Element} element
+ * @param {Node | string | number | boolean | null | undefined | Array<Node | string | number | boolean | null | undefined>} children
+ */
+function replaceChildrenSafe(element, children) {
+	element.replaceChildren()
+	appendChildren(element, children)
+	return element
+}
+
+function createAlertElement() {
+	const alertMessage = createElement('p', { id: 'alert-message' })
+	const alert = addElement(document.body, createElement('div', { id: 'alert' }, [
+		alertMessage,
+		createElement('button', { id: 'alert-close', text: 'Dismiss' }),
+	]))
+
+	alert.querySelector('#alert-close').addEventListener('click', () => {
+		clearTimeout(alertTimeout)
+		alert.remove()
+	})
 
 	return alert
 }
 
 /**
- * Adds element to parent and uses selector to query select an element on parent.
- * @param {HTMLElement} parent
- * @param {string} elementHTML
- * @param {string} selector - optional query selector *inside* parent. null = self
- * @param {boolean} all - return all matching nodes
+ * Shows an alert message in a box at the center of the screen.
+ * @param {Node | string | number | boolean | null | undefined | Array<Node | string | number | boolean | null | undefined>} message
+ * @param {number} timeout - The time (in sec) until the alert box is auto closed. null = manual dismiss
  */
-function addElement(parent, elementHTML, selector=null, all=false) {
-	parent.insertAdjacentHTML('beforeend', elementHTML)
-	if (!selector) return parent.lastElementChild
-	return all ? parent.querySelectorAll(selector) : parent.querySelector(selector) 
-}
+function showAlert(message, timeout = null) {
+	let alert = document.querySelector('#alert')
+	if (!alert) alert = createAlertElement()
 
-/**
- * Append HTML to a parent and return elements. This is slightly slower than addElement 
- * but is more flexible and reduces confusing code in certain circumstances.
- * @param {Element} parent
- * @param {string} html
- * @param {Object} [options]
- * @param {string} [options.selector] - optional query selector *inside* inserted nodes. null = self
- * @param {boolean} [options.all=false] - return all matching nodes
- * @param {boolean} [options.wrap=false] - wrap HTML in a container div before appending
- */
-function appendHTML(parent, html, options = { selector: null, all: false, wrap: false }) {
-	const { selector, all, wrap } = options
-	
-	const templ = document.createElement('template')
-	templ.innerHTML = html.trim()
+	replaceChildrenSafe(alert.querySelector('#alert-message'), message)
 
-	let nodes = Array.from(templ.content.children)
-	if (!wrap) parent.append(...nodes)
-	else {
-		const container = document.createElement('div')
-		container.append(...nodes)
-		parent.appendChild(container)
-		nodes = [container]
-	}
-	
-	if (!selector) return all ? nodes : nodes[0] || null
-	const found = wrap
-		? nodes[0].querySelectorAll(selector)
-		: nodes.flatMap(n => Array.from(n.querySelectorAll(selector)))
+	clearTimeout(alertTimeout)
+	if (timeout) alertTimeout = setTimeout(() => alert.remove(), timeout*1000)
 
-	return all ? found : found[0] || null
+	return alert
 }
 
 /**
@@ -405,13 +472,22 @@ function addNationClaimsPanel(parent) {
 	const existingPanel = parent.querySelector('#nation-claims')
 	if (existingPanel) return existingPanel
 
-	/** @type {HTMLElement} */
-	const panel = addElement(parent, INSERTABLE_HTML.nationClaims)
+	const panel = addElement(parent, createElement('div', {
+		id: 'nation-claims',
+		className: 'leaflet-control-layers leaflet-control',
+	}))
 	panel.addEventListener('wheel', e => e.stopPropagation()) // stop squaremap overtaking scroll, we need to scroll the inputs
 
-	/** @type {HTMLElement} */
-	const titlebar = addElement(panel, INSERTABLE_HTML.nationClaimsTitlebar, '#nation-claims-titlebar')
-	const toggleShowBtn = titlebar.querySelector('a')
+	const toggleShowBtn = createElement('a', { href: '' }, createElement('img', {
+		className: 'crisp-edges',
+		src: 'images/clear.png',
+	}))
+	const titlebar = addElement(panel, createElement('div', { id: 'nation-claims-titlebar' }, [
+		createElement('p', { text: 'Nation Claims Customizer' }),
+		createElement('div', {
+			className: 'leaflet-control-layers link leaflet-control',
+		}, toggleShowBtn),
+	]))
 	const btnImg = toggleShowBtn.querySelector('img')
 	toggleShowBtn.addEventListener('click', e => {
 		e.preventDefault()
@@ -422,49 +498,63 @@ function addNationClaimsPanel(parent) {
 	})
 
 	// Container for everything except the titlebar. This container is hidden by clicking the eye icon.
-	/** @type {HTMLElement} */
-	const contentContainer = addElement(panel, '<div id="nation-claims-content"></div>')
+	const contentContainer = addElement(panel, createElement('div', { id: 'nation-claims-content' }))
 	contentContainer.style.display = 'none'
 
-	/** @type {HTMLElement} */
-	const entriesContainer = addElement(contentContainer, '<div id="nation-claims-entry-container"></div>')
+	const entriesContainer = addElement(contentContainer, createElement('div', { id: 'nation-claims-entry-container' }))
 	
-	let html = ''
 	for (let i = 1; i <= MAX_NATION_CLAIM_ENTRIES; i++) {
-		const colInput = INSERTABLE_HTML.nationClaimsColorInput.replace('{index}', i) 
-		const txtInput = INSERTABLE_HTML.nationClaimsTextInput.replace('{index}', i)
-		html += `<div class="nation-claims-entry" id="nation-claims-entry${i}">${colInput}${txtInput}</div>`
+		const entry = addElement(entriesContainer, createElement('div', {
+			id: `nation-claims-entry${i}`,
+			className: 'nation-claims-entry',
+		}))
+		addElement(entry, createElement('input', {
+			id: `nation-color-entry${i}`,
+			type: 'color',
+		}))
+		addElement(entry, createElement('input', {
+			id: `nation-text-entry${i}`,
+			type: 'text',
+			placeholder: 'Enter nation name...',
+		}))
 	}
-	addElement(entriesContainer, html)
 
-	const optDiv1 = addElement(contentContainer, '<div class="nation-claims-checkbox-option"></div>')
-	const optDiv2 = addElement(contentContainer, '<div class="nation-claims-checkbox-option"></div>')
+	const optDiv1 = addElement(contentContainer, createElement('div', { className: 'nation-claims-checkbox-option' }))
+	const optDiv2 = addElement(contentContainer, createElement('div', { className: 'nation-claims-checkbox-option' }))
 
-	/** @type {HTMLElement} */
-	const showExcludedCheckbox = appendHTML(optDiv1, 
-		INSERTABLE_HTML.options.checkbox.replace('{option}', 'show-excluded') + 
-		INSERTABLE_HTML.options.label.replace('{option}', 'show-excluded').replace('{optionText}', 'Show irrelevant towns')
-	)
+	const showExcludedCheckbox = addElement(optDiv1, createElement('input', {
+		id: 'show-excluded',
+		type: 'checkbox',
+	}))
+	addElement(optDiv1, createElement('label', {
+		htmlFor: 'show-excluded',
+		text: 'Show irrelevant towns',
+	}))
 	showExcludedCheckbox.checked = localStorage['emcdynmapplus-nation-claims-show-excluded'] == 'true' ? true : false
 	showExcludedCheckbox.addEventListener('change', e =>
 		localStorage['emcdynmapplus-nation-claims-show-excluded'] = e.target.checked
 	)
 
-	/** @type {HTMLElement} */
-	const useOpaqueCheckbox = appendHTML(optDiv2,
-		INSERTABLE_HTML.options.checkbox.replace('{option}', 'use-opaque-colors') + 
-		INSERTABLE_HTML.options.label.replace('{option}', 'use-opaque-colors').replace('{optionText}', 'Use opaque colors')
-	)
+	const useOpaqueCheckbox = addElement(optDiv2, createElement('input', {
+		id: 'use-opaque-colors',
+		type: 'checkbox',
+	}))
+	addElement(optDiv2, createElement('label', {
+		htmlFor: 'use-opaque-colors',
+		text: 'Use opaque colors',
+	}))
 	useOpaqueCheckbox.checked = localStorage['emcdynmapplus-nation-claims-opaque-colors'] == 'true' ? true : false
 	useOpaqueCheckbox.addEventListener('change', e =>
 		localStorage['emcdynmapplus-nation-claims-opaque-colors'] = e.target.checked
 	)
 
-	/** @type {HTMLElement} */
-	const div = appendHTML(contentContainer, '<div id="nation-claims-btn-container"></div>')
+	const div = addElement(contentContainer, createElement('div', { id: 'nation-claims-btn-container' }))
 
-	/** @type {HTMLElement} */
-	const applyBtn = appendHTML(div, '<button class="sidebar-button" id="nation-claims-apply">Apply</button>')
+	const applyBtn = addElement(div, createElement('button', {
+		id: 'nation-claims-apply',
+		className: 'sidebar-button',
+		text: 'Apply',
+	}))
 	applyBtn.addEventListener('click', () => {
 		const colorInputs = entriesContainer.querySelectorAll('[id^="nation-color-entry"]')
 		const textInputs  = entriesContainer.querySelectorAll('[id^="nation-text-entry"]')
@@ -477,8 +567,11 @@ function addNationClaimsPanel(parent) {
 		location.reload()
 	})
 
-	/** @type {HTMLElement} */
-	const resetAllBtn = appendHTML(div, '<button class="sidebar-button" id="nation-claims-reset-all">Reset All</button>')
+	const resetAllBtn = addElement(div, createElement('button', {
+		id: 'nation-claims-reset-all',
+		className: 'sidebar-button',
+		text: 'Reset All',
+	}))
 	resetAllBtn.addEventListener('click', () => {
 		const entries = Array.from({ length: MAX_NATION_CLAIM_ENTRIES }, () => ({ color: null, input: null }))
 		localStorage['emcdynmapplus-nation-claims-info'] = JSON.stringify(entries)
@@ -494,20 +587,51 @@ function addServerInfoPanel(parent) {
 	const existingPanel = parent.querySelector('#server-info')
 	if (existingPanel) return existingPanel
 
-	const panel = addElement(parent, INSERTABLE_HTML.serverInfo)
-	addElement(panel, '<div id="server-info-title">Server Info</div>')
-	addElement(panel, '<div class="server-info-entry" id="vote-party">Votes until VP: Loading..</div>')
-	addElement(panel, '<br>')
-	addElement(panel, '<div class="server-info-entry" id="online-players-count">Online Players: Loading..</div>')
-	addElement(panel, '<div class="server-info-entry" id="online-nomads-count">Online Townless: Loading..</div>')
-	addElement(panel, '<br>')
-	addElement(panel, '<div class="server-info-entry" id="server-time">Server Time: Loading..</div>')
-	addElement(panel, '<div class="server-info-entry" id="new-day-in">New Day In: Loading..</div>')
-	addElement(panel, '<br>')
-	addElement(panel, '<div class="server-info-entry" id="storm">⚡ Storm: Loading..</div>')
-	addElement(panel, '<div class="server-info-entry" id="thunder">⛈️ Thunder: Loading..</div>')
+	const panel = addElement(parent, createElement('div', {
+		id: 'server-info',
+		className: 'leaflet-control-layers leaflet-control',
+	}))
+	addElement(panel, createElement('div', { id: 'server-info-title', text: 'Server Info' }))
+	addServerInfoPlaceholder(panel, 'vote-party', 'Votes until VP')
+	addElement(panel, createElement('br'))
+	addServerInfoPlaceholder(panel, 'online-players-count', 'Online Players')
+	addServerInfoPlaceholder(panel, 'online-nomads-count', 'Online Townless')
+	addElement(panel, createElement('br'))
+	addServerInfoPlaceholder(panel, 'server-time', 'Server Time')
+	addServerInfoPlaceholder(panel, 'new-day-in', 'New Day In')
+	addElement(panel, createElement('br'))
+	addServerInfoPlaceholder(panel, 'storm', '\u26A1 Storm')
+	addServerInfoPlaceholder(panel, 'thunder', '\u26C8\uFE0F Thunder')
 
 	return panel
+}
+
+/**
+ * @param {HTMLElement} parent
+ * @param {string} id
+ * @param {string} label
+ */
+function addServerInfoPlaceholder(parent, id, label) {
+	return addElement(parent, createElement('div', {
+		id,
+		className: 'server-info-entry',
+		text: `${label}: Loading..`,
+	}))
+}
+
+/**
+ * @param {HTMLElement | null} element
+ * @param {string} name
+ * @param {string | number} value
+ */
+function renderServerInfoEntry(element, name, value) {
+	if (!element) return
+
+	const colour = value == 'Yes' ? 'green' : value == 'No' ? 'red' : 'white'
+	replaceChildrenSafe(element, createElement('p', { style: { margin: '0' } }, [
+		`${name}: `,
+		createElement('b', { text: String(value), style: { color: colour } }),
+	]))
 }
 
 /**
@@ -542,13 +666,15 @@ function renderServerInfo(element, info) {
 	const newDayHr = Math.floor(delta / 3600)
 	const newDayMin = Math.floor((delta % 3600) / 60)
 
-	element.querySelector("#vote-party").innerHTML = serverInfoEntry(`Votes until VP`, vpRemaining > 0 ? vpRemaining : 0)
-	element.querySelector("#online-players-count").innerHTML = serverInfoEntry(`Online Players`, numOnlinePlayers || 0)
-	element.querySelector("#online-nomads-count").innerHTML = serverInfoEntry(`Online Townless`, numOnlineNomads || 0)
-	element.querySelector("#server-time").innerHTML = serverInfoEntry(`Server Time`, timeStr)
-	element.querySelector("#new-day-in").innerHTML = serverInfoEntry(`New Day In`, `${newDayHr}hrs ${newDayMin}m`)
-	element.querySelector("#storm").innerHTML = serverInfoEntry(`⚡ Storm`, info.status.hasStorm ? 'Yes' : 'No')
-	element.querySelector("#thunder").innerHTML = serverInfoEntry(`⛈️ Thunder`, info.status.isThundering ? 'Yes' : 'No')
+	renderServerInfoEntry(element.querySelector('#vote-party'), 'Votes until VP', vpRemaining > 0 ? vpRemaining : 0)
+	renderServerInfoEntry(element.querySelector('#online-players-count'), 'Online Players', numOnlinePlayers || 0)
+	renderServerInfoEntry(element.querySelector('#online-nomads-count'), 'Online Townless', numOnlineNomads || 0)
+	renderServerInfoEntry(element.querySelector('#server-time'), 'Server Time', timeStr)
+	renderServerInfoEntry(element.querySelector('#new-day-in'), 'New Day In', `${newDayHr}hrs ${newDayMin}m`)
+	renderServerInfoEntry(element.querySelector('#storm'), '\u26A1 Storm', info.status.hasStorm ? 'Yes' : 'No')
+	renderServerInfoEntry(element.querySelector('#thunder'), '\u26C8\uFE0F Thunder', info.status.isThundering ? 'Yes' : 'No')
+	return
+
 }
 
 /** @param {number} deltaY */
