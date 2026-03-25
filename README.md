@@ -329,13 +329,18 @@ The userscript build output is written to:
 
 That build uses this fork's repository metadata rather than the upstream fork metadata.
 
-## Credit
+## Attribution
 
-This repository builds on the upstream EarthMC Dynmap+ project and the work of its original maintainers and contributors.
+This repository is based on the EarthMC Dynmap extension and its forks:
 
-This fork focuses on:
+- Original project by 3meraldK:  
+  https://github.com/3meraldK/earthmc-dynmap
 
-- Firefox compatibility
-- cross-browser packaging
-- testability
-- ongoing maintenance
+- Fork by Owen3H:  
+  https://github.com/Owen3H/earthmc-dynmap
+
+This fork (earthmc-dynmap-cross-browser) extends the project with:
+
+- Cross-browser support (Chromium + Firefox)
+- Bug fixes and performance improvements
+- Automated testing and improved reliability
