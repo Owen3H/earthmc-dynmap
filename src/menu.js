@@ -5,6 +5,11 @@
 
 const MAP_MODE_METADATA = [
 	{
+		value: 'planning',
+		label: 'Planning',
+		description: 'Draw simple custom nation circles directly on the live map.',
+	},
+	{
 		value: 'meganations',
 		label: 'Mega Nations',
 		description: 'Show mega-alliance colors directly on town claims.',
@@ -39,6 +44,59 @@ const MAP_MODE_METADATA = [
 const getMapModeMeta = mode => MAP_MODE_METADATA.find(option => option.value === mode) || MAP_MODE_METADATA[0]
 const formatMapModeLabel = mode => `Map Mode: ${mode}`
 const SIDEBAR_EXPANDED_KEY = 'emcdynmapplus-sidebar-expanded'
+const PLANNER_STORAGE_KEY = 'emcdynmapplus-planner-nations'
+const PLANNING_PLACEMENT_ARMED_KEY = 'emcdynmapplus-planning-placement-armed'
+const PLANNING_UI_PREFIX = 'emcdynmapplus[planning-ui]'
+const DEFAULT_PLANNING_NATION_RANGE = 750
+const DEFAULT_PLANNING_NATION = {
+	id: 'hardcoded-demo-nation',
+	name: 'Planning Nation',
+	color: '#d98936',
+	outlineColor: '#fff3cf',
+	rangeRadiusBlocks: DEFAULT_PLANNING_NATION_RANGE,
+}
+let planningPlacementClickInitialized = false
+
+function isPlanningDebugLoggingEnabled() {
+	try {
+		return localStorage['emcdynmapplus-debug'] === 'true'
+	} catch {
+		return false
+	}
+}
+
+const planningDebugInfo = (...args) => {
+	if (isPlanningDebugLoggingEnabled()) console.info(...args)
+}
+
+function updateSidebarContentPosition(sidebarSummary, sidebarContent) {
+	if (!(sidebarSummary instanceof HTMLElement) || !(sidebarContent instanceof HTMLElement)) return
+
+	const summaryRect = sidebarSummary.getBoundingClientRect()
+	const viewportPadding = 12
+	const verticalGap = 8
+	const fallbackWidth = 292
+	const measuredWidth = sidebarContent.offsetWidth || fallbackWidth
+	const maxLeft = Math.max(viewportPadding, window.innerWidth - measuredWidth - viewportPadding)
+	const left = Math.min(Math.max(viewportPadding, Math.round(summaryRect.left)), maxLeft)
+	const top = Math.max(viewportPadding, Math.round(summaryRect.bottom + verticalGap))
+	const maxHeight = Math.max(220, window.innerHeight - top - viewportPadding)
+
+	sidebarContent.style.left = `${left}px`
+	sidebarContent.style.top = `${top}px`
+	sidebarContent.style.maxHeight = `${maxHeight}px`
+
+	planningDebugInfo('emcdynmapplus[sidebar-ui]: updated floating sidebar position', {
+		left,
+		top,
+		maxHeight,
+		summaryRect: {
+			left: Math.round(summaryRect.left),
+			top: Math.round(summaryRect.top),
+			bottom: Math.round(summaryRect.bottom),
+		},
+	})
+}
 
 /** @param {HTMLElement} parent - The "leaflet-top leaflet-left" element. */
 function addMainMenu(parent) {
@@ -57,13 +115,31 @@ function addMainMenu(parent) {
 	}))
 	sidebar.addEventListener('toggle', () => {
 		localStorage[SIDEBAR_EXPANDED_KEY] = String(sidebar.open)
+		if (sidebar.open) requestAnimationFrame(() => updateSidebarContentPosition(sidebarSummary, sidebarContent))
 	})
-	addSidebarSummary(sidebar, curMapMode)
+	const sidebarSummary = addSidebarSummary(sidebar, curMapMode)
+	const toggleSidebar = event => {
+		event.preventDefault()
+		event.stopPropagation()
+		sidebar.open = !sidebar.open
+		localStorage[SIDEBAR_EXPANDED_KEY] = String(sidebar.open)
+		if (sidebar.open) requestAnimationFrame(() => updateSidebarContentPosition(sidebarSummary, sidebarContent))
+	}
+	sidebarSummary.addEventListener('click', toggleSidebar)
+	sidebarSummary.addEventListener('keydown', event => {
+		if (event.key !== 'Enter' && event.key !== ' ') return
+		toggleSidebar(event)
+	})
 
 	const sidebarContent = addElement(sidebar, createElement('div', { id: 'sidebar-content' }))
 	addSidebarHeader(sidebarContent, curMapMode)
 	addLocateMenu(sidebarContent) // Locator button and input box
 	addMapModeSection(sidebarContent, curMapMode)
+	if (curMapMode == 'planning') addPlanningSection(sidebarContent)
+
+	window.addEventListener('resize', () => updateSidebarContentPosition(sidebarSummary, sidebarContent))
+	window.addEventListener('scroll', () => updateSidebarContentPosition(sidebarSummary, sidebarContent), true)
+	requestAnimationFrame(() => updateSidebarContentPosition(sidebarSummary, sidebarContent))
 
 	return sidebar
 }
@@ -235,8 +311,262 @@ function addMapModeSection(sidebar, curMapMode) {
 function applyMapModeSelection(nextMode, archiveDateInput) {
 	if (nextMode === 'archive') return searchArchive(archiveDateInput)
 
+	if (nextMode !== 'planning') setPlanningPlacementArmed(false)
 	localStorage['emcdynmapplus-mapmode'] = nextMode
 	location.reload()
+}
+
+function loadPlanningNations() {
+	try {
+		const stored = localStorage[PLANNER_STORAGE_KEY]
+		if (!stored) return []
+
+		const parsed = JSON.parse(stored)
+		return Array.isArray(parsed) ? parsed : []
+	} catch {
+		return []
+	}
+}
+
+function savePlanningNations(nations) {
+	localStorage[PLANNER_STORAGE_KEY] = JSON.stringify(nations)
+}
+
+function isPlanningPlacementArmed() {
+	return localStorage[PLANNING_PLACEMENT_ARMED_KEY] === 'true'
+}
+
+function setPlanningPlacementArmed(armed) {
+	localStorage[PLANNING_PLACEMENT_ARMED_KEY] = String(armed)
+	planningDebugInfo(`${PLANNING_UI_PREFIX}: placement armed state updated`, { armed })
+}
+
+function getHardcodedPlanningNation() {
+	return loadPlanningNations().find(nation => nation?.id === DEFAULT_PLANNING_NATION.id) ?? null
+}
+
+function hasHardcodedPlanningNation() {
+	return getHardcodedPlanningNation() != null
+}
+
+function buildPlanningNation(center) {
+	return {
+		...DEFAULT_PLANNING_NATION,
+		center: {
+			x: Math.round(center.x),
+			z: Math.round(center.z),
+		},
+	}
+}
+
+function removeHardcodedPlanningNation() {
+	setPlanningPlacementArmed(false)
+	savePlanningNations(loadPlanningNations().filter(nation => nation?.id !== DEFAULT_PLANNING_NATION.id))
+	location.reload()
+}
+
+function parsePlanningCoords(text) {
+	if (typeof text !== 'string' || text.trim().length === 0) return null
+
+	const normalized = text.replaceAll(',', ' ')
+	const xMatch = normalized.match(/(?:^|\b)x\b[^-\d]*(-?\d+(?:\.\d+)?)/i)
+	const zMatch = normalized.match(/(?:^|\b)z\b[^-\d]*(-?\d+(?:\.\d+)?)/i)
+	if (xMatch?.[1] && zMatch?.[1]) {
+		return {
+			x: Math.round(Number(xMatch[1])),
+			z: Math.round(Number(zMatch[1])),
+		}
+	}
+
+	const numericMatches = [...normalized.matchAll(/-?\d+(?:\.\d+)?/g)]
+		.map(match => Number(match[0]))
+		.filter(value => Number.isFinite(value))
+	if (numericMatches.length < 2) return null
+
+	return {
+		x: Math.round(numericMatches[0]),
+		z: Math.round(numericMatches[numericMatches.length - 1]),
+	}
+}
+
+function getPlanningCoordsText() {
+	return document.querySelector('.leaflet-control-layers.coordinates')?.textContent?.trim() ?? ''
+}
+
+function placeHardcodedPlanningNation(center) {
+	const nation = buildPlanningNation(center)
+	const nations = loadPlanningNations().filter(existingNation => existingNation?.id !== DEFAULT_PLANNING_NATION.id)
+	savePlanningNations([...nations, nation])
+	setPlanningPlacementArmed(false)
+	planningDebugInfo(`${PLANNING_UI_PREFIX}: stored planning nation from map click`, {
+		center: nation.center,
+		rangeRadiusBlocks: nation.rangeRadiusBlocks,
+	})
+	location.reload()
+}
+
+function handlePlanningPlacementClick(event) {
+	if (!isPlanningPlacementArmed()) return
+	if (currentMapMode() !== 'planning') return
+
+	const target = event.target
+	if (!(target instanceof HTMLElement)) return
+	if (!target.closest('.leaflet-container')) return
+	if (target.closest('.leaflet-control-container')) return
+
+	const rawCoordinatesText = getPlanningCoordsText()
+	const coords = parsePlanningCoords(rawCoordinatesText)
+	planningDebugInfo(`${PLANNING_UI_PREFIX}: captured map click while armed`, {
+		rawCoordinatesText,
+		targetTag: target.tagName,
+		targetClassName: target.className || null,
+		coords,
+	})
+
+	if (!coords) {
+		showAlert('Could not read map coordinates for planning placement. Move the cursor over the map and try again.', 5)
+		return
+	}
+
+	placeHardcodedPlanningNation(coords)
+}
+
+function ensurePlanningPlacementClickHandler() {
+	if (planningPlacementClickInitialized) return
+
+	document.addEventListener('click', handlePlanningPlacementClick, true)
+	planningPlacementClickInitialized = true
+	planningDebugInfo(`${PLANNING_UI_PREFIX}: attached planning placement click listener`)
+}
+
+function armPlanningPlacement() {
+	setPlanningPlacementArmed(true)
+	ensurePlanningPlacementClickHandler()
+	showAlert('Planning placement armed. Click on the live map to place the nation.', 5)
+	planningDebugInfo(`${PLANNING_UI_PREFIX}: placement armed`, {
+		existingNationCenter: getHardcodedPlanningNation()?.center ?? null,
+	})
+}
+
+function addPlanningSection(sidebar) {
+	const section = addSidebarSection(
+		sidebar,
+		'Planning',
+		'Arm placement, click the live map once, and render a simple nation circle at that world position.'
+	)
+	section.id = 'planning-section'
+	ensurePlanningPlacementClickHandler()
+
+	const placedNation = getHardcodedPlanningNation()
+	const placedCenter = placedNation?.center ?? null
+
+	const chipRow = addElement(section, createElement('div', { className: 'planning-chip-row' }, [
+		createElement('div', {
+			className: 'planning-chip',
+			attrs: { 'data-emphasis': String(placedNation != null) },
+		}, [
+			createElement('span', {
+				className: 'planning-chip-label',
+				text: 'Nation',
+			}),
+			createElement('strong', {
+				id: 'planning-nation-status',
+				className: 'planning-chip-value',
+				text: placedNation ? 'Placed' : 'Not Placed',
+			}),
+		]),
+		createElement('div', { className: 'planning-chip' }, [
+			createElement('span', {
+				className: 'planning-chip-label',
+				text: 'Placement',
+			}),
+			createElement('strong', {
+				id: 'planning-placement-status',
+				className: 'planning-chip-value',
+				text: isPlanningPlacementArmed() ? 'Armed' : 'Idle',
+			}),
+		]),
+		createElement('div', { className: 'planning-chip' }, [
+			createElement('span', {
+				className: 'planning-chip-label',
+				text: 'Range',
+			}),
+			createElement('strong', {
+				className: 'planning-chip-value',
+				text: `${DEFAULT_PLANNING_NATION_RANGE} b`,
+			}),
+		]),
+		createElement('div', { className: 'planning-chip' }, [
+			createElement('span', {
+				className: 'planning-chip-label',
+				text: 'Center',
+			}),
+			createElement('strong', {
+				id: 'planning-center-label',
+				className: 'planning-chip-value',
+				text: placedCenter ? `X ${placedCenter.x} Z ${placedCenter.z}` : 'Not set',
+			}),
+		]),
+	]))
+	void chipRow
+
+	addElement(section, createElement('p', {
+		className: 'sidebar-help planning-inline-note',
+		text: 'The button arms placement. Your next click on the map reads the live coordinate widget and stores the nation center there.',
+	}))
+
+	const actionRow = addElement(section, createElement('div', { className: 'planning-actions-grid' }))
+	const createNationButton = addElement(actionRow, createElement('button', {
+		className: 'sidebar-button sidebar-button-primary',
+		id: 'planning-place-button',
+		text: isPlanningPlacementArmed() ? 'Click Map To Place' : (placedNation ? 'Reposition Nation' : 'Place Nation On Map'),
+		type: 'button',
+	}))
+
+	const removeNationButton = addElement(actionRow, createElement('button', {
+		className: 'sidebar-button sidebar-button-secondary sidebar-button-danger',
+		id: 'planning-remove-button',
+		text: isPlanningPlacementArmed() && !placedNation ? 'Cancel Placement' : 'Remove Nation',
+		type: 'button',
+	}))
+	removeNationButton.disabled = !placedNation && !isPlanningPlacementArmed()
+	removeNationButton.addEventListener('click', () => {
+		if (isPlanningPlacementArmed() && !hasHardcodedPlanningNation()) {
+			setPlanningPlacementArmed(false)
+			syncPlanningSectionState()
+			return
+		}
+
+		removeHardcodedPlanningNation()
+	})
+
+	addElement(section, createElement('p', {
+		className: 'sidebar-help',
+		text: 'Logs: open the console with emcdynmapplus-debug=true and look for emcdynmapplus[planning-ui] and emcdynmapplus[planning-layer].',
+	}))
+
+	const syncPlanningSectionState = () => {
+		const activeNation = getHardcodedPlanningNation()
+		const isArmed = isPlanningPlacementArmed()
+		const center = activeNation?.center ?? null
+		section.querySelector('#planning-nation-status').textContent = activeNation ? 'Placed' : 'Not Placed'
+		section.querySelector('#planning-placement-status').textContent = isArmed ? 'Armed' : 'Idle'
+		section.querySelector('#planning-center-label').textContent = center ? `X ${center.x} Z ${center.z}` : 'Not set'
+		createNationButton.textContent = isArmed ? 'Click Map To Place' : (activeNation ? 'Reposition Nation' : 'Place Nation On Map')
+		removeNationButton.textContent = isArmed && !activeNation ? 'Cancel Placement' : 'Remove Nation'
+		removeNationButton.disabled = !activeNation && !isArmed
+
+		const nationChip = section.querySelector('.planning-chip')
+		nationChip?.setAttribute('data-emphasis', String(activeNation != null))
+	}
+
+	createNationButton.addEventListener('click', () => {
+		armPlanningPlacement()
+		syncPlanningSectionState()
+	})
+	syncPlanningSectionState()
+
+	return section
 }
 
 /** 

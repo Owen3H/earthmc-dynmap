@@ -118,6 +118,7 @@ select {
 
 #sidebar {
 	position: relative;
+	z-index: 1001;
 	width: auto;
 	padding: 0;
 	float: left !important;
@@ -195,11 +196,12 @@ select {
 }
 
 #sidebar-content {
-	position: absolute;
-	top: calc(100% + 8px);
-	left: 0;
+	position: fixed;
+	top: 72px;
+	left: 12px;
+	z-index: 1002;
 	width: var(--panel-width);
-	height: min(430px, calc(100vh - 88px));
+	max-height: min(430px, calc(100vh - 88px));
 	padding: 14px;
 	display: grid;
 	gap: 10px;
@@ -396,10 +398,54 @@ select {
 	background: var(--surface-elevated);
 }
 
+.sidebar-button-danger {
+	background: linear-gradient(135deg, #a93d2f, #7f2418);
+	color: #fff;
+	border-color: transparent;
+}
+
 .sidebar-action-row {
 	display: grid;
 	grid-template-columns: minmax(0, 1fr) auto;
 	gap: 8px;
+}
+
+.planning-chip-row,
+.planning-actions-grid {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 8px;
+}
+
+.planning-chip {
+	display: grid;
+	gap: 4px;
+	padding: 10px;
+	background: var(--panel-muted-bg);
+	border: 1px solid transparent;
+	border-radius: var(--radius-sm);
+}
+
+.planning-chip[data-emphasis="true"] {
+	border-color: rgba(209, 137, 45, 0.35);
+	background: linear-gradient(135deg, var(--accent-soft), var(--panel-muted-bg));
+}
+
+.planning-chip-label {
+	font-size: 11px;
+	font-weight: 800;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: var(--text-muted);
+}
+
+.planning-chip-value {
+	font-size: 13px;
+	font-weight: 700;
+}
+
+.planning-inline-note {
+	margin: 0;
 }
 
 .sidebar-split {

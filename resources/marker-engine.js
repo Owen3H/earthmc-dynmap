@@ -1,3 +1,15 @@
+(() => {
+const MARKER_ENGINE_GUARD = "__EMCDYNMAPPLUS_MARKER_ENGINE_INITIALIZED__";
+if (window[MARKER_ENGINE_GUARD]) {
+	try {
+		if (localStorage["emcdynmapplus-debug"] === "true") {
+			console.info("emcdynmapplus[page-markers]: marker engine already initialized, skipping duplicate injection");
+		}
+	} catch {}
+	return;
+}
+window[MARKER_ENGINE_GUARD] = true;
+
 const MARKER_ENGINE_PREFIX = "emcdynmapplus[page-markers]";
 const MARKER_ENGINE_EVENT_PARSED = "EMCDYNMAPPLUS_SYNC_PARSED_MARKERS";
 const MARKER_ENGINE_EVENT_ALERT = "EMCDYNMAPPLUS_SHOW_ALERT";
@@ -44,6 +56,11 @@ const DEFAULT_ALLIANCE_COLOURS = { fill: "#000000", outline: "#000000" };
 const DEFAULT_BLUE = "#3fb4ff";
 const DEFAULT_GREEN = "#89c500";
 const CHUNKS_PER_RES = 12;
+const PLANNER_STORAGE_KEY = "emcdynmapplus-planner-nations";
+const PLANNING_LAYER_ID = "planning-nations";
+const PLANNING_LAYER_PREFIX = "emcdynmapplus[planning-layer]";
+const DEFAULT_PLANNING_RANGE = 750;
+const PLANNING_CENTER_RADIUS = 40;
 
 let parsedMarkers = [];
 let cachedAlliances = null;
@@ -296,6 +313,117 @@ const makePolyline = (linePoints, weight = 1, colour = "#ffffff") => ({
 	weight,
 	color: colour,
 });
+
+function loadPlanningNations() {
+	try {
+		const stored = localStorage[PLANNER_STORAGE_KEY];
+		if (!stored) return [];
+
+		const parsed = JSON.parse(stored);
+		const planningNations = Array.isArray(parsed) ? parsed : [];
+		pageMarkersDebugInfo(`${PLANNING_LAYER_PREFIX}: loaded planning nations from storage`, {
+			nationCount: planningNations.length,
+		});
+		return planningNations;
+	} catch {
+		pageMarkersDebugInfo(`${PLANNING_LAYER_PREFIX}: failed to parse planning storage, using empty list`);
+		return [];
+	}
+}
+
+function createPlanningCircleVertices(point, radiusBlocks, segments = 96) {
+	const polygon = [];
+	for (let i = 0; i < segments; i++) {
+		const angle = (Math.PI * 2 * i) / segments;
+		polygon.push({
+			x: point.x + Math.cos(angle) * radiusBlocks,
+			z: point.z + Math.sin(angle) * radiusBlocks,
+		});
+	}
+
+	return polygon;
+}
+
+function createPlanningNationMarkers(nation) {
+	return [{
+		type: "polygon",
+		points: [[createPlanningCircleVertices(nation.center, nation.rangeRadiusBlocks)]],
+		weight: 3,
+		color: nation.outlineColor,
+		opacity: 1,
+		fillColor: nation.color,
+		fillOpacity: 0.2,
+		tooltip: `<div><b>${nation.name}</b></div>`,
+		popup: [
+			`<div><span style="font-size:120%;"><b>${nation.name}</b></span><br>`,
+			`Planning overlay<br>`,
+			`X: ${nation.center.x}<br>`,
+			`Z: ${nation.center.z}<br>`,
+			`Range: ${nation.rangeRadiusBlocks} blocks</div>`,
+		].join(""),
+	}, {
+		type: "polygon",
+		points: [[createPlanningCircleVertices(nation.center, PLANNING_CENTER_RADIUS)]],
+		weight: 2,
+		color: "#1f1200",
+		opacity: 1,
+		fillColor: "#fff3cf",
+		fillOpacity: 0.95,
+		tooltip: `<div><b>${nation.name} Center</b></div>`,
+		popup: [
+			`<div><span style="font-size:120%;"><b>${nation.name} Center</b></span><br>`,
+			`X: ${nation.center.x}<br>`,
+			`Z: ${nation.center.z}<br>`,
+			`Center radius: ${PLANNING_CENTER_RADIUS} blocks</div>`,
+		].join(""),
+	}];
+}
+
+function addPlanningLayer(data) {
+	const planningNations = loadPlanningNations()
+		.map((nation, index) => {
+			const x = Number(nation?.center?.x);
+			const z = Number(nation?.center?.z);
+			const rangeRadiusBlocks = Number(nation?.rangeRadiusBlocks);
+			if (!Number.isFinite(x) || !Number.isFinite(z)) return null;
+
+			return {
+				name: typeof nation?.name === "string" && nation.name.trim() ? nation.name : `Nation ${index + 1}`,
+				color: typeof nation?.color === "string" && nation.color ? nation.color : "#d98936",
+				outlineColor: typeof nation?.outlineColor === "string" && nation.outlineColor ? nation.outlineColor : "#fff3cf",
+				center: {
+					x: Math.round(x),
+					z: Math.round(z),
+				},
+				rangeRadiusBlocks: Number.isFinite(rangeRadiusBlocks) ? Math.max(0, Math.round(rangeRadiusBlocks)) : DEFAULT_PLANNING_RANGE,
+			};
+		})
+		.filter((nation) => nation != null);
+	if (planningNations.length === 0) {
+		pageMarkersDebugInfo(`${PLANNING_LAYER_PREFIX}: no planning nations found for overlay injection`);
+		return data;
+	}
+
+	const nextData = data.slice();
+	nextData.push({
+		name: "Planning Nations",
+		id: PLANNING_LAYER_ID,
+		order: 1001,
+		hide: false,
+		control: true,
+		markers: planningNations.flatMap(createPlanningNationMarkers),
+	});
+
+	pageMarkersDebugInfo(`${PLANNING_LAYER_PREFIX}: appended planning layer`, {
+		nationCount: planningNations.length,
+		nations: planningNations.map((nation) => ({
+			name: nation.name,
+			center: nation.center,
+			rangeRadiusBlocks: nation.rangeRadiusBlocks,
+		})),
+	});
+	return nextData;
+}
 
 async function getStyledBorders() {
 	if (cachedStyledBorders != null) return cachedStyledBorders;
@@ -783,6 +911,9 @@ async function modifyMarkersInPage(data) {
 	} else {
 		result = addCountryBordersLayer(result, borders) || result;
 	}
+	if (mapMode === "planning") {
+		result = addPlanningLayer(result);
+	}
 
 	const date = archiveDate();
 	const isSquaremap = mapMode !== "archive" || date >= 20240701;
@@ -806,7 +937,7 @@ async function modifyMarkersInPage(data) {
 			marker.fillOpacity = 0.33;
 			marker.weight = 1.5;
 
-			if (mapMode === "default" || mapMode === "archive") continue;
+			if (mapMode === "default" || mapMode === "planning" || mapMode === "archive") continue;
 			if (mapMode === "nationclaims") {
 				colorTownNationClaims(marker, parsedInfo.nationName, claimsCustomizerInfo, useOpaque, showExcluded);
 				continue;
@@ -836,3 +967,4 @@ async function modifyMarkersInPage(data) {
 window.EMCDYNMAPPLUS_PAGE_MARKERS = {
 	modifyMarkers: modifyMarkersInPage,
 };
+})();

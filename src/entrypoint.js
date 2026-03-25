@@ -5,6 +5,7 @@ function isUserscript() {
 
 const CONTENT_LOG_PREFIX = 'emcdynmapplus[content]'
 const INIT_GUARD_ATTR = 'data-emcdynmapplus-initialized'
+const PAGE_CONTEXT_GUARD_ATTR = 'data-emcdynmapplus-page-context-injected'
 
 function isContentDebugLoggingEnabled() {
 	try {
@@ -35,6 +36,7 @@ function parseEventDetail(detail) {
 ;
 (async function entrypoint() {
 	const manifest = getExtensionManifest()
+	const root = document.documentElement
 	contentDebugInfo(`${CONTENT_LOG_PREFIX}: entrypoint started`, {
 		isUserscript: isUserscript(),
 		version: manifest?.version,
@@ -83,11 +85,16 @@ function parseEventDetail(detail) {
 	if (!isUserscript()) {
 		// Any scripts that need to be injected into the page context should be specified in manifest.json 
 		// under web_accessible_resources in order of least-dependent first.
-		const resources = getWebAccessibleResourceList(manifest)
-		const jsFiles = resources.filter(s => s.endsWith('.js'))
-		contentDebugInfo(`${CONTENT_LOG_PREFIX}: injecting page-context resources`, { resources: jsFiles })
-		for (const file of jsFiles) {
-			await injectScript(file)
+		if (root?.getAttribute(PAGE_CONTEXT_GUARD_ATTR) === 'true') {
+			contentDebugInfo(`${CONTENT_LOG_PREFIX}: skipping page-context injection because resources are already injected`)
+		} else {
+			root?.setAttribute(PAGE_CONTEXT_GUARD_ATTR, 'true')
+			const resources = getWebAccessibleResourceList(manifest)
+			const jsFiles = resources.filter(s => s.endsWith('.js'))
+			contentDebugInfo(`${CONTENT_LOG_PREFIX}: injecting page-context resources`, { resources: jsFiles })
+			for (const file of jsFiles) {
+				await injectScript(file)
+			}
 		}
 	}
 

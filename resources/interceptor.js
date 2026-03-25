@@ -1,3 +1,15 @@
+(() => {
+const INTERCEPTOR_GUARD = "__EMCDYNMAPPLUS_INTERCEPTOR_INITIALIZED__";
+if (window[INTERCEPTOR_GUARD]) {
+	try {
+		if (localStorage["emcdynmapplus-debug"] === "true") {
+			console.info("emcdynmapplus[page]: interceptor already initialized, skipping duplicate injection");
+		}
+	} catch {}
+	return;
+}
+window[INTERCEPTOR_GUARD] = true;
+
 const { fetch: originalFetch } = window;
 const LOG_PREFIX = "emcdynmapplus[page]";
 const MARKER_EVENT_TIMEOUT_MS = 5000;
@@ -233,3 +245,4 @@ document.addEventListener("EMCDYNMAPPLUS_ADJUST_SCROLL", (e) => {
 		window.L.Map.mergeOptions({ wheelPxPerZoomLevel: adjustedZoom });
 	}
 });
+})();

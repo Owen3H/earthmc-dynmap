@@ -31,7 +31,7 @@ const cachedArchives = new Map()
 const pendingArchiveLoads = new Map()
 
 /** @typedef {typeof MAP_MODES[number]} MapMode */
-const MAP_MODES = /** @type {const} */ (["default", "overclaim", "nationclaims", "meganations", "alliances"])
+const MAP_MODES = /** @type {const} */ (["default", "planning", "overclaim", "nationclaims", "meganations", "alliances"])
 const BORDER_CHUNK_COORDS = { 
 	L: -33280, R: 33088,
 	U: -16640, D: 16512
