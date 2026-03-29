@@ -1,6 +1,8 @@
-const queryTileElements = () => document.querySelectorAll(".leaflet-tile-pane .leaflet-layer img.leaflet-tile")
-const nextFrame = () => new Promise(r => requestAnimationFrame(r))
+//const nextFrame = () => new Promise(r => requestAnimationFrame(r))
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms))
+const queryTileElements = () => document.querySelectorAll(".leaflet-tile-pane .leaflet-layer img.leaflet-tile")
+
+const OUTPUT_RES_SCALE = 1.5 // increase canvas resolution
 
 /** @param {"low" | "medium" | "high" | null | undefined} antialiasing */
 const screenshotViewport = async (antialiasing = null) => {
@@ -18,34 +20,32 @@ const screenshotViewport = async (antialiasing = null) => {
         const style = getComputedStyle(img.parentElement)
         const scale = parseFloat(style.transform.match(/scale\(([^)]+)\)/)?.[1] || '1')
         if (scale < 1) continue
-
+        
         if (!img.complete) {
             try { await img.decode() } catch {}
         }
-
+        
         tiles.push(img)
     }
 
-    const resScale = 1.5 // increase canvas resolution
-    const canvas = new OffscreenCanvas(window.innerWidth * resScale, window.innerHeight * resScale)
+    const canvas = new OffscreenCanvas(window.innerWidth * OUTPUT_RES_SCALE, window.innerHeight * OUTPUT_RES_SCALE)
     const ctx = canvas.getContext('2d', { alpha: false })
 
     ctx.imageSmoothingEnabled = !!antialiasing
     ctx.imageSmoothingQuality = antialiasing || 'low'
-    ctx.scale(resScale, resScale) // scale the coords to draw correctly with increased res
+    ctx.scale(OUTPUT_RES_SCALE, OUTPUT_RES_SCALE) // scale the coords to draw correctly with increased res
 
     showAlert('Waiting for markers to load...')
-    await delay(300)
-    for (let i = 0; i < 5; i++) {
-        await nextFrame()
-    }
+    const overlayCanvasEl = document.querySelector('.leaflet-overlay-pane canvas.leaflet-zoom-animated')
+    await waitForTransform(overlayCanvasEl)
+    await delay(100)
 
     showAlert('Drawing layers...')
-    await delay(150)
+    await delay(100)
 
     await drawBackground(ctx)
     drawTiles(ctx, tiles)
-    drawMarkers(ctx)
+    drawMarkers(ctx, overlayCanvasEl)
 
     return canvas
 }
@@ -95,9 +95,9 @@ function drawTiles(ctx, tiles, withFilter = true) {
 /** 
  * Draws the overlay pane (including town markers) onto the specified canvas given its context.
  * @param {CanvasRenderingContext2D} ctx The canvas context on which to draw the markers on top.
+ * @param {HTMLCanvasElement} overlay The canvas element of the overlay pane to draw onto. Errors if not provided.
  */
-function drawMarkers(ctx) {
-	const overlay = document.querySelector('.leaflet-overlay-pane canvas.leaflet-zoom-animated')
+function drawMarkers(ctx, overlay = null) {
 	if (!overlay) throw new Error('Cannot draw markers onto output image due to missing overlay pane element!')
 
 	const rect = overlay.getBoundingClientRect()

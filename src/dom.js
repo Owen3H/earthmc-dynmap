@@ -266,21 +266,44 @@ const withInteractionBlocked = async (fn) => {
 	}
 }
 
-/** Waits until the Leaflet map stops being panned or updated. Resolves once DOM is stable for 50ms. */
+/** Waits until the Leaflet map stops being panned. */
 const waitForStableViewport = () => new Promise(resolve => {
 	const pane = document.querySelector('.leaflet-map-pane')
 	if (!pane) return resolve()
-	
-	let timer
+	if (!pane.classList.contains('leaflet-pan-anim')) return resolve() // already stable
+
 	const observer = new MutationObserver(() => {
+		if (!pane.classList.contains('leaflet-pan-anim')) {
+			observer.disconnect()
+			resolve()
+		}
+	})
+
+	observer.observe(pane, { attributes: true, attributeFilter: ['class'] })
+})
+
+/** @param {HTMLElement} el */
+const waitForTransform = (el) => new Promise(resolve => {
+	let timer
+	let last = getComputedStyle(el).transform
+	const observer = new MutationObserver(() => {
+		const current = getComputedStyle(el).transform
+		if (current === last) return
+		
 		clearTimeout(timer)
 		timer = setTimeout(() => {
 			observer.disconnect()
 			resolve()
 		}, 50)
+
+		last = current
 	})
 
-	observer.observe(pane, { attributes: true, childList: true, subtree: true, characterData: true })
+	observer.observe(el, { attributes: true, attributeFilter: ['style'] })
+	timer = setTimeout(() => {
+		observer.disconnect() // if nothing changes at all, don't hang forever
+		resolve()
+	}, 100)
 })
 
 async function editUILayout() {

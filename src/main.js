@@ -39,6 +39,7 @@ const EXTRA_BORDER_OPTS = {
 // Black
 const DEFAULT_ALLIANCE_COLOURS = { fill: '#000000', outline: '#000000' }
 const CHUNKS_PER_RES = 12
+const DAY_MS = 86_400_000 // 24hr in millisec
 
 /** @type {() => MapMode | "archive"} */
 const currentMapMode = () => localStorage['emcdynmapplus-mapmode'] ?? 'meganations'
@@ -606,8 +607,6 @@ async function lookupPlayer(playerName, showOnlineStatus = true) {
 
 	lookup.querySelector('.close-container').addEventListener('click', event => { event.target.parentElement.remove() })
 }
-
-const DAY_MS = 86400000
 
 /**
  * Formats a timestamp into a string. Ex: "Today", "2 days ago", "3 months ago" or "1 year ago" 
