@@ -374,15 +374,33 @@ var withInteractionBlocked = async (fn) => {
 var waitForStableViewport = () => new Promise((resolve) => {
   const pane = document.querySelector(".leaflet-map-pane");
   if (!pane) return resolve();
-  let timer;
+  if (!pane.classList.contains("leaflet-pan-anim")) return resolve();
   const observer = new MutationObserver(() => {
+    if (!pane.classList.contains("leaflet-pan-anim")) {
+      observer.disconnect();
+      resolve();
+    }
+  });
+  observer.observe(pane, { attributes: true, attributeFilter: ["class"] });
+});
+var waitForTransform = (el) => new Promise((resolve) => {
+  let timer;
+  let last = getComputedStyle(el).transform;
+  const observer = new MutationObserver(() => {
+    const current = getComputedStyle(el).transform;
+    if (current === last) return;
     clearTimeout(timer);
     timer = setTimeout(() => {
       observer.disconnect();
       resolve();
     }, 50);
+    last = current;
   });
-  observer.observe(pane, { attributes: true, childList: true, subtree: true, characterData: true });
+  observer.observe(el, { attributes: true, attributeFilter: ["style"] });
+  timer = setTimeout(() => {
+    observer.disconnect();
+    resolve();
+  }, 100);
 });
 async function editUILayout() {
   const coordinates = await waitForElement(".leaflet-control-layers.coordinates");
@@ -569,12 +587,13 @@ async function updateServerInfo(element) {
 }
 
 // src/screenshot.js
-var queryTileElements = () => document.querySelectorAll(".leaflet-tile-pane .leaflet-layer img.leaflet-tile");
-var nextFrame = () => new Promise((r) => requestAnimationFrame(r));
 var delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+var queryTileElements = () => document.querySelectorAll(".leaflet-tile-pane .leaflet-layer img.leaflet-tile");
+var OUTPUT_RES_SCALE = 1.5;
 var screenshotViewport = async (antialiasing = null) => {
   showAlert("Waiting for viewport to stabilize...");
   await waitForStableViewport();
+  showAlert("Waiting for tiles and markers to load...");
   const tileElements = queryTileElements();
   if (!tileElements.length) throw new Error("No tiles found");
   const tiles = [];
@@ -591,22 +610,19 @@ var screenshotViewport = async (antialiasing = null) => {
     }
     tiles.push(img);
   }
-  const resScale = 1.5;
-  const canvas = new OffscreenCanvas(unsafeWindow.innerWidth * resScale, unsafeWindow.innerHeight * resScale);
+  const canvas = new OffscreenCanvas(unsafeWindow.innerWidth * OUTPUT_RES_SCALE, unsafeWindow.innerHeight * OUTPUT_RES_SCALE);
   const ctx = canvas.getContext("2d", { alpha: false });
   ctx.imageSmoothingEnabled = !!antialiasing;
   ctx.imageSmoothingQuality = antialiasing || "low";
-  ctx.scale(resScale, resScale);
-  showAlert("Waiting for markers to load...");
-  await delay(300);
-  for (let i = 0; i < 5; i++) {
-    await nextFrame();
-  }
+  ctx.scale(OUTPUT_RES_SCALE, OUTPUT_RES_SCALE);
+  const overlayCanvasEl = document.querySelector(".leaflet-overlay-pane canvas.leaflet-zoom-animated");
+  await waitForTransform(overlayCanvasEl);
+  await delay(140);
   showAlert("Drawing layers...");
-  await delay(150);
+  await delay(160);
   await drawBackground(ctx);
   drawTiles(ctx, tiles);
-  drawMarkers(ctx);
+  drawMarkers(ctx, overlayCanvasEl);
   return canvas;
 };
 async function drawBackground(ctx) {
@@ -632,8 +648,7 @@ function drawTiles(ctx, tiles, withFilter = true) {
   }
   ctx.filter = "none";
 }
-function drawMarkers(ctx) {
-  const overlay = document.querySelector(".leaflet-overlay-pane canvas.leaflet-zoom-animated");
+function drawMarkers(ctx, overlay = null) {
   if (!overlay) throw new Error("Cannot draw markers onto output image due to missing overlay pane element!");
   const rect = overlay.getBoundingClientRect();
   const x = Math.max(rect.left, 0);
@@ -898,6 +913,7 @@ var EXTRA_BORDER_OPTS = {
 };
 var DEFAULT_ALLIANCE_COLOURS = { fill: "#000000", outline: "#000000" };
 var CHUNKS_PER_RES = 12;
+var DAY_MS = 864e5;
 var currentMapMode = () => localStorage["emcdynmapplus-mapmode"] ?? "meganations";
 var archiveDate = () => parseInt(localStorage["emcdynmapplus-archive-date"]);
 var nationClaimsInfo = () => JSON.parse(localStorage["emcdynmapplus-nation-claims-info"] || "[]");
@@ -1240,7 +1256,6 @@ async function lookupPlayer(playerName, showOnlineStatus = true) {
     event.target.parentElement.remove();
   });
 }
-var DAY_MS = 864e5;
 function timeAgo(ts) {
   const diff = Date.now() - ts;
   const units = [["year", 365 * DAY_MS], ["month", 30 * DAY_MS], ["day", DAY_MS]];

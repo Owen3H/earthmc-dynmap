@@ -9,6 +9,8 @@ const screenshotViewport = async (antialiasing = null) => {
     showAlert("Waiting for viewport to stabilize...")
     await waitForStableViewport() // wait until map is no longer being panned
 
+    showAlert('Waiting for tiles and markers to load...')
+
     const tileElements = queryTileElements()
     if (!tileElements.length) throw new Error('No tiles found')
 
@@ -35,13 +37,12 @@ const screenshotViewport = async (antialiasing = null) => {
     ctx.imageSmoothingQuality = antialiasing || 'low'
     ctx.scale(OUTPUT_RES_SCALE, OUTPUT_RES_SCALE) // scale the coords to draw correctly with increased res
 
-    showAlert('Waiting for markers to load...')
     const overlayCanvasEl = document.querySelector('.leaflet-overlay-pane canvas.leaflet-zoom-animated')
     await waitForTransform(overlayCanvasEl)
-    await delay(100)
 
+    await delay(140) // delay the previous alert a bit so it doesnt instantly disappear
     showAlert('Drawing layers...')
-    await delay(100)
+    await delay(160)
 
     await drawBackground(ctx)
     drawTiles(ctx, tiles)
