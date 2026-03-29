@@ -30,6 +30,8 @@ When creating the extension, the main idea was to group countries together into 
 * Searching now works in archive mode
 * Screenshot button
 * Changed link button behaviour (updates URL)
+* Improved safety by splitting content & page contexts and communicating via events
+* Restructured backend for clarity & maintainability (including build system)
 
 ## Installation (2 methods)
 > [!TIP]
