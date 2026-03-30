@@ -679,7 +679,8 @@ select {
 	color: var(--text-strong);
 }
 
-.emcdynmapplus-layer-option > span {
+.emcdynmapplus-layer-option > span,
+.emcdynmapplus-layer-options label[data-emcdynmapplus-layer-owner="dynmapplus"] > span {
 	display: inline-flex;
 	align-items: center;
 	gap: 6px;

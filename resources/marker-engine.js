@@ -56,6 +56,8 @@ const getCurrentChunkBounds = () =>
 		L: -33280, R: 33088,
 		U: -16640, D: 16512,
 	};
+const shouldInjectDynmapPlusChunksLayer = () =>
+	EARTHMC_MAP?.shouldInjectDynmapPlusChunksLayer?.(getCurrentMapType()) ?? true;
 const getCurrentOapiUrl = (resourcePath = "") =>
 	EARTHMC_MAP?.getMapApiUrl?.(OAPI_BASE, resourcePath)
 		?? `${OAPI_BASE}/aurora${resourcePath ? `/${String(resourcePath).replace(/^\/+/, "")}` : ""}`;
@@ -395,6 +397,7 @@ function resolveDynmapPlusLayerMeta(name, layer) {
 function applyDynmapPlusLayerMetaToControlLabel(label, meta) {
 	if (!(label instanceof HTMLElement) || !meta) return;
 
+	label.classList.add("emcdynmapplus-layer-option");
 	label.dataset.emcdynmapplusLayerOwner = meta.owner;
 	label.dataset.emcdynmapplusLayerSection = meta.section;
 	label.dataset.emcdynmapplusLayerId = meta.layerId;
@@ -409,6 +412,69 @@ function applyDynmapPlusLayerMetaToControlLabel(label, meta) {
 	}
 }
 
+function isDynmapPlusManagedLayerDataEntry(entry) {
+	if (!entry || typeof entry !== "object") return false;
+
+	const explicitMeta = normalizeDynmapPlusLayerMeta(entry.emcdynmapplusMeta);
+	if (explicitMeta) return true;
+
+	const definition =
+		DYNMAP_PLUS_LAYER_DEFINITION_BY_ID.get(entry.id)
+		|| DYNMAP_PLUS_LAYER_DEFINITION_BY_NAME.get(entry.name);
+	return !!definition;
+}
+
+function stripDynmapPlusManagedLayers(data) {
+	return data.filter((entry) => !isDynmapPlusManagedLayerDataEntry(entry));
+}
+
+function appendDynmapPlusManagedLayer(data, definition, layerEntry) {
+	const nextData = data.filter((entry) => {
+		const explicitMeta = normalizeDynmapPlusLayerMeta(entry?.emcdynmapplusMeta);
+		if (explicitMeta) return explicitMeta.layerId !== definition.id;
+
+		return entry?.id !== definition.id && entry?.name !== definition.name;
+	});
+	nextData.push(createDynmapPlusManagedLayer(definition, layerEntry));
+	return nextData;
+}
+
+function removeExistingDynmapPlusLayerRegistration(control, meta) {
+	if (!control || !meta?.layerId) return;
+
+	if (Array.isArray(control._layers)) {
+		control._layers = control._layers.filter((entry) => {
+			const entryMeta = dynmapPlusLayerMetaByLayer.get(entry?.layer) || resolveDynmapPlusLayerMeta(entry?.name, entry?.layer);
+			return !entryMeta || entryMeta.owner !== meta.owner || entryMeta.layerId !== meta.layerId;
+		});
+	}
+
+	const container = control._container;
+	if (!(container instanceof HTMLElement)) return;
+
+	const existingLabels = container.querySelectorAll(
+		`label[data-emcdynmapplus-layer-owner="${meta.owner}"][data-emcdynmapplus-layer-id="${meta.layerId}"]`,
+	);
+	for (const label of existingLabels) {
+		label.remove();
+	}
+}
+
+function normalizeDynmapPlusLayerRegistrations(control) {
+	if (!control || !Array.isArray(control._layers)) return;
+
+	const seenLayerKeys = new Set();
+	control._layers = control._layers.filter((entry) => {
+		const entryMeta = dynmapPlusLayerMetaByLayer.get(entry?.layer) || resolveDynmapPlusLayerMeta(entry?.name, entry?.layer);
+		if (!entryMeta) return true;
+
+		const key = `${entryMeta.owner}:${entryMeta.layerId}`;
+		if (seenLayerKeys.has(key)) return false;
+		seenLayerKeys.add(key);
+		return true;
+	});
+}
+
 function patchLeafletLayerControls() {
 	if (window[PAGE_LAYER_CONTROL_PATCHED_KEY]) return true;
 	if (!window.L?.Control?.Layers?.prototype) return false;
@@ -416,12 +482,19 @@ function patchLeafletLayerControls() {
 	window[PAGE_LAYER_CONTROL_PATCHED_KEY] = true;
 	const originalAddLayer = window.L.Control.Layers.prototype._addLayer;
 	const originalAddItem = window.L.Control.Layers.prototype._addItem;
+	const originalUpdate = window.L.Control.Layers.prototype._update;
 
 	window.L.Control.Layers.prototype._addLayer = function patchedDynmapPlusLayerAdd(layer, name, overlay) {
+		const meta = overlay && layer && typeof layer === "object"
+			? resolveDynmapPlusLayerMeta(name, layer)
+			: null;
+		if (meta) {
+			removeExistingDynmapPlusLayerRegistration(this, meta);
+		}
+
 		const result = originalAddLayer.call(this, layer, name, overlay);
 		if (!overlay || !layer || typeof layer !== "object") return result;
 
-		const meta = resolveDynmapPlusLayerMeta(name, layer);
 		if (meta) {
 			dynmapPlusLayerMetaByLayer.set(layer, meta);
 			layer.emcdynmapplusMeta = meta;
@@ -434,6 +507,11 @@ function patchLeafletLayerControls() {
 		const meta = dynmapPlusLayerMetaByLayer.get(obj?.layer) || resolveDynmapPlusLayerMeta(obj?.name, obj?.layer);
 		if (meta) applyDynmapPlusLayerMetaToControlLabel(label, meta);
 		return label;
+	};
+
+	window.L.Control.Layers.prototype._update = function patchedDynmapPlusLayerUpdate(...args) {
+		normalizeDynmapPlusLayerRegistrations(this);
+		return originalUpdate.call(this, ...args);
 	};
 
 	pageMarkersDebugInfo(`${PAGE_MAP_PREFIX}: patched Leaflet layer controls`);
@@ -1144,13 +1222,12 @@ function addPlanningLayer(data) {
 		return data;
 	}
 
-	const nextData = data.slice();
-	nextData.push(createDynmapPlusManagedLayer(DYNMAP_PLUS_LAYER_DEFINITIONS.planningNations, {
+	const nextData = appendDynmapPlusManagedLayer(data, DYNMAP_PLUS_LAYER_DEFINITIONS.planningNations, {
 		order: 1001,
 		hide: false,
 		control: true,
 		markers: planningNations.flatMap(createPlanningNationMarkers),
-	}));
+	});
 
 	pageMarkersDebugInfo(`${PLANNING_LAYER_PREFIX}: appended planning layer`, {
 		nationCount: planningNations.length,
@@ -1207,29 +1284,23 @@ function addChunksLayer(data) {
 	for (let x = L; x <= R; x += 16) chunkLines.push(ver(x));
 	for (let z = U; z <= D; z += 16) chunkLines.push(hor(z));
 
-	const nextData = data.slice();
-	nextData[2] = createDynmapPlusManagedLayer(DYNMAP_PLUS_LAYER_DEFINITIONS.chunks, {
+	return appendDynmapPlusManagedLayer(data, DYNMAP_PLUS_LAYER_DEFINITIONS.chunks, {
 		hide: true,
 		control: true,
 		markers: [makePolyline(chunkLines, 0.33, "#000000")],
 	});
-
-	return nextData;
 }
 
 function addCountryBordersLayer(data, borders) {
 	try {
 		const points = Object.values(borders).flatMap((line) => borderEntryToPolylines(line));
 
-		const nextData = data.slice();
-		nextData[3] = createDynmapPlusManagedLayer(DYNMAP_PLUS_LAYER_DEFINITIONS.borders, {
+		return appendDynmapPlusManagedLayer(data, DYNMAP_PLUS_LAYER_DEFINITIONS.borders, {
 			order: 999,
 			hide: true,
 			control: true,
 			markers: [makePolyline(points)],
 		});
-
-		return nextData;
 	} catch (err) {
 		showPageAlert("Could not set up a layer of country borders. You may need to clear this website's data. If problem persists, contact the developer.");
 		console.error(err);
@@ -1589,7 +1660,7 @@ function checkOverclaimed(claimedChunks, numResidents, numNationResidents) {
 }
 
 async function modifyMarkersInPage(data) {
-	let result = data;
+	let result = stripDynmapPlusManagedLayers(data);
 	const mapMode = currentMapMode();
 
 	pageMarkersDebugInfo(`${MARKER_ENGINE_PREFIX}: modifyMarkers started`, {
@@ -1622,7 +1693,9 @@ async function modifyMarkersInPage(data) {
 	}
 
 	parsedMarkers = [];
-	result = addChunksLayer(result);
+	if (shouldInjectDynmapPlusChunksLayer()) {
+		result = addChunksLayer(result);
+	}
 
 	const borders = await getStyledBorders();
 	if (!borders) {

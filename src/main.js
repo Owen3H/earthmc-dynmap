@@ -57,6 +57,8 @@ const getCurrentChunkBounds = () => globalThis.EMCDYNMAPPLUS_MAP?.getChunkBounds
 	U: -16640,
 	D: 16512,
 }
+const shouldInjectDynmapPlusChunksLayer = () =>
+	globalThis.EMCDYNMAPPLUS_MAP?.shouldInjectDynmapPlusChunksLayer?.(getCurrentDetectedMapType()) ?? true
 const getArchiveMarkersSourceUrl = (date) => globalThis.EMCDYNMAPPLUS_MAP?.getArchiveMarkersSourceUrl?.(date)
 	?? (
 		date < 20230212 ? 'https://earthmc.net/map/aurora/tiles/_markers_/marker_earth.json'
@@ -73,6 +75,27 @@ function getUserscriptBorders() {
 
 	if (typeof BORDERS !== 'undefined') return BORDERS
 	return null
+}
+
+function isDynmapPlusManagedLayerDataEntry(entry) {
+	if (!entry || typeof entry !== 'object') return false
+	return entry.id === 'chunks'
+		|| entry.id === 'borders'
+		|| entry.id === 'planning-nations'
+}
+
+function stripDynmapPlusManagedLayers(data) {
+	return data.filter(entry => !isDynmapPlusManagedLayerDataEntry(entry))
+}
+
+function appendDynmapPlusManagedLayer(data, definition, layerEntry) {
+	const nextData = data.filter(entry => entry?.id !== definition.id && entry?.name !== definition.name)
+	nextData.push({
+		...layerEntry,
+		name: definition.name,
+		id: definition.id,
+	})
+	return nextData
 }
 
 // Black
@@ -313,7 +336,7 @@ async function getStyledBorders() {
  * @param {MarkersResponse} data - The markers response JSON data. 
  */
 async function modifyMarkers(data) {
-	let result = data
+	let result = stripDynmapPlusManagedLayers(data)
 	const initialMarkerCount = Array.isArray(result?.[0]?.markers) ? result[0].markers.length : 0
 
 	const mapMode = currentMapMode()
@@ -358,7 +381,9 @@ async function modifyMarkers(data) {
 	}
 
 	parsedMarkers = []
-	result = addChunksLayer(result)
+	if (shouldInjectDynmapPlusChunksLayer()) {
+		result = addChunksLayer(result)
+	}
 	markersDebugInfo(`${MARKERS_LOG_PREFIX}: chunks layer added`, {
 		layerCount: Array.isArray(result) ? result.length : null,
 	})
@@ -450,16 +475,14 @@ function addChunksLayer(data) {
 	for (let x = L; x <= R; x += 16) chunkLines.push(ver(x))
 	for (let z = U; z <= D; z += 16) chunkLines.push(hor(z))
 
-	const nextData = data.slice()
-	nextData[2] = {
-		'name': 'Chunks',
-		'id': 'chunks',
+	return appendDynmapPlusManagedLayer(data, {
+		name: 'Chunks',
+		id: 'chunks',
+	}, {
 		'hide': true,
 		'control': true,
 		'markers': [makePolyline(chunkLines, 0.33, '#000000')]
-	}
-
-	return nextData
+	})
 }
 
 /**
@@ -470,17 +493,15 @@ function addCountryBordersLayer(data, borders) {
 	try {
 		const points = Object.values(borders).flatMap(line => borderEntryToPolylines(line))
 
-		const nextData = data.slice()
-		nextData[3] = {
-			'name': 'Country Borders',
-			'id': 'borders',
+		return appendDynmapPlusManagedLayer(data, {
+			name: 'Country Borders',
+			id: 'borders',
+		}, {
 			'order': 999,
 			'hide': true,
 			'control': true,
 			'markers': [makePolyline(points)]
-		}
-
-		return nextData
+		})
 	} catch (e) {
 		showAlert(`Could not set up a layer of country borders. You may need to clear this website's data. If problem persists, contact the developer.`)
 		console.error(e)

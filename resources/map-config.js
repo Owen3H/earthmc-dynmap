@@ -43,6 +43,7 @@
 					'map.earthmc.net',
 				]),
 				borderResource: 'resources/borders.aurora.json',
+				injectDynmapPlusChunksLayer: true,
 				chunkBounds: Object.freeze({
 					L: -33280,
 					R: 33088,
@@ -57,6 +58,7 @@
 					'nostra.earthmc.net',
 				]),
 				borderResource: 'resources/borders.nostra.json',
+				injectDynmapPlusChunksLayer: false,
 				chunkBounds: Object.freeze({
 					L: -64512,
 					R: 64512,
@@ -89,6 +91,9 @@
 
 	const getChunkBounds = (mapType = getCurrentMapType()) =>
 		getMapConfig(mapType).chunkBounds
+
+	const shouldInjectDynmapPlusChunksLayer = (mapType = getCurrentMapType()) =>
+		getMapConfig(mapType).injectDynmapPlusChunksLayer !== false
 
 	const getMapApiUrl = (baseUrl, resourcePath = '', mapType = getCurrentMapType()) => {
 		const mapConfig = getMapConfig(mapType)
@@ -123,6 +128,7 @@
 		getCurrentMapType,
 		getBorderResourcePath,
 		getChunkBounds,
+		shouldInjectDynmapPlusChunksLayer,
 		getMapApiUrl,
 		getNationClaimBonus,
 		getArchiveMarkersSourceUrl,
