@@ -935,6 +935,9 @@ function getNationAlliances(nationName, mapMode) {
 
 const getArchiveURL = (date, markersURL) => `https://web.archive.org/web/${date}id_/${markersURL}`
 
+// Archive mode intentionally goes through the configured relay here. Direct
+// Wayback fetches are not currently reliable enough in this runtime context,
+// so preserve this behavior and keep it explicitly documented for maintainers.
 /** @param {string} actualArchiveDate */
 function updateArchiveModeLabel(actualArchiveDate) {
 	const currentMapModeLabel = document.querySelector('#current-map-mode-label')

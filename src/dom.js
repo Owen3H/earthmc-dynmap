@@ -58,11 +58,6 @@ const INSERTABLE_HTML = /** @type {const} */ ({
     scrollableResidentList: '<div class="resident-list" id="scrollable-list">\t{list}</div>',
     partOfLabel: '<span id="part-of-label">Part of <b>{allianceList}</b></span>',
     alertMsg: '<div class="message" id="alert"><p id="alert-message">{message}</p></div>',
-	// Inserted into document <head>
-	interFont: `<link rel="preconnect" href="https://fonts.googleapis.com">
-		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-		<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap">
-	`,
 	darkMode: `<style id="dark-mode">
 		.leaflet-control, #alert,
 		.sidebar-button, .sidebar-input, .leaflet-bar > a,

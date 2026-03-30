@@ -2,6 +2,10 @@
 //console.log('emcdynmapplus: loaded httputil')
 
 const PROJECT_URL = `https://github.com/JasonSolace/earthmc-dynmap-cross-browser`
+// Archive mode currently relies on this third-party relay in practice because
+// direct Wayback fetches are not consistently reliable in the extension/userscript
+// runtime context. Keep the behavior documented in README and treat it as
+// compatibility debt rather than a hidden implementation detail.
 const PROXY_URL = `https://api.codetabs.com/v1/proxy/?quest=`
 
 const EMC_DOMAIN = "earthmc.net"

@@ -146,6 +146,7 @@ async function init(manifest) {
 	if (isUserscript) {
 		GM_addStyle(STYLE_CSS)
 	}
+	applyPackagedUiAssetUrls()
 
     localStorage['emcdynmapplus-mapmode'] ??= 'meganations'
 	localStorage['emcdynmapplus-archive-date'] ??= new Date().toISOString().slice(0, 10).replaceAll('-', '')
@@ -186,7 +187,7 @@ function checkForUpdate(manifest) {
 
     if (!cachedVer) return localStorage['emcdynmapplus-version'] = latestVer
     if (cachedVer != latestVer) {
-        const changelogURL = `${PROJECT_URL}/releases/v${latestVer}`
+        const changelogURL = `${PROJECT_URL}/releases/tag/v${latestVer}`
         showAlert([
             `Extension has been automatically updated from ${cachedVer} to ${latestVer}. Read what has been changed `,
             createElement('a', {

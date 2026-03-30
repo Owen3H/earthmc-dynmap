@@ -9,6 +9,16 @@ const BORDERS_BY_MAP = {
 	nostra: JSON.parse(readFileSync('resources/borders.nostra.json', 'utf8')),
 }
 const MANIFEST = JSON.parse(readFileSync('manifest.json', 'utf8'))
+const USERSCRIPT_ASSET_URLS = {
+	'resources/icon-screenshot.png': readUiAssetDataUrl('icon-screenshot.png'),
+	'resources/icon-show.png': readUiAssetDataUrl('icon-show.png'),
+	'resources/icon-hide.png': readUiAssetDataUrl('icon-hide.png'),
+}
+
+function readUiAssetDataUrl(filename) {
+	const content = readFileSync(path.join('resources', filename), 'base64')
+	return `data:image/png;base64,${content}`
+}
 
 // TODO: Dynamically insert @include tags depending on matches arr count
 const contentScripts = MANIFEST.content_scripts[0]
@@ -42,6 +52,7 @@ const buildOpts = {
 		IS_USERSCRIPT: 'true',
 		STYLE_CSS: JSON.stringify(STYLE_CSS),
 		BORDERS_BY_MAP: JSON.stringify(BORDERS_BY_MAP),
+		USERSCRIPT_ASSET_URLS: JSON.stringify(USERSCRIPT_ASSET_URLS),
 		MANIFEST: JSON.stringify(MANIFEST),
 		window: 'unsafeWindow',
 	},

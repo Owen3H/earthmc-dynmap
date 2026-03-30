@@ -1355,6 +1355,9 @@ async function getAlliances() {
 
 const getArchiveURL = (date, markersURL) => `https://web.archive.org/web/${date}id_/${markersURL}`;
 
+// Archive mode intentionally goes through the configured relay here. Direct
+// Wayback fetches are not currently reliable enough in this runtime context,
+// so preserve this behavior and keep it explicitly documented for maintainers.
 async function loadArchiveForDate(date, data) {
 	const markersURL = getArchiveMarkersSourceUrl(date);
 
