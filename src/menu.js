@@ -41,8 +41,11 @@ const MAP_MODE_METADATA = [
 	},
 ]
 
+const DEFAULT_MAP_MODE = 'meganations'
+const LIVE_MAP_MODE_METADATA = MAP_MODE_METADATA.filter(option => option.value !== 'archive')
+const LIVE_MAP_MODE_VALUES = new Set(LIVE_MAP_MODE_METADATA.map(option => option.value))
 const getMapModeMeta = mode => MAP_MODE_METADATA.find(option => option.value === mode) || MAP_MODE_METADATA[0]
-const formatMapModeLabel = mode => `Map Mode: ${mode}`
+const LAST_LIVE_MAP_MODE_KEY = 'emcdynmapplus-last-live-mapmode'
 const SIDEBAR_EXPANDED_KEY = 'emcdynmapplus-sidebar-expanded'
 const PLANNER_STORAGE_KEY = 'emcdynmapplus-planner-nations'
 const PLANNING_PLACEMENT_ARMED_KEY = 'emcdynmapplus-planning-placement-armed'
@@ -92,6 +95,45 @@ let planningCursorPreviewRuntimeZoom = null
 let planningCursorPreviewRuntimeZoomSource = null
 let planningCursorPreviewLastWheelAt = 0
 let planningCursorPreviewLastLogSignature = null
+
+const isLiveMapMode = mode => LIVE_MAP_MODE_VALUES.has(mode)
+
+function formatStoredArchiveDate(rawDate) {
+	return typeof rawDate === 'string' && /^\d{8}$/.test(rawDate)
+		? `${rawDate.slice(0, 4)}-${rawDate.slice(4, 6)}-${rawDate.slice(6, 8)}`
+		: ''
+}
+
+function getStoredArchiveDateLabel() {
+	return formatStoredArchiveDate(localStorage['emcdynmapplus-archive-date'])
+}
+
+function getStoredCurrentMapMode() {
+	return localStorage['emcdynmapplus-mapmode'] ?? DEFAULT_MAP_MODE
+}
+
+function getPreferredLiveMapMode(fallbackMode = null) {
+	const resolvedFallbackMode = fallbackMode ?? getStoredCurrentMapMode()
+	const storedMode = localStorage[LAST_LIVE_MAP_MODE_KEY]
+	if (isLiveMapMode(storedMode)) return storedMode
+	if (isLiveMapMode(resolvedFallbackMode)) return resolvedFallbackMode
+	return DEFAULT_MAP_MODE
+}
+
+function rememberPreferredLiveMapMode(mode) {
+	if (!isLiveMapMode(mode)) return
+	localStorage[LAST_LIVE_MAP_MODE_KEY] = mode
+}
+
+function getSidebarModeLabel(mode) {
+	if (mode === 'archive') return 'Archive Snapshot'
+	return getMapModeMeta(mode).label
+}
+
+function formatMapModeLabel(mode, archiveDateLabel = getStoredArchiveDateLabel()) {
+	if (mode === 'archive') return archiveDateLabel ? `Archive Snapshot: ${archiveDateLabel}` : 'Archive Snapshot'
+	return `View: ${getMapModeMeta(mode).label}`
+}
 
 function isPlanningDebugLoggingEnabled() {
 	try {
@@ -420,7 +462,7 @@ function handlePlanningCursorPreviewZoomControlClick(event) {
 
 function handlePlanningCursorPreviewWheel(event) {
 	if (!isPlanningPlacementArmed()) return
-	if (currentMapMode() !== 'planning') return
+	if (getStoredCurrentMapMode() !== 'planning') return
 
 	const target = event.target
 	if (!(target instanceof HTMLElement)) return
@@ -442,7 +484,7 @@ function stopPlanningCursorPreviewRefreshLoop() {
 }
 
 function refreshPlanningCursorPreviewLoop() {
-	if (!isPlanningPlacementArmed() || currentMapMode() !== 'planning') {
+	if (!isPlanningPlacementArmed() || getStoredCurrentMapMode() !== 'planning') {
 		planningCursorPreviewRefreshFrame = 0
 		return
 	}
@@ -461,7 +503,7 @@ function ensurePlanningCursorPreviewRefreshLoop() {
 }
 
 function updatePlanningCursorPreviewState() {
-	const isArmed = currentMapMode() === 'planning' && isPlanningPlacementArmed()
+	const isArmed = getStoredCurrentMapMode() === 'planning' && isPlanningPlacementArmed()
 	document.documentElement.toggleAttribute('data-emcdynmapplus-planning-armed', isArmed)
 	const preview = ensurePlanningCursorPreviewElement()
 	if (!isArmed) {
@@ -477,7 +519,7 @@ function updatePlanningCursorPreviewState() {
 
 function handlePlanningCursorPreviewMove(event) {
 	if (!isPlanningPlacementArmed()) return hidePlanningCursorPreview()
-	if (currentMapMode() !== 'planning') return hidePlanningCursorPreview()
+	if (getStoredCurrentMapMode() !== 'planning') return hidePlanningCursorPreview()
 
 	const target = event.target
 	if (!(target instanceof HTMLElement)) return hidePlanningCursorPreview()
@@ -550,7 +592,7 @@ function addMainMenu(parent) {
 	const existingSidebar = parent.querySelector('#sidebar')
 	if (existingSidebar) return existingSidebar
 
-	const curMapMode = currentMapMode()
+	const curMapMode = getStoredCurrentMapMode()
 	const isExpanded = localStorage[SIDEBAR_EXPANDED_KEY] == 'true'
 	const sidebar = addElement(parent, createElement('details', {
 		id: 'sidebar',
@@ -596,7 +638,6 @@ function addMainMenu(parent) {
  * @param {MapMode | "archive"} curMapMode
  */
 function addSidebarSummary(sidebar, curMapMode) {
-	const modeMeta = getMapModeMeta(curMapMode)
 	return addElement(sidebar, createElement('summary', {
 		id: 'sidebar-toggle',
 	}, [
@@ -612,7 +653,7 @@ function addSidebarSummary(sidebar, curMapMode) {
 			createElement('span', {
 				id: 'sidebar-summary-mode',
 				className: 'sidebar-summary-mode',
-				text: modeMeta.label,
+				text: getSidebarModeLabel(curMapMode),
 			}),
 		]),
 		createElement('span', {
@@ -672,9 +713,10 @@ function addMapModeSection(sidebar, curMapMode) {
 	const section = addSidebarSection(
 		sidebar,
 		'Map View',
-		'Pick an overlay directly.'
+		'Choose a live overlay or jump to a historical snapshot.'
 	)
 	section.id = 'map-mode-section'
+	section.setAttribute('data-archive-active', String(curMapMode === 'archive'))
 
 	addElement(section, createElement('label', {
 		className: 'sidebar-field-label',
@@ -684,21 +726,42 @@ function addMapModeSection(sidebar, curMapMode) {
 	const modeSelect = addElement(section, createElement('select', {
 		id: 'map-mode-select',
 		className: 'sidebar-input sidebar-select',
-	}, MAP_MODE_METADATA.map(mode => createElement('option', {
+	}, LIVE_MAP_MODE_METADATA.map(mode => createElement('option', {
 		value: mode.value,
 		text: mode.label,
 	}))))
-	modeSelect.value = curMapMode
+	modeSelect.value = curMapMode === 'archive' ? 'default' : getPreferredLiveMapMode(curMapMode)
 
 	const modeDescription = addElement(section, createElement('p', {
 		id: 'map-mode-description',
 		className: 'sidebar-help',
-		text: getMapModeMeta(curMapMode).description,
+		text: getMapModeMeta(modeSelect.value).description,
 	}))
 
 	const archiveField = addElement(section, createElement('div', {
 		id: 'archive-date-group',
-		className: 'sidebar-field-group',
+		className: 'sidebar-field-group sidebar-archive-panel',
+	}))
+	const archiveStatus = addElement(archiveField, createElement('div', {
+		id: 'archive-status',
+		className: 'sidebar-archive-status',
+	}))
+	addElement(archiveStatus, createElement('span', {
+		id: 'archive-status-eyebrow',
+		className: 'sidebar-field-label',
+		text: curMapMode === 'archive' ? 'Archive Active' : 'Archive Access',
+	}))
+	addElement(archiveStatus, createElement('strong', {
+		id: 'archive-status-title',
+		className: 'sidebar-archive-title',
+		text: curMapMode === 'archive' ? (getStoredArchiveDateLabel() || 'Loading Snapshot') : 'Open A Historical Snapshot',
+	}))
+	addElement(archiveStatus, createElement('p', {
+		id: 'archive-status-copy',
+		className: 'sidebar-help',
+		text: curMapMode === 'archive'
+			? 'You are viewing a historical snapshot. Choose another date below or return to the live map.'
+			: 'Open a past map snapshot without changing your preferred live overlay.',
 	}))
 	addElement(archiveField, createElement('label', {
 		className: 'sidebar-field-label',
@@ -714,34 +777,50 @@ function addMapModeSection(sidebar, curMapMode) {
 			max: ARCHIVE_DATE.MAX,
 		},
 	}))
+	const archiveHelp = addElement(archiveField, createElement('p', {
+		className: 'sidebar-help',
+		text: curMapMode === 'archive'
+			? 'Jump to another archive date from here.'
+			: 'Use this only when you want to leave the live map and browse a snapshot.',
+	}))
 
-	const actions = addElement(section, createElement('div', { className: 'sidebar-action-row' }))
-	const switchMapModeButton = addElement(actions, createElement('button', {
+	const viewActions = addElement(section, createElement('div', { className: 'sidebar-action-row' }))
+	const switchMapModeButton = addElement(viewActions, createElement('button', {
 		id: 'switch-map-mode',
 		className: 'sidebar-button sidebar-button-primary',
 		text: 'Apply Selected View',
 	}))
-	const archiveButton = addElement(actions, createElement('button', {
+	const archiveActions = addElement(archiveField, createElement('div', {
+		className: 'sidebar-action-row sidebar-archive-actions',
+	}))
+	const archiveButton = addElement(archiveActions, createElement('button', {
 		id: 'archive-button',
-		className: 'sidebar-button sidebar-button-secondary',
+		className: 'sidebar-button sidebar-button-primary',
 		text: 'Open Archive',
 	}))
 
 	const syncModeUI = () => {
 		const selectedMode = modeSelect.value
 		const selectedMeta = getMapModeMeta(selectedMode)
+		const isArchiveActive = curMapMode === 'archive'
+		const isArchiveAvailable = selectedMode === 'default' && (curMapMode === 'default' || curMapMode === 'archive')
 		modeDescription.textContent = selectedMeta.description
-		section.setAttribute('data-archive-selected', String(selectedMode === 'archive'))
-		switchMapModeButton.textContent = selectedMode === 'archive' ? 'Open Selected Archive' : 'Apply Selected View'
+		switchMapModeButton.textContent = isArchiveActive
+			? (selectedMode === 'default' ? 'Return To Live Map' : 'Return To Selected View')
+			: 'Apply Selected View'
+		archiveField.hidden = !isArchiveAvailable
+		archiveButton.textContent = 'Open Archive'
+		archiveHelp.textContent = isArchiveActive
+			? 'Jump to another archive date from here.'
+			: 'Use this only when you want to leave the live map and browse a snapshot.'
 	}
 
-	switchMapModeButton.addEventListener('click', () => applyMapModeSelection(modeSelect.value, archiveInput.value))
-	archiveButton.addEventListener('click', () => searchArchive(archiveInput.value))
+	switchMapModeButton.addEventListener('click', () => applyMapModeSelection(modeSelect.value))
+	archiveButton.addEventListener('click', () => searchArchive(archiveInput.value, modeSelect.value))
 	modeSelect.addEventListener('change', syncModeUI)
 	archiveInput.addEventListener('keyup', e => {
 		if (e.key !== 'Enter') return
-		if (modeSelect.value === 'archive') applyMapModeSelection(modeSelect.value, archiveInput.value)
-		else searchArchive(archiveInput.value)
+		searchArchive(archiveInput.value, modeSelect.value)
 	})
 	archiveInput.addEventListener('change', () => {
 		if (!isValidArchiveDateInput(archiveInput.value)) return
@@ -752,12 +831,10 @@ function addMapModeSection(sidebar, curMapMode) {
 }
 
 /**
- * @param {MapMode | "archive"} nextMode
- * @param {string} archiveDateInput
+ * @param {MapMode} nextMode
  */
-function applyMapModeSelection(nextMode, archiveDateInput) {
-	if (nextMode === 'archive') return searchArchive(archiveDateInput)
-
+function applyMapModeSelection(nextMode) {
+	rememberPreferredLiveMapMode(nextMode)
 	if (nextMode !== 'planning') setPlanningPlacementArmed(false)
 	localStorage['emcdynmapplus-mapmode'] = nextMode
 	location.reload()
@@ -959,11 +1036,11 @@ function handlePlanningPlacementRequest(center, source = 'unknown') {
 		? { x: Math.round(x), z: Math.round(z) }
 		: null
 
-	if (currentMapMode() !== 'planning') {
+	if (getStoredCurrentMapMode() !== 'planning') {
 		setPlanningDebugState('ignored planning placement request', {
 			reason: 'wrong-map-mode',
 			source,
-			mapMode: currentMapMode(),
+			mapMode: getStoredCurrentMapMode(),
 			coords,
 		})
 		return false
@@ -973,7 +1050,7 @@ function handlePlanningPlacementRequest(center, source = 'unknown') {
 		setPlanningDebugState('ignored planning placement request', {
 			reason: 'not-armed',
 			source,
-			mapMode: currentMapMode(),
+			mapMode: getStoredCurrentMapMode(),
 			coords,
 		})
 		return false
@@ -995,7 +1072,7 @@ function handlePlanningPlacementRequest(center, source = 'unknown') {
 
 function handlePlanningPlacementClick(event) {
 	if (!isPlanningPlacementArmed()) return
-	if (currentMapMode() !== 'planning') return
+	if (getStoredCurrentMapMode() !== 'planning') return
 
 	const target = event.target
 	if (!(target instanceof HTMLElement)) return
@@ -1602,7 +1679,7 @@ function removeScrollNormalizer(mapEl) {
  * @param {string} inputValue
  */
 function locate(selectValue, inputValue) {
-	const isArchiveMode = currentMapMode() == 'archive'
+	const isArchiveMode = getStoredCurrentMapMode() == 'archive'
 	switch (selectValue) {
 		case 'Town': locateTown(inputValue, isArchiveMode); break
 		case 'Nation': locateNation(inputValue, isArchiveMode); break
@@ -1610,13 +1687,17 @@ function locate(selectValue, inputValue) {
 	}
 }
 
-/** @param {string} date */
-function searchArchive(date) {
+/**
+ * @param {string} date
+ * @param {MapMode | string | null} preferredMode
+ */
+function searchArchive(date, preferredMode = null) {
 	if (!isValidArchiveDateInput(date)) {
 		showAlert(`Choose a valid archive date between ${ARCHIVE_DATE.MIN} and ${ARCHIVE_DATE.MAX}.`, 4)
 		return
 	}
 
+	rememberPreferredLiveMapMode(preferredMode ?? getStoredCurrentMapMode())
 	const URLDate = date.replaceAll('-', '') // 2026-06-01 -> 20260601
 	localStorage['emcdynmapplus-archive-date'] = URLDate // In case 'change' event doesn't already update it
 	localStorage['emcdynmapplus-mapmode'] = 'archive'

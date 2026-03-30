@@ -418,15 +418,6 @@ async function editUILayout() {
     // Fix nameplates appearing over popups
     waitForElement('.leaflet-nameplate-pane').then(el => el.style = '')
 
-	// Listen for click event on a resident clickable and call lookup func with the resident name.
-	// Has to be popup-pane because infowindow gets destroyed.
-	waitForElement('.leaflet-popup-pane').then(el => el.addEventListener('click', e => {
-		/** @type {HTMLElement} */ 
-		const target = e.target
-		if (target.classList.contains("resident-clickable")) {
-			lookupPlayer(target.textContent)
-		}
-	}))
 }
 
 /** 
@@ -465,7 +456,8 @@ function insertLayerOptionsMenu() {
 	return waitForElement('.leaflet-control-layers-list').then(el => {
 		const control = el.closest('.leaflet-control-layers')
 		if (control instanceof HTMLElement) disablePanAndZoom(control)
-		return addOptions(el, currentMapMode())
+		const mapMode = localStorage['emcdynmapplus-mapmode'] ?? 'meganations'
+		return addOptions(el, mapMode)
 	})
 }
 

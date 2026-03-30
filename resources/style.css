@@ -2,7 +2,7 @@
 	--font-sans: "Manrope", "Segoe UI", sans-serif;
 	--font-display: "Space Grotesk", "Segoe UI", sans-serif;
 	--panel-width: min(292px, calc(100vw - 20px));
-	--player-lookup-width: min(290px, calc(100vw - 20px));
+	--player-lookup-width: min(420px, calc(100vw - 20px));
 	--toast-width: min(420px, calc(100vw - 24px));
 	--control-height: 38px;
 	--radius-sm: 10px;
@@ -313,9 +313,37 @@ select {
 	border-radius: var(--radius-sm);
 }
 
-#map-mode-section[data-archive-selected="true"] #archive-date-group {
+#map-mode-section[data-archive-active="true"] #archive-date-group {
 	border-color: rgba(209, 137, 45, 0.45);
 	background: linear-gradient(135deg, var(--accent-soft), var(--panel-muted-bg));
+}
+
+.sidebar-archive-panel {
+	gap: 8px;
+}
+
+.sidebar-archive-status {
+	display: grid;
+	gap: 4px;
+}
+
+.sidebar-archive-title {
+	font-size: 16px;
+	font-family: var(--font-display);
+	line-height: 1;
+}
+
+.sidebar-archive-actions {
+	grid-template-columns: 1fr;
+}
+
+.sidebar-archive-actions .sidebar-button {
+	width: 100%;
+}
+
+.sidebar-field-group[hidden],
+.sidebar-button[hidden] {
+	display: none !important;
 }
 
 .sidebar-field-label {
@@ -730,8 +758,8 @@ select {
 .player-lookup-top {
 	display: flex;
 	gap: 12px;
-	align-items: center;
-	padding-right: 76px;
+	align-items: flex-start;
+	padding-right: 104px;
 }
 
 #player-lookup-avatar {
@@ -744,12 +772,14 @@ select {
 .player-lookup-identity {
 	display: grid;
 	gap: 6px;
+	min-width: 0;
 }
 
 #player-lookup-name {
 	font-size: 21px;
 	line-height: 1;
 	font-family: var(--font-display);
+	overflow-wrap: anywhere;
 }
 
 #player-lookup-online {
@@ -772,7 +802,7 @@ select {
 
 .player-lookup-stats {
 	display: grid;
-	grid-template-columns: repeat(2, minmax(0, 1fr));
+	grid-template-columns: repeat(2, minmax(140px, 1fr));
 	gap: 10px;
 }
 
@@ -780,6 +810,7 @@ select {
 .player-lookup-meta-row {
 	display: grid;
 	gap: 4px;
+	min-width: 0;
 	padding: 12px;
 	background: var(--panel-strong-bg);
 	border: 1px solid var(--panel-border);
@@ -798,6 +829,7 @@ select {
 .player-lookup-stat-value,
 .player-lookup-meta-value {
 	font-size: 15px;
+	overflow-wrap: anywhere;
 }
 
 .player-lookup-meta {

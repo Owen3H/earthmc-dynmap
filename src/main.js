@@ -12,6 +12,15 @@ waitForElement('.leaflet-nameplate-pane').then(element => {
 	})
 })
 
+waitForElement('.leaflet-popup-pane').then(element => {
+	element.addEventListener('click', event => {
+		const target = event.target instanceof Element ? event.target.closest('.resident-clickable') : null
+		const playerName = target?.textContent?.trim() ?? ''
+		if (!playerName) return
+		lookupPlayer(playerName)
+	})
+})
+
 /** @type {Array<ParsedMarker>} */
 let parsedMarkers = []
 
@@ -248,6 +257,8 @@ const makePolyline = (linePoints, weight = 1, colour = '#ffffff') => ({
 })
 
 const MARKERS_LOG_PREFIX = 'emcdynmapplus[markers]'
+const MAIN_PENDING_UI_ALERT_KEY = 'emcdynmapplus-pending-ui-alert'
+const MAIN_LAST_LIVE_MAP_MODE_KEY = 'emcdynmapplus-last-live-mapmode'
 
 function isMarkersDebugLoggingEnabled() {
 	try {
@@ -946,6 +957,18 @@ function updateArchiveModeLabel(actualArchiveDate) {
 	}
 }
 
+function exitArchiveModeAfterFailure(message, timeout = 8) {
+	try {
+		localStorage['emcdynmapplus-mapmode'] = localStorage[MAIN_LAST_LIVE_MAP_MODE_KEY] || 'default'
+		localStorage[MAIN_PENDING_UI_ALERT_KEY] = JSON.stringify({
+			message,
+			timeout,
+		})
+	} catch {}
+
+	location.reload()
+}
+
 /**
  * @param {number} date
  * @param {MarkersResponse} data
@@ -999,7 +1022,6 @@ async function getArchive(data) {
 	loadingAlert.remove()
 
 	if (!archiveResult) {
-		showAlert('Archive service is currently unavailable, please try later.')
 		const cachedArchive = cachedArchives.get(date)
 		if (cachedArchive) {
 			updateArchiveModeLabel(cachedArchive.actualArchiveDate)
@@ -1013,6 +1035,7 @@ async function getArchive(data) {
 		console.warn(`${MARKERS_LOG_PREFIX}: archive unavailable and no cached archive exists, returning original markers`, {
 			requestedDate: date,
 		})
+		exitArchiveModeAfterFailure('Unable to communicate with the Wayback archive. Returned to the live map.')
 		return data
 	}
 

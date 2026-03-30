@@ -6,6 +6,7 @@ function isUserscript() {
 const CONTENT_LOG_PREFIX = 'emcdynmapplus[content]'
 const INIT_GUARD_ATTR = 'data-emcdynmapplus-initialized'
 const PAGE_CONTEXT_GUARD_ATTR = 'data-emcdynmapplus-page-context-injected'
+const ENTRYPOINT_PENDING_UI_ALERT_KEY = 'emcdynmapplus-pending-ui-alert'
 let pendingArchiveModeLabelDate = null
 
 function isContentDebugLoggingEnabled() {
@@ -20,17 +21,43 @@ const contentDebugInfo = (...args) => {
 	if (isContentDebugLoggingEnabled()) console.info(...args)
 }
 
+function consumePendingUiAlert() {
+	try {
+		const rawAlert = localStorage[ENTRYPOINT_PENDING_UI_ALERT_KEY]
+		if (!rawAlert) return
+
+		delete localStorage[ENTRYPOINT_PENDING_UI_ALERT_KEY]
+		const parsedAlert = JSON.parse(rawAlert)
+		if (!parsedAlert?.message) return
+
+		showAlert(parsedAlert.message, parsedAlert.timeout ?? null)
+	} catch (err) {
+		console.warn(`${CONTENT_LOG_PREFIX}: failed to consume pending ui alert`, err)
+		try {
+			delete localStorage[ENTRYPOINT_PENDING_UI_ALERT_KEY]
+		} catch {}
+	}
+}
+
 /** @param {string | null} actualArchiveDate */
 function applyArchiveModeLabel(actualArchiveDate) {
 	if (!actualArchiveDate) return false
 
 	const currentMapModeLabel = document.querySelector('#current-map-mode-label')
+	const archiveStatusTitle = document.querySelector('#archive-status-title')
+	const archiveStatusEyebrow = document.querySelector('#archive-status-eyebrow')
+	const archiveStatusCopy = document.querySelector('#archive-status-copy')
+	const sidebarSummaryMode = document.querySelector('#sidebar-summary-mode')
 	if (!currentMapModeLabel) {
 		pendingArchiveModeLabelDate = actualArchiveDate
 		return false
 	}
 
-	currentMapModeLabel.textContent = `Map Mode: archive (${actualArchiveDate})`
+	currentMapModeLabel.textContent = `Archive Snapshot: ${actualArchiveDate}`
+	if (archiveStatusTitle) archiveStatusTitle.textContent = actualArchiveDate
+	if (archiveStatusEyebrow) archiveStatusEyebrow.textContent = 'Archive Active'
+	if (archiveStatusCopy) archiveStatusCopy.textContent = 'You are viewing the closest historical snapshot currently available. Choose another date below or return to the live map.'
+	if (sidebarSummaryMode) sidebarSummaryMode.textContent = 'Archive Snapshot'
 	pendingArchiveModeLabelDate = null
 	return true
 }
@@ -149,6 +176,10 @@ async function init(manifest) {
 	applyPackagedUiAssetUrls()
 
     localStorage['emcdynmapplus-mapmode'] ??= 'meganations'
+	localStorage['emcdynmapplus-last-live-mapmode'] ??=
+		localStorage['emcdynmapplus-mapmode'] !== 'archive'
+			? localStorage['emcdynmapplus-mapmode']
+			: 'meganations'
 	localStorage['emcdynmapplus-archive-date'] ??= new Date().toISOString().slice(0, 10).replaceAll('-', '')
 	localStorage['emcdynmapplus-normalize-scroll'] ??= 'true'
     localStorage['emcdynmapplus-darkened'] ??= 'true'
@@ -176,6 +207,7 @@ async function init(manifest) {
 	if (insertedPanel) loadNationClaims(insertedPanel)
 
 	initToggleOptions()
+	consumePendingUiAlert()
 	checkForUpdate(manifest)
 }
 

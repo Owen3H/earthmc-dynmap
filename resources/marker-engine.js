@@ -109,6 +109,8 @@ const PAGE_TILE_ZOOM_ATTR = "data-emcdynmapplus-tile-zoom";
 const PAGE_TILE_URL_ATTR = "data-emcdynmapplus-tile-url";
 const PAGE_TILE_DOMINANT_ZOOM_ATTR = "data-emcdynmapplus-tile-dominant-zoom";
 const PAGE_TILE_SUMMARY_ATTR = "data-emcdynmapplus-tile-zoom-summary";
+const PENDING_UI_ALERT_KEY = "emcdynmapplus-pending-ui-alert";
+const LAST_LIVE_MAP_MODE_KEY = "emcdynmapplus-last-live-mapmode";
 const DYNMAP_PLUS_LAYER_OWNER = "dynmapplus";
 const DYNMAP_PLUS_LAYER_SECTION = "dynmapplus";
 const DYNMAP_PLUS_LAYER_DEFINITIONS = Object.freeze({
@@ -454,6 +456,18 @@ function showPageAlert(message, timeout = null) {
 
 function updateArchiveModeLabel(actualArchiveDate) {
 	dispatchPageMarkersEvent(MARKER_ENGINE_EVENT_ARCHIVE_LABEL, { actualArchiveDate });
+}
+
+function exitArchiveModeAfterFailure(message, timeout = 8) {
+	try {
+		localStorage["emcdynmapplus-mapmode"] = localStorage[LAST_LIVE_MAP_MODE_KEY] || "default";
+		localStorage[PENDING_UI_ALERT_KEY] = JSON.stringify({
+			message,
+			timeout,
+		});
+	} catch {}
+
+	window.location.reload();
 }
 
 function cloneSerializable(value) {
@@ -1518,13 +1532,13 @@ async function getArchive(data) {
 	}
 
 	if (!archiveResult) {
-		showPageAlert("Archive service is currently unavailable, please try later.");
 		const cachedArchive = cachedArchives.get(date);
 		if (cachedArchive) {
 			updateArchiveModeLabel(cachedArchive.actualArchiveDate);
 			return cloneSerializable(cachedArchive.data) || data;
 		}
 
+		exitArchiveModeAfterFailure("Unable to communicate with the Wayback archive. Returned to the live map.");
 		return data;
 	}
 
