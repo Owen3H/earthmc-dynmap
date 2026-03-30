@@ -74,6 +74,8 @@ const PLANNING_TILE_ZOOM_ATTR = 'data-emcdynmapplus-tile-zoom'
 const PLANNING_TILE_URL_ATTR = 'data-emcdynmapplus-tile-url'
 const PLANNING_TILE_DOMINANT_ZOOM_ATTR = 'data-emcdynmapplus-tile-dominant-zoom'
 const PLANNING_TILE_SUMMARY_ATTR = 'data-emcdynmapplus-tile-zoom-summary'
+const DYNMAP_PLUS_LAYER_OWNER = 'dynmapplus'
+const DYNMAP_PLUS_LAYER_SECTION = 'dynmapplus'
 const DEFAULT_PLANNING_NATION_RANGE = 5000
 const DEFAULT_PLANNING_NATION = {
 	id: 'hardcoded-demo-nation',
@@ -1232,6 +1234,8 @@ function addOptions(layersList, curMapMode) {
 		text: 'Dynmap+ Options',
 	}))
 	const optionsMenu = addElement(section, createElement('div', { id: 'options-menu' }))
+	syncDynmapPlusLayerOptions(layersList, optionsMenu)
+	observeDynmapPlusLayerOptions(layersList, optionsMenu)
 
 	const checkboxes = {
 		normalizeScroll: addLayerCheckboxOption(
@@ -1281,6 +1285,52 @@ function addOptions(layersList, curMapMode) {
 	}
 
 	return section
+}
+
+/**
+ * @param {HTMLElement} layersList
+ * @param {HTMLElement} optionsMenu
+ */
+function syncDynmapPlusLayerOptions(layersList, optionsMenu) {
+	const insertBefore = optionsMenu.querySelector('.emcdynmapplus-layer-option')
+	const layerLabels = Array.from(layersList.querySelectorAll('label'))
+		.filter(label => isDynmapPlusLeafletLayerLabel(label, optionsMenu))
+
+	for (const label of layerLabels) {
+		optionsMenu.insertBefore(label, insertBefore)
+	}
+}
+
+/**
+ * @param {HTMLElement} layersList
+ * @param {HTMLElement} optionsMenu
+ */
+function observeDynmapPlusLayerOptions(layersList, optionsMenu) {
+	if (layersList.dataset.emcdynmapplusLayerObserverAttached === 'true') return
+	layersList.dataset.emcdynmapplusLayerObserverAttached = 'true'
+
+	const observer = new MutationObserver(() => {
+		if (!optionsMenu.isConnected) return
+		syncDynmapPlusLayerOptions(layersList, optionsMenu)
+	})
+	observer.observe(layersList, {
+		childList: true,
+		subtree: true,
+	})
+}
+
+/**
+ * @param {Element} label
+ * @param {HTMLElement} optionsMenu
+ * @returns {label is HTMLLabelElement}
+ */
+function isDynmapPlusLeafletLayerLabel(label, optionsMenu) {
+	if (!(label instanceof HTMLLabelElement)) return false
+	if (label.closest('#options-menu') === optionsMenu) return false
+	if (!label.querySelector('input.leaflet-control-layers-selector')) return false
+
+	return label.dataset.emcdynmapplusLayerOwner === DYNMAP_PLUS_LAYER_OWNER
+		&& label.dataset.emcdynmapplusLayerSection === DYNMAP_PLUS_LAYER_SECTION
 }
 
 /**

@@ -101,6 +101,7 @@ const cachedArchives = new Map();
 const pendingArchiveLoads = new Map();
 const PAGE_MAPS_KEY = "__EMCDYNMAPPLUS_LEAFLET_MAPS__";
 const PAGE_MAP_PATCHED_KEY = "__EMCDYNMAPPLUS_LEAFLET_MAP_PATCHED__";
+const PAGE_LAYER_CONTROL_PATCHED_KEY = "__EMCDYNMAPPLUS_PAGE_LAYER_CONTROL_PATCHED__";
 const PAGE_MAP_LISTENERS_KEY = "__EMCDYNMAPPLUS_PAGE_MAP_STATE_LISTENERS__";
 const PAGE_MAP_ZOOM_ATTR = "data-emcdynmapplus-leaflet-zoom";
 const PAGE_MAP_CONTAINER_ATTR = "data-emcdynmapplus-leaflet-map-container";
@@ -108,6 +109,35 @@ const PAGE_TILE_ZOOM_ATTR = "data-emcdynmapplus-tile-zoom";
 const PAGE_TILE_URL_ATTR = "data-emcdynmapplus-tile-url";
 const PAGE_TILE_DOMINANT_ZOOM_ATTR = "data-emcdynmapplus-tile-dominant-zoom";
 const PAGE_TILE_SUMMARY_ATTR = "data-emcdynmapplus-tile-zoom-summary";
+const DYNMAP_PLUS_LAYER_OWNER = "dynmapplus";
+const DYNMAP_PLUS_LAYER_SECTION = "dynmapplus";
+const DYNMAP_PLUS_LAYER_DEFINITIONS = Object.freeze({
+	chunks: Object.freeze({
+		id: "chunks",
+		name: "Chunks",
+		owner: DYNMAP_PLUS_LAYER_OWNER,
+		section: DYNMAP_PLUS_LAYER_SECTION,
+	}),
+	borders: Object.freeze({
+		id: "borders",
+		name: "Country Borders",
+		owner: DYNMAP_PLUS_LAYER_OWNER,
+		section: DYNMAP_PLUS_LAYER_SECTION,
+	}),
+	planningNations: Object.freeze({
+		id: PLANNING_LAYER_ID,
+		name: "Planning Nations",
+		owner: DYNMAP_PLUS_LAYER_OWNER,
+		section: DYNMAP_PLUS_LAYER_SECTION,
+	}),
+});
+const DYNMAP_PLUS_LAYER_DEFINITION_BY_ID = new Map(
+	Object.values(DYNMAP_PLUS_LAYER_DEFINITIONS).map((definition) => [definition.id, definition]),
+);
+const DYNMAP_PLUS_LAYER_DEFINITION_BY_NAME = new Map(
+	Object.values(DYNMAP_PLUS_LAYER_DEFINITIONS).map((definition) => [definition.name, definition]),
+);
+const dynmapPlusLayerMetaByLayer = new WeakMap();
 
 function pageMarkersDebugEnabled() {
 	try {
@@ -294,8 +324,9 @@ function initLeafletMapDiagnostics() {
 	const maxAttempts = 80;
 	const poll = () => {
 		attempts += 1;
-		const patched = patchLeafletMapCreation();
-		if (patched) {
+		const mapPatched = patchLeafletMapCreation();
+		const layerControlPatched = patchLeafletLayerControls();
+		if (mapPatched && layerControlPatched) {
 			tryScanWindowForLeafletMaps();
 			pageMarkersDebugInfo(`${PAGE_MAP_PREFIX}: diagnostics ready`, {
 				attempts,
@@ -305,7 +336,7 @@ function initLeafletMapDiagnostics() {
 		}
 
 		if (attempts >= maxAttempts) {
-			pageMarkersDebugInfo(`${PAGE_MAP_PREFIX}: Leaflet map diagnostics timed out waiting for window.L.Map`);
+			pageMarkersDebugInfo(`${PAGE_MAP_PREFIX}: Leaflet diagnostics timed out waiting for Leaflet map/control constructors`);
 			return;
 		}
 
@@ -313,6 +344,98 @@ function initLeafletMapDiagnostics() {
 	};
 
 	poll();
+}
+
+function getDynmapPlusLayerMeta(definition) {
+	if (!definition) return null;
+
+	return {
+		owner: definition.owner,
+		section: definition.section,
+		layerId: definition.id,
+		layerName: definition.name,
+	};
+}
+
+function createDynmapPlusManagedLayer(definition, layerEntry) {
+	return {
+		...layerEntry,
+		id: definition.id,
+		name: definition.name,
+		emcdynmapplusMeta: getDynmapPlusLayerMeta(definition),
+	};
+}
+
+function normalizeDynmapPlusLayerMeta(meta) {
+	if (!meta || meta.owner !== DYNMAP_PLUS_LAYER_OWNER || typeof meta.layerId !== "string") return null;
+
+	const definition = DYNMAP_PLUS_LAYER_DEFINITION_BY_ID.get(meta.layerId) || DYNMAP_PLUS_LAYER_DEFINITION_BY_NAME.get(meta.layerName);
+	const normalized = definition ? getDynmapPlusLayerMeta(definition) : {
+		owner: DYNMAP_PLUS_LAYER_OWNER,
+		section: meta.section || DYNMAP_PLUS_LAYER_SECTION,
+		layerId: meta.layerId,
+		layerName: meta.layerName || meta.layerId,
+	};
+	return normalized;
+}
+
+function resolveDynmapPlusLayerMeta(name, layer) {
+	const explicitMeta = normalizeDynmapPlusLayerMeta(layer?.options?.emcdynmapplusMeta || layer?.emcdynmapplusMeta);
+	if (explicitMeta) return explicitMeta;
+
+	const definition =
+		DYNMAP_PLUS_LAYER_DEFINITION_BY_NAME.get(name)
+		|| DYNMAP_PLUS_LAYER_DEFINITION_BY_ID.get(layer?.options?.id)
+		|| DYNMAP_PLUS_LAYER_DEFINITION_BY_ID.get(layer?.id);
+	return definition ? getDynmapPlusLayerMeta(definition) : null;
+}
+
+function applyDynmapPlusLayerMetaToControlLabel(label, meta) {
+	if (!(label instanceof HTMLElement) || !meta) return;
+
+	label.dataset.emcdynmapplusLayerOwner = meta.owner;
+	label.dataset.emcdynmapplusLayerSection = meta.section;
+	label.dataset.emcdynmapplusLayerId = meta.layerId;
+	if (meta.layerName) label.dataset.emcdynmapplusLayerName = meta.layerName;
+
+	const input = label.querySelector("input.leaflet-control-layers-selector");
+	if (input instanceof HTMLElement) {
+		input.dataset.emcdynmapplusLayerOwner = meta.owner;
+		input.dataset.emcdynmapplusLayerSection = meta.section;
+		input.dataset.emcdynmapplusLayerId = meta.layerId;
+		if (meta.layerName) input.dataset.emcdynmapplusLayerName = meta.layerName;
+	}
+}
+
+function patchLeafletLayerControls() {
+	if (window[PAGE_LAYER_CONTROL_PATCHED_KEY]) return true;
+	if (!window.L?.Control?.Layers?.prototype) return false;
+
+	window[PAGE_LAYER_CONTROL_PATCHED_KEY] = true;
+	const originalAddLayer = window.L.Control.Layers.prototype._addLayer;
+	const originalAddItem = window.L.Control.Layers.prototype._addItem;
+
+	window.L.Control.Layers.prototype._addLayer = function patchedDynmapPlusLayerAdd(layer, name, overlay) {
+		const result = originalAddLayer.call(this, layer, name, overlay);
+		if (!overlay || !layer || typeof layer !== "object") return result;
+
+		const meta = resolveDynmapPlusLayerMeta(name, layer);
+		if (meta) {
+			dynmapPlusLayerMetaByLayer.set(layer, meta);
+			layer.emcdynmapplusMeta = meta;
+		}
+		return result;
+	};
+
+	window.L.Control.Layers.prototype._addItem = function patchedDynmapPlusLayerItem(obj) {
+		const label = originalAddItem.call(this, obj);
+		const meta = dynmapPlusLayerMetaByLayer.get(obj?.layer) || resolveDynmapPlusLayerMeta(obj?.name, obj?.layer);
+		if (meta) applyDynmapPlusLayerMetaToControlLabel(label, meta);
+		return label;
+	};
+
+	pageMarkersDebugInfo(`${PAGE_MAP_PREFIX}: patched Leaflet layer controls`);
+	return true;
 }
 
 function dispatchPageMarkersEvent(name, detail) {
@@ -1008,14 +1131,12 @@ function addPlanningLayer(data) {
 	}
 
 	const nextData = data.slice();
-	nextData.push({
-		name: "Planning Nations",
-		id: PLANNING_LAYER_ID,
+	nextData.push(createDynmapPlusManagedLayer(DYNMAP_PLUS_LAYER_DEFINITIONS.planningNations, {
 		order: 1001,
 		hide: false,
 		control: true,
 		markers: planningNations.flatMap(createPlanningNationMarkers),
-	});
+	}));
 
 	pageMarkersDebugInfo(`${PLANNING_LAYER_PREFIX}: appended planning layer`, {
 		nationCount: planningNations.length,
@@ -1073,13 +1194,11 @@ function addChunksLayer(data) {
 	for (let z = U; z <= D; z += 16) chunkLines.push(hor(z));
 
 	const nextData = data.slice();
-	nextData[2] = {
-		name: "Chunks",
-		id: "chunks",
+	nextData[2] = createDynmapPlusManagedLayer(DYNMAP_PLUS_LAYER_DEFINITIONS.chunks, {
 		hide: true,
 		control: true,
 		markers: [makePolyline(chunkLines, 0.33, "#000000")],
-	};
+	});
 
 	return nextData;
 }
@@ -1089,14 +1208,12 @@ function addCountryBordersLayer(data, borders) {
 		const points = Object.values(borders).flatMap((line) => borderEntryToPolylines(line));
 
 		const nextData = data.slice();
-		nextData[3] = {
-			name: "Country Borders",
-			id: "borders",
+		nextData[3] = createDynmapPlusManagedLayer(DYNMAP_PLUS_LAYER_DEFINITIONS.borders, {
 			order: 999,
 			hide: true,
 			control: true,
 			markers: [makePolyline(points)],
-		};
+		});
 
 		return nextData;
 	} catch (err) {

@@ -538,8 +538,7 @@ select {
 }
 
 #options-menu {
-	display: grid !important;
-	gap: 8px;
+	display: block !important;
 }
 
 .leaflet-control-layers-list {
@@ -643,12 +642,8 @@ select {
 
 .emcdynmapplus-layer-option {
 	display: block;
-	margin-bottom: 4px;
+	margin: 0;
 	color: var(--text-strong);
-}
-
-.emcdynmapplus-layer-option:last-child {
-	margin-bottom: 0;
 }
 
 .emcdynmapplus-layer-option > span {
