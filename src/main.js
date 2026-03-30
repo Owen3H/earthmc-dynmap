@@ -41,11 +41,6 @@ const pendingArchiveLoads = new Map()
 
 /** @typedef {typeof MAP_MODES[number]} MapMode */
 const MAP_MODES = /** @type {const} */ (["default", "planning", "overclaim", "nationclaims", "meganations", "alliances"])
-const BORDER_CHUNK_COORDS = { 
-	L: -33280, R: 33088,
-	U: -16640, D: 16512
-}
-
 const EXTRA_BORDER_OPTS = {
 	label: "Country Border",
 	opacity: 0.5,
@@ -56,6 +51,12 @@ const EXTRA_BORDER_OPTS = {
 
 const getCurrentDetectedMapType = () => globalThis.EMCDYNMAPPLUS_MAP?.getCurrentMapType?.() ?? 'aurora'
 const getCurrentBordersResourcePath = () => globalThis.EMCDYNMAPPLUS_MAP?.getBorderResourcePath?.() ?? 'resources/borders.aurora.json'
+const getCurrentChunkBounds = () => globalThis.EMCDYNMAPPLUS_MAP?.getChunkBounds?.(getCurrentDetectedMapType()) ?? {
+	L: -33280,
+	R: 33088,
+	U: -16640,
+	D: 16512,
+}
 const getArchiveMarkersSourceUrl = (date) => globalThis.EMCDYNMAPPLUS_MAP?.getArchiveMarkersSourceUrl?.(date)
 	?? (
 		date < 20230212 ? 'https://earthmc.net/map/aurora/tiles/_markers_/marker_earth.json'
@@ -440,7 +441,7 @@ async function modifyMarkers(data) {
 
 /** @param {MarkersResponse} data - The markers response JSON data. */
 function addChunksLayer(data) {
-	const { L, R, U, D } = BORDER_CHUNK_COORDS
+	const { L, R, U, D } = getCurrentChunkBounds()
 	const ver = (x) => [{ x, z: U }, { x, z: D }, { x, z: U }]
 	const hor = (z) => [{ x: L, z }, { x: R, z }, { x: L, z }]
 	

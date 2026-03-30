@@ -122,6 +122,7 @@ select {
 	width: auto;
 	padding: 0;
 	float: left !important;
+	text-align: left;
 	background: transparent !important;
 	border: none !important;
 	box-shadow: none;
@@ -141,6 +142,7 @@ select {
 	gap: 12px;
 	min-width: 176px;
 	padding: 10px 12px;
+	text-align: left;
 	background: var(--panel-bg) !important;
 	border: 1px solid var(--panel-border) !important;
 	border-radius: var(--radius-md);
@@ -205,6 +207,7 @@ select {
 	padding: 14px;
 	display: grid;
 	gap: 10px;
+	text-align: left;
 	background: var(--panel-bg) !important;
 	border: 1px solid var(--panel-border) !important;
 	border-radius: var(--radius-md);
@@ -479,6 +482,7 @@ select {
 	box-shadow:
 		0 0 0 1px rgba(255, 243, 207, 0.55) inset,
 		0 8px 18px rgba(25, 18, 8, 0.18);
+	display: none;
 }
 
 .planning-cursor-preview-center {
@@ -510,6 +514,7 @@ select {
 	letter-spacing: 0.04em;
 	white-space: nowrap;
 	box-shadow: 0 10px 20px rgba(0, 0, 0, 0.18);
+	display: none;
 }
 
 :root[data-emcdynmapplus-planning-armed] .leaflet-container {
@@ -681,6 +686,10 @@ select {
 }
 
 .emcdynmapplus-layer-checkbox {
+	accent-color: var(--accent-color);
+}
+
+.emcdynmapplus-layer-options input.leaflet-control-layers-selector {
 	accent-color: var(--accent-color);
 }
 

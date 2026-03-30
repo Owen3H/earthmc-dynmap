@@ -313,7 +313,7 @@ function initToggleOptions() {
 }
 
 async function insertScreenshotBtn() {
-	if (isFirefoxBrowser()) return
+	if (!isScreenshotFeatureAvailable()) return
 
 	const linkBtn = await waitForElement(".leaflet-control-layers.link")
 	if (!linkBtn?.parentElement) return
@@ -331,10 +331,32 @@ async function insertScreenshotBtn() {
 
 		try {
 			const canvas = await withInteractionBlocked(screenshotViewport)
-			const blob = await canvas.convertToBlob({ type: 'image/png', quality: 1 })
-			await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
-			
-			showAlert('Screenshot successful. Copied to clipboard!', 5)
+			const blob = await screenshotCanvasToBlob(canvas)
+			let clipboardError = null
+
+			if (canWriteScreenshotToClipboard()) {
+				try {
+					await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
+					showAlert('Screenshot successful. Copied to clipboard!', 5)
+					return
+				} catch (error) {
+					clipboardError = error
+					console.warn('Clipboard image write failed, falling back to download.', error)
+				}
+			}
+
+			if (canDownloadScreenshot()) {
+				downloadScreenshotBlob(blob)
+				showAlert(
+					clipboardError
+						? 'Screenshot captured. Clipboard copy failed, so the image was downloaded instead.'
+						: 'Screenshot successful. Download started.',
+					5
+				)
+				return
+			}
+
+			throw clipboardError || new Error('No screenshot output path is available in this browser.')
 		} catch (e) {
 			console.error(e)
 			showAlert('Failed to screenshot/copy to clipboard. Check the console.')

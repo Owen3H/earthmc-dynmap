@@ -222,8 +222,7 @@ async function getPlanningState(driver) {
 			placeButtonText: document.querySelector('#planning-place-button')?.textContent ?? null,
 			removeButtonText: document.querySelector('#planning-remove-button')?.textContent ?? null,
 			centerLabel: document.querySelector('#planning-center-label')?.textContent ?? null,
-			placementStatus: document.querySelector('#planning-placement-status')?.textContent ?? null,
-			nationStatus: document.querySelector('#planning-nation-status')?.textContent ?? null,
+			rangeValue: document.querySelector('#planning-range-input')?.value ?? null,
 		};
 	`, PLANNER_STORAGE_KEY, PLANNER_ARMED_KEY, PLANNER_DEBUG_STATE_KEY);
 }
@@ -264,7 +263,7 @@ async function armPlanningPlacement(driver) {
 		async () =>
 			driver.executeScript(`
 				return localStorage.getItem(arguments[0]) === 'true'
-					&& document.querySelector('#planning-placement-status')?.textContent === 'Waiting For Click';
+					&& document.querySelector('#planning-place-button')?.textContent === 'Click Map To Place';
 			`, PLANNER_ARMED_KEY),
 		UI_TIMEOUT_MS,
 		"Planning placement did not arm after pressing the place button.",
@@ -302,11 +301,11 @@ async function simulateMapPlacement(driver, coords) {
 async function waitForPlacedNation(driver) {
 	await driver.wait(
 		async () => {
-			const state = await getPlanningState(driver);
-			return state.nationCount === 1
-				&& state.armed === "false"
-				&& state.nations[0]?.center?.x === PLACEMENT_COORDS.x
-				&& state.nations[0]?.center?.z === PLACEMENT_COORDS.z;
+			const state = await getPlanningStateWithRetry(driver);
+			return state?.nationCount === 1
+				&& state?.armed === "false"
+				&& state?.nations?.[0]?.center?.x === PLACEMENT_COORDS.x
+				&& state?.nations?.[0]?.center?.z === PLACEMENT_COORDS.z;
 		},
 		UI_TIMEOUT_MS,
 		`Planning nation was never stored after placement.`,
@@ -316,8 +315,8 @@ async function waitForPlacedNation(driver) {
 async function waitForRemovedNation(driver) {
 	await driver.wait(
 		async () => {
-			const state = await getPlanningState(driver);
-			return state.nationCount === 0 && state.armed === "false";
+			const state = await getPlanningStateWithRetry(driver);
+			return state?.nationCount === 0 && state?.armed === "false";
 		},
 		UI_TIMEOUT_MS,
 		"Planning nation was never removed from storage.",

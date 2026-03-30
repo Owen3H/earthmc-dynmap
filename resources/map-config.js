@@ -43,6 +43,12 @@
 					'map.earthmc.net',
 				]),
 				borderResource: 'resources/borders.aurora.json',
+				chunkBounds: Object.freeze({
+					L: -33280,
+					R: 33088,
+					U: -16640,
+					D: 16512,
+				}),
 				nationBonusTiers: LEGACY_AURORA_NATION_BONUS_TIERS,
 			}),
 			nostra: Object.freeze({
@@ -51,6 +57,12 @@
 					'nostra.earthmc.net',
 				]),
 				borderResource: 'resources/borders.nostra.json',
+				chunkBounds: Object.freeze({
+					L: -64512,
+					R: 64512,
+					U: -32256,
+					D: 32256,
+				}),
 				nationBonusTiers: LEGACY_AURORA_NATION_BONUS_TIERS,
 			}),
 		}),
@@ -74,6 +86,9 @@
 
 	const getBorderResourcePath = (mapType = getCurrentMapType()) =>
 		getMapConfig(mapType).borderResource
+
+	const getChunkBounds = (mapType = getCurrentMapType()) =>
+		getMapConfig(mapType).chunkBounds
 
 	const getMapApiUrl = (baseUrl, resourcePath = '', mapType = getCurrentMapType()) => {
 		const mapConfig = getMapConfig(mapType)
@@ -107,6 +122,7 @@
 		detectMapTypeFromHostname,
 		getCurrentMapType,
 		getBorderResourcePath,
+		getChunkBounds,
 		getMapApiUrl,
 		getNationClaimBonus,
 		getArchiveMarkersSourceUrl,

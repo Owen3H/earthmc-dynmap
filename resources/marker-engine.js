@@ -40,11 +40,6 @@ const OAPI_BASE = `https://api.${EMC_DOMAIN}/v3`;
 const OAPI_REQ_PER_MIN = 180;
 const OAPI_ITEMS_PER_REQ = 100;
 
-const BORDER_CHUNK_COORDS = {
-	L: -33280, R: 33088,
-	U: -16640, D: 16512,
-};
-
 const EXTRA_BORDER_OPTS = {
 	label: "Country Border",
 	opacity: 0.5,
@@ -56,6 +51,11 @@ const EXTRA_BORDER_OPTS = {
 const getCurrentBordersResourcePath = () =>
 	EARTHMC_MAP?.getBorderResourcePath?.() ?? "resources/borders.aurora.json";
 const getCurrentMapType = () => EARTHMC_MAP?.getCurrentMapType?.() ?? "aurora";
+const getCurrentChunkBounds = () =>
+	EARTHMC_MAP?.getChunkBounds?.(getCurrentMapType()) ?? {
+		L: -33280, R: 33088,
+		U: -16640, D: 16512,
+	};
 const getCurrentOapiUrl = (resourcePath = "") =>
 	EARTHMC_MAP?.getMapApiUrl?.(OAPI_BASE, resourcePath)
 		?? `${OAPI_BASE}/aurora${resourcePath ? `/${String(resourcePath).replace(/^\/+/, "")}` : ""}`;
@@ -1199,7 +1199,7 @@ async function getStyledBorders() {
 }
 
 function addChunksLayer(data) {
-	const { L, R, U, D } = BORDER_CHUNK_COORDS;
+	const { L, R, U, D } = getCurrentChunkBounds();
 	const ver = (x) => [{ x, z: U }, { x, z: D }, { x, z: U }];
 	const hor = (z) => [{ x: L, z }, { x: R, z }, { x: L, z }];
 
