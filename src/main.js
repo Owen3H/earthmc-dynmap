@@ -45,6 +45,26 @@ const EXTRA_BORDER_OPTS = {
 	markup: false,
 }
 
+const getCurrentDetectedMapType = () => globalThis.EMCDYNMAPPLUS_MAP?.getCurrentMapType?.() ?? 'aurora'
+const getCurrentBordersResourcePath = () => globalThis.EMCDYNMAPPLUS_MAP?.getBorderResourcePath?.() ?? 'resources/borders.aurora.json'
+const getArchiveMarkersSourceUrl = (date) => globalThis.EMCDYNMAPPLUS_MAP?.getArchiveMarkersSourceUrl?.(date)
+	?? (
+		date < 20230212 ? 'https://earthmc.net/map/aurora/tiles/_markers_/marker_earth.json'
+		: date < 20240701 ? 'https://earthmc.net/map/aurora/standalone/MySQL_markers.php?marker=_markers_/marker_earth.json'
+		: 'https://map.earthmc.net/tiles/minecraft_overworld/markers.json'
+	)
+const getNationClaimBonus = (numNationResidents) =>
+	globalThis.EMCDYNMAPPLUS_MAP?.getNationClaimBonus?.(numNationResidents, getCurrentDetectedMapType()) ?? 0
+
+function getUserscriptBorders() {
+	if (typeof BORDERS_BY_MAP !== 'undefined') {
+		return BORDERS_BY_MAP[getCurrentDetectedMapType()] ?? BORDERS_BY_MAP.aurora ?? null
+	}
+
+	if (typeof BORDERS !== 'undefined') return BORDERS
+	return null
+}
+
 // Black
 const DEFAULT_ALLIANCE_COLOURS = { fill: '#000000', outline: '#000000' }
 const CHUNKS_PER_RES = 12
@@ -159,6 +179,44 @@ function pointInPolygon(vertex, polygon) {
 const roundToNearest16 = n => Math.round(n / 16) * 16
 
 /**
+ * Splits one stored border entry into one or more polyline segments.
+ * `null`/`NaN` separators are treated as breaks so one country can store
+ * multiple Polygon/MultiPolygon exterior rings without stray bridge lines.
+ * @param {{x: Array<number|null>, z: Array<number|null>}} line
+ * @returns {Array<Polygon>}
+ */
+function borderEntryToPolylines(line) {
+	/** @type {Array<Polygon>} */
+	const segments = []
+	/** @type {Polygon} */
+	let current = []
+	const length = Math.max(line?.x?.length ?? 0, line?.z?.length ?? 0)
+
+	for (let i = 0; i < length; i++) {
+		const rawX = line?.x?.[i]
+		const rawZ = line?.z?.[i]
+		if (rawX == null || rawZ == null) {
+			if (current.length > 1) segments.push(current)
+			current = []
+			continue
+		}
+
+		const x = Number(rawX)
+		const z = Number(rawZ)
+		if (!Number.isFinite(x) || !Number.isFinite(z)) {
+			if (current.length > 1) segments.push(current)
+			current = []
+			continue
+		}
+
+		current.push({ x, z })
+	}
+
+	if (current.length > 1) segments.push(current)
+	return segments
+}
+
+/**
  * @param {Polygon} vertices 
  * @returns {Vertex}
  */
@@ -207,14 +265,17 @@ async function getStyledBorders() {
 	if (cachedStyledBorders != null) return cachedStyledBorders
 
 	if (isUserscript()) {
+		const borders = getUserscriptBorders()
+		if (!borders) return null
+
 		cachedStyledBorders = Object.fromEntries(
-			Object.entries(BORDERS).map(([key, border]) => [key, { ...border, ...EXTRA_BORDER_OPTS }])
+			Object.entries(borders).map(([key, border]) => [key, { ...border, ...EXTRA_BORDER_OPTS }])
 		)
 		return cachedStyledBorders
 	}
 
 	if (!pendingBordersLoad) {
-		pendingBordersLoad = fetch(getExtensionURL('resources/borders.json'))
+		pendingBordersLoad = fetch(getExtensionURL(getCurrentBordersResourcePath()))
 			.then(async response => {
 				if (!response.ok) return null
 
@@ -275,8 +336,9 @@ async function modifyMarkers(data) {
 
 	if (mapMode == 'overclaim' && cachedApiNations == null) {
 		markersDebugInfo(`${MARKERS_LOG_PREFIX}: loading overclaim nation cache`)
-		const nlist = await fetchJSON(`${OAPI_BASE}/${CURRENT_MAP}/nations`)
-		const apiNations = await queryConcurrent(`${OAPI_BASE}/${CURRENT_MAP}/nations`, nlist)
+		const nationsUrl = getCurrentOapiUrl('nations')
+		const nlist = await fetchJSON(nationsUrl)
+		const apiNations = await queryConcurrent(nationsUrl, nlist)
 		cachedApiNations = new Map(apiNations.map(n => [n.name.toLowerCase(), n]))
 		markersDebugInfo(`${MARKERS_LOG_PREFIX}: overclaim nation cache loaded`, {
 			count: cachedApiNations.size,
@@ -394,17 +456,7 @@ function addChunksLayer(data) {
  */
 function addCountryBordersLayer(data, borders) {
 	try {
-		const points = Object.keys(borders).map(country => {
-			/** @type {Polygon} */
-			const countryPoly = []
-			const line = borders[country]
-			for (let i = 0; i < line.x.length; i++) {
-				if (!isNumeric(line.x[i])) continue
-				countryPoly.push({ x: line.x[i], z: line.z[i] })
-			}
-
-			return countryPoly
-		})
+		const points = Object.values(borders).flatMap(line => borderEntryToPolylines(line))
 
 		const nextData = data.slice()
 		nextData[3] = {
@@ -656,7 +708,7 @@ async function lookupPlayer(playerName, showOnlineStatus = true) {
 		className: 'leaflet-control-layers leaflet-control',
 		text: 'Loading...',
 	}))
-	const players = await postJSON(`${OAPI_BASE}/${CURRENT_MAP}/players`, { query: [playerName] })
+	const players = await postJSON(getCurrentOapiUrl('players'), { query: [playerName] })
 
 	loading.remove()
 
@@ -818,7 +870,7 @@ function parseColours(colours) {
  * @returns {Promise<Array<CachedAlliance>>}
  */
 async function getAlliances() {
-	const alliances = await fetchJSON(`${CAPI_BASE}/${CURRENT_MAP}/alliances`)
+	const alliances = await fetchJSON(getCurrentCapiUrl('alliances'))
 	if (!alliances) {
 		const cache = JSON.parse(localStorage['emcdynmapplus-alliances'])
 		if (cache == null) {
@@ -897,11 +949,7 @@ function updateArchiveModeLabel(actualArchiveDate) {
  * @returns {Promise<{ data: MarkersResponse, actualArchiveDate: string } | null>}
  */
 async function loadArchiveForDate(date, data) {
-	// markers.json URL changed over time
-	const markersURL = 
-		date < 20230212 ? "https://earthmc.net/map/aurora/tiles/_markers_/marker_earth.json" :
-		date < 20240701 ? "https://earthmc.net/map/aurora/standalone/MySQL_markers.php?marker=_markers_/marker_earth.json" :
-		"https://map.earthmc.net/tiles/minecraft_overworld/markers.json" // latest
+	const markersURL = getArchiveMarkersSourceUrl(date)
 
 	const archive = await fetchJSON(PROXY_URL + getArchiveURL(date, markersURL))
 	if (!archive) {
@@ -1019,7 +1067,7 @@ function checkOverclaimedNationless(claimedChunks, numResidents) {
 function checkOverclaimed(claimedChunks, numResidents, numNationResidents) {
     const resLimit = numResidents * CHUNKS_PER_RES
 	
-	const bonus = auroraNationBonus(numNationResidents)
+	const bonus = getNationClaimBonus(numNationResidents)
     const totalClaimLimit = resLimit + bonus
     const isOverclaimed = claimedChunks > totalClaimLimit
 	
@@ -1031,12 +1079,3 @@ function checkOverclaimed(claimedChunks, numResidents, numNationResidents) {
 	}
 }
 
-/** @param {number} numNationResidents */
-function auroraNationBonus(numNationResidents) {
-	return numNationResidents >= 200 ? 100
-		: numNationResidents >= 120 ? 80
-		: numNationResidents >= 80 ? 60
-		: numNationResidents >= 60 ? 50
-		: numNationResidents >= 40 ? 30
-		: numNationResidents >= 20 ? 10 : 0
-} 

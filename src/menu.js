@@ -46,8 +46,35 @@ const formatMapModeLabel = mode => `Map Mode: ${mode}`
 const SIDEBAR_EXPANDED_KEY = 'emcdynmapplus-sidebar-expanded'
 const PLANNER_STORAGE_KEY = 'emcdynmapplus-planner-nations'
 const PLANNING_PLACEMENT_ARMED_KEY = 'emcdynmapplus-planning-placement-armed'
+const PLANNING_DEFAULT_RANGE_KEY = 'emcdynmapplus-planning-default-range'
+const PLANNING_DEBUG_STATE_KEY = 'emcdynmapplus-planning-debug-state'
 const PLANNING_UI_PREFIX = 'emcdynmapplus[planning-ui]'
-const DEFAULT_PLANNING_NATION_RANGE = 750
+const PLANNING_PLACE_EVENT = 'EMCDYNMAPPLUS_PLACE_PLANNING_NATION'
+const PLANNING_CURSOR_PREVIEW_ID = 'emcdynmapplus-planning-cursor-preview'
+const PLANNING_CENTER_RADIUS_BLOCKS = 1
+const PLANNING_PREVIEW_CENTER_DIAMETER_PX = 8
+const PLANNING_PREVIEW_BLOCKS_PER_PIXEL_BY_ZOOM = {
+	0: 7.874016,
+	1: 3.968254,
+	2: 1.994018,
+	3: 0.997009,
+	4: 0.498505,
+	5: 0.249253,
+}
+const PLANNING_PREVIEW_ZOOM_LEVELS = Object.keys(PLANNING_PREVIEW_BLOCKS_PER_PIXEL_BY_ZOOM)
+	.map(value => Number(value))
+	.filter(Number.isFinite)
+const PLANNING_PREVIEW_MIN_ZOOM = Math.min(...PLANNING_PREVIEW_ZOOM_LEVELS)
+const PLANNING_PREVIEW_MAX_ZOOM = Math.max(...PLANNING_PREVIEW_ZOOM_LEVELS)
+const PLANNING_PREVIEW_FALLBACK_BLOCKS_PER_PIXEL = PLANNING_PREVIEW_BLOCKS_PER_PIXEL_BY_ZOOM[1]
+const PLANNING_PREVIEW_FALLBACK_ZOOM = 1
+const PLANNING_LEAFLET_ZOOM_ATTR = 'data-emcdynmapplus-leaflet-zoom'
+const PLANNING_LEAFLET_MAP_CONTAINER_ATTR = 'data-emcdynmapplus-leaflet-map-container'
+const PLANNING_TILE_ZOOM_ATTR = 'data-emcdynmapplus-tile-zoom'
+const PLANNING_TILE_URL_ATTR = 'data-emcdynmapplus-tile-url'
+const PLANNING_TILE_DOMINANT_ZOOM_ATTR = 'data-emcdynmapplus-tile-dominant-zoom'
+const PLANNING_TILE_SUMMARY_ATTR = 'data-emcdynmapplus-tile-zoom-summary'
+const DEFAULT_PLANNING_NATION_RANGE = 5000
 const DEFAULT_PLANNING_NATION = {
 	id: 'hardcoded-demo-nation',
 	name: 'Planning Nation',
@@ -56,6 +83,13 @@ const DEFAULT_PLANNING_NATION = {
 	rangeRadiusBlocks: DEFAULT_PLANNING_NATION_RANGE,
 }
 let planningPlacementClickInitialized = false
+let planningCursorPreviewInitialized = false
+let planningCursorPreviewRefreshFrame = 0
+let planningCursorPreviewInteractionInitialized = false
+let planningCursorPreviewRuntimeZoom = null
+let planningCursorPreviewRuntimeZoomSource = null
+let planningCursorPreviewLastWheelAt = 0
+let planningCursorPreviewLastLogSignature = null
 
 function isPlanningDebugLoggingEnabled() {
 	try {
@@ -69,18 +103,428 @@ const planningDebugInfo = (...args) => {
 	if (isPlanningDebugLoggingEnabled()) console.info(...args)
 }
 
+function setPlanningDebugState(action, details = {}) {
+	try {
+		localStorage[PLANNING_DEBUG_STATE_KEY] = JSON.stringify({
+			action,
+			details,
+			at: new Date().toISOString(),
+		})
+	} catch {}
+
+	planningDebugInfo(`${PLANNING_UI_PREFIX}: ${action}`, details)
+}
+
+function getPlanningCursorPreview() {
+	return document.querySelector(`#${PLANNING_CURSOR_PREVIEW_ID}`)
+}
+
+function ensurePlanningCursorPreviewElement() {
+	let preview = getPlanningCursorPreview()
+	if (preview) return preview
+
+	preview = addElement(document.body, createElement('div', {
+		id: PLANNING_CURSOR_PREVIEW_ID,
+		className: 'planning-cursor-preview',
+		attrs: {
+			'aria-hidden': 'true',
+		},
+	}, [
+		createElement('div', { className: 'planning-cursor-preview-ring' }),
+		createElement('div', { className: 'planning-cursor-preview-center' }),
+		createElement('div', {
+			className: 'planning-cursor-preview-label',
+			id: 'planning-cursor-preview-label',
+		}),
+	]))
+	return preview
+}
+
+function readNumericRootAttribute(name) {
+	const rawValue = document.documentElement.getAttribute(name)
+	if (rawValue == null || rawValue === '') return null
+
+	const parsedValue = Number(rawValue)
+	return Number.isFinite(parsedValue) ? parsedValue : null
+}
+
+function readJsonRootAttribute(name) {
+	const rawValue = document.documentElement.getAttribute(name)
+	if (rawValue == null || rawValue === '') return null
+
+	try {
+		return JSON.parse(rawValue)
+	} catch {
+		return null
+	}
+}
+
+function parseZoomFromTileUrl(url) {
+	if (typeof url !== 'string' || url.length === 0) return null
+
+	const match = url.match(/\/tiles\/[^/]+\/(-?\d+)\//i)
+	if (!match?.[1]) return null
+
+	const parsedValue = Number(match[1])
+	return Number.isFinite(parsedValue) ? parsedValue : null
+}
+
+function clampPlanningPreviewZoom(value) {
+	const numericValue = Number(value)
+	if (!Number.isFinite(numericValue)) return null
+	return Math.min(PLANNING_PREVIEW_MAX_ZOOM, Math.max(PLANNING_PREVIEW_MIN_ZOOM, Math.round(numericValue)))
+}
+
+function setPlanningCursorPreviewRuntimeZoom(value, source = 'runtime') {
+	const nextZoom = clampPlanningPreviewZoom(value)
+	if (nextZoom == null) return null
+	planningCursorPreviewRuntimeZoom = nextZoom
+	planningCursorPreviewRuntimeZoomSource = source
+	planningDebugInfo(`${PLANNING_UI_PREFIX}: preview runtime zoom updated`, {
+		zoomLevel: nextZoom,
+		source,
+	})
+	return nextZoom
+}
+
+function getPlanningPreviewInteractionBaseZoom() {
+	const leafletZoom = readNumericRootAttribute(PLANNING_LEAFLET_ZOOM_ATTR)
+	if (leafletZoom != null) return clampPlanningPreviewZoom(leafletZoom)
+
+	if (planningCursorPreviewRuntimeZoom != null) return clampPlanningPreviewZoom(planningCursorPreviewRuntimeZoom)
+
+	const urlZoom = (() => {
+		const rawValue = new URL(window.location.href).searchParams.get('zoom')
+		if (rawValue == null || rawValue === '') return null
+		const parsedValue = Number(rawValue)
+		return Number.isFinite(parsedValue) ? parsedValue : null
+	})()
+	if (urlZoom != null) return clampPlanningPreviewZoom(urlZoom)
+
+	const dominantTileZoom = readNumericRootAttribute(PLANNING_TILE_DOMINANT_ZOOM_ATTR)
+	if (dominantTileZoom != null) return clampPlanningPreviewZoom(dominantTileZoom)
+
+	const publishedTileZoom = readNumericRootAttribute(PLANNING_TILE_ZOOM_ATTR)
+	if (publishedTileZoom != null) return clampPlanningPreviewZoom(publishedTileZoom)
+
+	const activeTile = document.querySelector('.leaflet-tile-pane img.leaflet-tile[src]')
+	const tileSrc = activeTile instanceof HTMLImageElement ? activeTile.currentSrc || activeTile.src || '' : ''
+	return clampPlanningPreviewZoom(parseZoomFromTileUrl(tileSrc))
+}
+
+function stepPlanningCursorPreviewRuntimeZoom(delta, source) {
+	const baseZoom = getPlanningPreviewInteractionBaseZoom() ?? PLANNING_PREVIEW_FALLBACK_ZOOM
+	return setPlanningCursorPreviewRuntimeZoom(baseZoom + delta, source)
+}
+
+function getTransformScale(element) {
+	if (!(element instanceof Element)) return null
+
+	const transform = getComputedStyle(element).transform
+	if (!transform || transform === 'none') return 1
+
+	try {
+		const matrix = new DOMMatrixReadOnly(transform)
+		const scaleX = Math.hypot(matrix.a, matrix.b)
+		const scaleY = Math.hypot(matrix.c, matrix.d)
+		const averageScale = (scaleX + scaleY) / 2
+		return Number.isFinite(averageScale) && averageScale > 0 ? averageScale : 1
+	} catch {
+		return null
+	}
+}
+
+function roundDebugValue(value, digits = 4) {
+	return Number.isFinite(value) ? Number(value.toFixed(digits)) : null
+}
+
+function getPlanningProjectionProbe() {
+	const urlZoom = (() => {
+		const rawValue = new URL(window.location.href).searchParams.get('zoom')
+		if (rawValue == null || rawValue === '') return null
+		const parsedValue = Number(rawValue)
+		return Number.isFinite(parsedValue) ? parsedValue : null
+	})()
+	const leafletZoom = readNumericRootAttribute(PLANNING_LEAFLET_ZOOM_ATTR)
+	const publishedTileZoom = readNumericRootAttribute(PLANNING_TILE_ZOOM_ATTR)
+	const dominantTileZoom = readNumericRootAttribute(PLANNING_TILE_DOMINANT_ZOOM_ATTR)
+	const publishedTileUrl = document.documentElement.getAttribute(PLANNING_TILE_URL_ATTR) || null
+	const tileSummary = readJsonRootAttribute(PLANNING_TILE_SUMMARY_ATTR)
+	const activeTile = document.querySelector('.leaflet-tile-pane img.leaflet-tile[src]')
+	const tileSrc = activeTile instanceof HTMLImageElement ? activeTile.currentSrc || activeTile.src || '' : ''
+	const tileImageZoom = parseZoomFromTileUrl(tileSrc)
+	const mapContainer = document.documentElement.getAttribute(PLANNING_LEAFLET_MAP_CONTAINER_ATTR) || null
+	const tilePaneScale = getTransformScale(document.querySelector('.leaflet-tile-pane'))
+	const tileLayerScale = getTransformScale(document.querySelector('.leaflet-tile-pane .leaflet-layer'))
+	const mapPaneScale = getTransformScale(document.querySelector('.leaflet-map-pane'))
+	const overlayCanvasScale = getTransformScale(document.querySelector('.leaflet-overlay-pane canvas.leaflet-zoom-animated'))
+
+	const effectiveZoomFromTilePaneScale = dominantTileZoom == null || tilePaneScale == null || tilePaneScale <= 0
+		? null
+		: dominantTileZoom + Math.log2(tilePaneScale)
+	const effectiveZoomFromTileLayerScale = dominantTileZoom == null || tileLayerScale == null || tileLayerScale <= 0
+		? null
+		: dominantTileZoom + Math.log2(tileLayerScale)
+
+	const zoomCandidates = [
+		{ source: 'leaflet', value: leafletZoom },
+		{ source: planningCursorPreviewRuntimeZoomSource ?? 'runtime', value: planningCursorPreviewRuntimeZoom },
+		{ source: 'url', value: urlZoom },
+		{ source: 'tile-dominant', value: dominantTileZoom },
+		{ source: 'tile-request', value: publishedTileZoom },
+		{ source: 'tile-image', value: tileImageZoom },
+	]
+	const activeZoomCandidate = zoomCandidates.find(candidate => candidate.value != null) ?? null
+
+	return {
+		zoomLevel: activeZoomCandidate?.value ?? null,
+		zoomSource: activeZoomCandidate?.source ?? 'fallback',
+		urlZoom,
+		leafletZoom,
+		runtimeZoom: planningCursorPreviewRuntimeZoom,
+		runtimeZoomSource: planningCursorPreviewRuntimeZoomSource,
+		publishedTileZoom,
+		dominantTileZoom,
+		tileImageZoom,
+		publishedTileUrl,
+		tileSrc: tileSrc || null,
+		tileSummary,
+		mapContainer,
+		tilePaneScale: roundDebugValue(tilePaneScale),
+		tileLayerScale: roundDebugValue(tileLayerScale),
+		mapPaneScale: roundDebugValue(mapPaneScale),
+		overlayCanvasScale: roundDebugValue(overlayCanvasScale),
+		effectiveZoomFromTilePaneScale: roundDebugValue(effectiveZoomFromTilePaneScale),
+		effectiveZoomFromTileLayerScale: roundDebugValue(effectiveZoomFromTileLayerScale),
+	}
+}
+
+function getPlanningPreviewScaleInfo() {
+	const zoomInfo = getPlanningProjectionProbe()
+	const zoomLevel = Number.isFinite(zoomInfo.zoomLevel) ? zoomInfo.zoomLevel : null
+	const knownBlocksPerPixel = zoomLevel != null ? PLANNING_PREVIEW_BLOCKS_PER_PIXEL_BY_ZOOM[zoomLevel] ?? null : null
+	const zoomStepDelta = zoomLevel == null ? 0 : zoomLevel - PLANNING_PREVIEW_FALLBACK_ZOOM
+	const fallbackBlocksPerPixel = Math.max(0.01, PLANNING_PREVIEW_FALLBACK_BLOCKS_PER_PIXEL / (2 ** zoomStepDelta))
+	const blocksPerPixel = Math.max(0.01, knownBlocksPerPixel ?? fallbackBlocksPerPixel)
+
+	return {
+		...zoomInfo,
+		blocksPerPixel,
+		calibrationMode: knownBlocksPerPixel != null
+			? 'measured-table'
+			: (zoomLevel == null ? 'zoom-fallback' : 'derived-fallback'),
+	}
+}
+
+function getPlanningPreviewMaxDiameter() {
+	return Math.max(240, 32767)
+}
+
+function getScaledPreviewDiameterMetrics(rangeBlocks) {
+	const normalizedRange = normalizePlanningRange(rangeBlocks) ?? DEFAULT_PLANNING_NATION_RANGE
+	const { blocksPerPixel } = getPlanningPreviewScaleInfo()
+	const rawDiameter = Math.round((normalizedRange * 2) / Math.max(0.01, blocksPerPixel))
+	const previewDiameterPx = Math.max(36, Math.min(getPlanningPreviewMaxDiameter(), rawDiameter))
+	return {
+		rawDiameterPx: rawDiameter,
+		previewDiameterPx,
+		wasClamped: previewDiameterPx !== rawDiameter,
+	}
+}
+
+function logPlanningCursorPreviewScaleInfo(details) {
+	if (!isPlanningDebugLoggingEnabled()) return
+
+	const signature = JSON.stringify({
+		zoomLevel: details.zoomLevel,
+		zoomSource: details.zoomSource,
+		runtimeZoom: details.runtimeZoom,
+		runtimeZoomSource: details.runtimeZoomSource,
+		publishedTileZoom: details.publishedTileZoom,
+		dominantTileZoom: details.dominantTileZoom,
+		urlZoom: details.urlZoom,
+		diameter: details.previewDiameterPx,
+		centerDiameter: details.centerDiameterPx,
+		calibrationMode: details.calibrationMode,
+	})
+	if (signature === planningCursorPreviewLastLogSignature) return
+	planningCursorPreviewLastLogSignature = signature
+
+	planningDebugInfo(`${PLANNING_UI_PREFIX}: cursor preview sizing`, details)
+}
+
+function updatePlanningCursorPreviewVisual() {
+	const preview = ensurePlanningCursorPreviewElement()
+	const range = getHardcodedPlanningNation()?.rangeRadiusBlocks ?? getPlanningDefaultRange()
+	const scaleInfo = getPlanningPreviewScaleInfo()
+	const diameterMetrics = getScaledPreviewDiameterMetrics(range)
+	const diameter = diameterMetrics.previewDiameterPx
+	const rawCenterDiameter = Math.round((PLANNING_CENTER_RADIUS_BLOCKS * 2) / Math.max(0.01, scaleInfo.blocksPerPixel))
+	const centerDiameter = Math.max(6, Math.max(rawCenterDiameter, PLANNING_PREVIEW_CENTER_DIAMETER_PX))
+	preview.style.setProperty('--planning-preview-size', `${diameter}px`)
+	preview.style.setProperty('--planning-preview-center-size', `${centerDiameter}px`)
+	preview.dataset.previewZoomLevel = scaleInfo.zoomLevel == null ? '' : String(scaleInfo.zoomLevel)
+	preview.dataset.previewZoomSource = scaleInfo.zoomSource ?? ''
+	preview.dataset.previewRawDiameter = String(diameterMetrics.rawDiameterPx)
+	preview.dataset.previewDiameter = String(diameter)
+	preview.dataset.previewDiameterWasClamped = String(diameterMetrics.wasClamped)
+	preview.dataset.previewRawCenterDiameter = String(rawCenterDiameter)
+	preview.dataset.previewCenterDiameter = String(centerDiameter)
+	preview.querySelector('#planning-cursor-preview-label').textContent = `${range} b`
+	logPlanningCursorPreviewScaleInfo({
+		rangeRadiusBlocks: range,
+		rawPreviewDiameterPx: diameterMetrics.rawDiameterPx,
+		previewDiameterPx: diameter,
+		previewDiameterWasClamped: diameterMetrics.wasClamped,
+		rawCenterDiameterPx: rawCenterDiameter,
+		centerDiameterPx: centerDiameter,
+		blocksPerPixel: roundDebugValue(scaleInfo.blocksPerPixel, 6),
+		calibrationMode: scaleInfo.calibrationMode,
+		zoomLevel: scaleInfo.zoomLevel,
+		zoomSource: scaleInfo.zoomSource,
+		runtimeZoom: scaleInfo.runtimeZoom,
+		runtimeZoomSource: scaleInfo.runtimeZoomSource,
+		urlZoom: scaleInfo.urlZoom,
+		leafletZoom: scaleInfo.leafletZoom,
+		publishedTileZoom: scaleInfo.publishedTileZoom,
+		dominantTileZoom: scaleInfo.dominantTileZoom,
+		tileImageZoom: scaleInfo.tileImageZoom,
+		effectiveZoomFromTilePaneScale: scaleInfo.effectiveZoomFromTilePaneScale,
+		effectiveZoomFromTileLayerScale: scaleInfo.effectiveZoomFromTileLayerScale,
+	})
+}
+
+function hidePlanningCursorPreview() {
+	const preview = getPlanningCursorPreview()
+	if (!(preview instanceof HTMLElement)) return
+	preview.hidden = true
+}
+
+function handlePlanningCursorPreviewZoomControlClick(event) {
+	const target = event.target
+	if (!(target instanceof HTMLElement)) return
+
+	const zoomInControl = target.closest('.leaflet-control-zoom-in')
+	if (zoomInControl instanceof HTMLElement && !zoomInControl.classList.contains('leaflet-disabled')) {
+		stepPlanningCursorPreviewRuntimeZoom(1, 'zoom-control')
+		return
+	}
+
+	const zoomOutControl = target.closest('.leaflet-control-zoom-out')
+	if (zoomOutControl instanceof HTMLElement && !zoomOutControl.classList.contains('leaflet-disabled')) {
+		stepPlanningCursorPreviewRuntimeZoom(-1, 'zoom-control')
+	}
+}
+
+function handlePlanningCursorPreviewWheel(event) {
+	if (!isPlanningPlacementArmed()) return
+	if (currentMapMode() !== 'planning') return
+
+	const target = event.target
+	if (!(target instanceof HTMLElement)) return
+	if (!target.closest('.leaflet-container')) return
+	if (target.closest('.leaflet-control-container')) return
+
+	const now = Date.now()
+	if (now - planningCursorPreviewLastWheelAt < 180) return
+	if (!Number.isFinite(event.deltaY) || event.deltaY === 0) return
+
+	planningCursorPreviewLastWheelAt = now
+	stepPlanningCursorPreviewRuntimeZoom(event.deltaY < 0 ? 1 : -1, 'wheel')
+}
+
+function stopPlanningCursorPreviewRefreshLoop() {
+	if (!planningCursorPreviewRefreshFrame) return
+	cancelAnimationFrame(planningCursorPreviewRefreshFrame)
+	planningCursorPreviewRefreshFrame = 0
+}
+
+function refreshPlanningCursorPreviewLoop() {
+	if (!isPlanningPlacementArmed() || currentMapMode() !== 'planning') {
+		planningCursorPreviewRefreshFrame = 0
+		return
+	}
+
+	const preview = getPlanningCursorPreview()
+	if (preview instanceof HTMLElement && !preview.hidden) {
+		updatePlanningCursorPreviewVisual()
+	}
+
+	planningCursorPreviewRefreshFrame = requestAnimationFrame(refreshPlanningCursorPreviewLoop)
+}
+
+function ensurePlanningCursorPreviewRefreshLoop() {
+	if (planningCursorPreviewRefreshFrame) return
+	planningCursorPreviewRefreshFrame = requestAnimationFrame(refreshPlanningCursorPreviewLoop)
+}
+
+function updatePlanningCursorPreviewState() {
+	const isArmed = currentMapMode() === 'planning' && isPlanningPlacementArmed()
+	document.documentElement.toggleAttribute('data-emcdynmapplus-planning-armed', isArmed)
+	const preview = ensurePlanningCursorPreviewElement()
+	if (!isArmed) {
+		stopPlanningCursorPreviewRefreshLoop()
+		planningCursorPreviewLastLogSignature = null
+		preview.hidden = true
+		return
+	}
+
+	updatePlanningCursorPreviewVisual()
+	ensurePlanningCursorPreviewRefreshLoop()
+}
+
+function handlePlanningCursorPreviewMove(event) {
+	if (!isPlanningPlacementArmed()) return hidePlanningCursorPreview()
+	if (currentMapMode() !== 'planning') return hidePlanningCursorPreview()
+
+	const target = event.target
+	if (!(target instanceof HTMLElement)) return hidePlanningCursorPreview()
+	if (!target.closest('.leaflet-container')) return hidePlanningCursorPreview()
+	if (target.closest('.leaflet-control-container')) return hidePlanningCursorPreview()
+
+	const preview = ensurePlanningCursorPreviewElement()
+	updatePlanningCursorPreviewVisual()
+	preview.hidden = false
+	preview.style.left = `${event.clientX}px`
+	preview.style.top = `${event.clientY}px`
+	ensurePlanningCursorPreviewRefreshLoop()
+}
+
+function ensurePlanningCursorPreview() {
+	if (planningCursorPreviewInitialized) return
+
+	ensurePlanningCursorPreviewElement()
+	document.addEventListener('mousemove', handlePlanningCursorPreviewMove, true)
+	document.addEventListener('mouseleave', hidePlanningCursorPreview, true)
+	planningCursorPreviewInitialized = true
+
+	if (planningCursorPreviewInteractionInitialized) return
+	planningCursorPreviewRuntimeZoom = getPlanningPreviewInteractionBaseZoom()
+	planningCursorPreviewRuntimeZoomSource = planningCursorPreviewRuntimeZoom != null ? 'initial' : null
+	document.addEventListener('click', handlePlanningCursorPreviewZoomControlClick, true)
+	document.addEventListener('wheel', handlePlanningCursorPreviewWheel, true)
+	planningCursorPreviewInteractionInitialized = true
+}
+
 function updateSidebarContentPosition(sidebarSummary, sidebarContent) {
 	if (!(sidebarSummary instanceof HTMLElement) || !(sidebarContent instanceof HTMLElement)) return
 
 	const summaryRect = sidebarSummary.getBoundingClientRect()
 	const viewportPadding = 12
 	const verticalGap = 8
+	const bottomControls = document.querySelector('.leaflet-bottom.leaflet-left')
+	const bottomControlsRect = bottomControls instanceof HTMLElement ? bottomControls.getBoundingClientRect() : null
+	const defaultBottomClearance = 112
 	const fallbackWidth = 292
 	const measuredWidth = sidebarContent.offsetWidth || fallbackWidth
 	const maxLeft = Math.max(viewportPadding, window.innerWidth - measuredWidth - viewportPadding)
 	const left = Math.min(Math.max(viewportPadding, Math.round(summaryRect.left)), maxLeft)
 	const top = Math.max(viewportPadding, Math.round(summaryRect.bottom + verticalGap))
-	const maxHeight = Math.max(220, window.innerHeight - top - viewportPadding)
+	const fallbackSafeBottom = window.innerHeight - defaultBottomClearance
+	const safeBottom = bottomControlsRect?.top && Number.isFinite(bottomControlsRect.top)
+		? Math.min(fallbackSafeBottom, Math.round(bottomControlsRect.top - viewportPadding))
+		: fallbackSafeBottom
+	const maxHeight = Math.max(120, safeBottom - top)
 
 	sidebarContent.style.left = `${left}px`
 	sidebarContent.style.top = `${top}px`
@@ -90,6 +534,7 @@ function updateSidebarContentPosition(sidebarSummary, sidebarContent) {
 		left,
 		top,
 		maxHeight,
+		safeBottom,
 		summaryRect: {
 			left: Math.round(summaryRect.left),
 			top: Math.round(summaryRect.top),
@@ -332,17 +777,86 @@ function savePlanningNations(nations) {
 	localStorage[PLANNER_STORAGE_KEY] = JSON.stringify(nations)
 }
 
+function normalizePlanningRange(value) {
+	const numericValue = Number(value)
+	if (!Number.isFinite(numericValue)) return null
+	return Math.max(0, Math.round(numericValue))
+}
+
+function getPlanningDefaultRange() {
+	const savedRange = normalizePlanningRange(localStorage[PLANNING_DEFAULT_RANGE_KEY])
+	return savedRange ?? DEFAULT_PLANNING_NATION_RANGE
+}
+
+function getPlanningMapWorld() {
+	const world = new URL(window.location.href).searchParams.get('world')
+	return world && world.trim().length > 0 ? world : 'minecraft_overworld'
+}
+
+function getPlanningMapZoom() {
+	const projectionZoom = getPlanningProjectionProbe().zoomLevel
+	if (Number.isFinite(projectionZoom)) return Math.max(0, Math.round(projectionZoom))
+
+	const urlZoom = new URL(window.location.href).searchParams.get('zoom')
+	const parsedZoom = Number(urlZoom)
+	return Number.isFinite(parsedZoom) ? Math.max(0, Math.round(parsedZoom)) : 0
+}
+
+function reloadPlanningMapAt(coords, zoom = getPlanningMapZoom()) {
+	const x = Number(coords?.x)
+	const z = Number(coords?.z)
+	if (!Number.isFinite(x) || !Number.isFinite(z)) return location.reload()
+
+	const nextUrl = new URL(window.location.href)
+	nextUrl.searchParams.set('world', getPlanningMapWorld())
+	nextUrl.searchParams.set('zoom', String(Math.max(0, Math.round(zoom))))
+	nextUrl.searchParams.set('x', String(Math.round(x)))
+	nextUrl.searchParams.set('z', String(Math.round(z)))
+	location.href = nextUrl.toString()
+}
+
+function setPlanningDefaultRange(range, source = 'unknown') {
+	localStorage[PLANNING_DEFAULT_RANGE_KEY] = String(range)
+	setPlanningDebugState('updated planning default range', {
+		source,
+		rangeRadiusBlocks: range,
+	})
+	updatePlanningCursorPreviewVisual()
+}
+
+function normalizePlanningNation(nation) {
+	const x = Number(nation?.center?.x)
+	const z = Number(nation?.center?.z)
+	const rangeRadiusBlocks = Number(nation?.rangeRadiusBlocks)
+	if (!Number.isFinite(x) || !Number.isFinite(z)) return null
+
+	return {
+		id: typeof nation?.id === 'string' && nation.id ? nation.id : DEFAULT_PLANNING_NATION.id,
+		name: typeof nation?.name === 'string' && nation.name.trim() ? nation.name : DEFAULT_PLANNING_NATION.name,
+		color: typeof nation?.color === 'string' && nation.color ? nation.color : DEFAULT_PLANNING_NATION.color,
+		outlineColor: typeof nation?.outlineColor === 'string' && nation.outlineColor ? nation.outlineColor : DEFAULT_PLANNING_NATION.outlineColor,
+		rangeRadiusBlocks: Number.isFinite(rangeRadiusBlocks) ? Math.max(0, Math.round(rangeRadiusBlocks)) : getPlanningDefaultRange(),
+		center: {
+			x: Math.round(x),
+			z: Math.round(z),
+		},
+	}
+}
+
 function isPlanningPlacementArmed() {
 	return localStorage[PLANNING_PLACEMENT_ARMED_KEY] === 'true'
 }
 
 function setPlanningPlacementArmed(armed) {
 	localStorage[PLANNING_PLACEMENT_ARMED_KEY] = String(armed)
-	planningDebugInfo(`${PLANNING_UI_PREFIX}: placement armed state updated`, { armed })
+	setPlanningDebugState('placement armed state updated', { armed })
+	updatePlanningCursorPreviewState()
 }
 
 function getHardcodedPlanningNation() {
-	return loadPlanningNations().find(nation => nation?.id === DEFAULT_PLANNING_NATION.id) ?? null
+	return loadPlanningNations()
+		.map(normalizePlanningNation)
+		.find(nation => nation != null) ?? null
 }
 
 function hasHardcodedPlanningNation() {
@@ -352,6 +866,7 @@ function hasHardcodedPlanningNation() {
 function buildPlanningNation(center) {
 	return {
 		...DEFAULT_PLANNING_NATION,
+		rangeRadiusBlocks: getPlanningDefaultRange(),
 		center: {
 			x: Math.round(center.x),
 			z: Math.round(center.z),
@@ -359,10 +874,35 @@ function buildPlanningNation(center) {
 	}
 }
 
+function updatePlanningNationRange(range, source = 'unknown') {
+	const normalizedRange = normalizePlanningRange(range)
+	if (normalizedRange == null) {
+		showAlert('Enter a valid nation range in blocks.', 4)
+		return false
+	}
+
+	setPlanningDefaultRange(normalizedRange, source)
+	const activeNation = getHardcodedPlanningNation()
+	if (!activeNation) return true
+
+	savePlanningNations([{ ...activeNation, rangeRadiusBlocks: normalizedRange }])
+	setPlanningDebugState('updated placed planning range', {
+		source,
+		rangeRadiusBlocks: normalizedRange,
+		center: activeNation.center,
+	})
+	reloadPlanningMapAt(activeNation.center)
+	return true
+}
+
 function removeHardcodedPlanningNation() {
+	const activeNation = getHardcodedPlanningNation()
 	setPlanningPlacementArmed(false)
-	savePlanningNations(loadPlanningNations().filter(nation => nation?.id !== DEFAULT_PLANNING_NATION.id))
-	location.reload()
+	savePlanningNations([])
+	setPlanningDebugState('removed planning nation', {
+		remainingNationCount: loadPlanningNations().length,
+	})
+	reloadPlanningMapAt(activeNation?.center ?? parsePlanningCoords(getPlanningCoordsText()))
 }
 
 function parsePlanningCoords(text) {
@@ -393,16 +933,62 @@ function getPlanningCoordsText() {
 	return document.querySelector('.leaflet-control-layers.coordinates')?.textContent?.trim() ?? ''
 }
 
-function placeHardcodedPlanningNation(center) {
+function storePlanningNation(center, source = 'unknown') {
 	const nation = buildPlanningNation(center)
-	const nations = loadPlanningNations().filter(existingNation => existingNation?.id !== DEFAULT_PLANNING_NATION.id)
-	savePlanningNations([...nations, nation])
+	savePlanningNations([nation])
 	setPlanningPlacementArmed(false)
-	planningDebugInfo(`${PLANNING_UI_PREFIX}: stored planning nation from map click`, {
+	setPlanningDebugState('stored planning nation', {
+		source,
 		center: nation.center,
 		rangeRadiusBlocks: nation.rangeRadiusBlocks,
 	})
-	location.reload()
+	return nation
+}
+
+function placeHardcodedPlanningNation(center, source = 'unknown') {
+	const nation = storePlanningNation(center, source)
+	reloadPlanningMapAt(nation.center)
+}
+
+function handlePlanningPlacementRequest(center, source = 'unknown') {
+	const x = Number(center?.x)
+	const z = Number(center?.z)
+	const coords = Number.isFinite(x) && Number.isFinite(z)
+		? { x: Math.round(x), z: Math.round(z) }
+		: null
+
+	if (currentMapMode() !== 'planning') {
+		setPlanningDebugState('ignored planning placement request', {
+			reason: 'wrong-map-mode',
+			source,
+			mapMode: currentMapMode(),
+			coords,
+		})
+		return false
+	}
+
+	if (!isPlanningPlacementArmed()) {
+		setPlanningDebugState('ignored planning placement request', {
+			reason: 'not-armed',
+			source,
+			mapMode: currentMapMode(),
+			coords,
+		})
+		return false
+	}
+
+	if (!coords) {
+		setPlanningDebugState('ignored planning placement request', {
+			reason: 'invalid-coords',
+			source,
+			center,
+		})
+		showAlert('Could not read map coordinates for planning placement. Move the cursor over the map and try again.', 5)
+		return false
+	}
+
+	placeHardcodedPlanningNation(coords, source)
+	return true
 }
 
 function handlePlanningPlacementClick(event) {
@@ -416,34 +1002,42 @@ function handlePlanningPlacementClick(event) {
 
 	const rawCoordinatesText = getPlanningCoordsText()
 	const coords = parsePlanningCoords(rawCoordinatesText)
-	planningDebugInfo(`${PLANNING_UI_PREFIX}: captured map click while armed`, {
+	setPlanningDebugState('captured map click while armed', {
 		rawCoordinatesText,
 		targetTag: target.tagName,
 		targetClassName: target.className || null,
 		coords,
 	})
+	handlePlanningPlacementRequest(coords, 'map-click')
+}
 
-	if (!coords) {
-		showAlert('Could not read map coordinates for planning placement. Move the cursor over the map and try again.', 5)
-		return
-	}
-
-	placeHardcodedPlanningNation(coords)
+function handlePlanningPlacementEvent(event) {
+	const center = event.detail?.center ?? null
+	const source = typeof event.detail?.source === 'string' ? event.detail.source : 'custom-event'
+	setPlanningDebugState('received planning placement event', {
+		source,
+		center,
+	})
+	handlePlanningPlacementRequest(center, source)
 }
 
 function ensurePlanningPlacementClickHandler() {
 	if (planningPlacementClickInitialized) return
 
 	document.addEventListener('click', handlePlanningPlacementClick, true)
+	document.addEventListener(PLANNING_PLACE_EVENT, handlePlanningPlacementEvent)
 	planningPlacementClickInitialized = true
-	planningDebugInfo(`${PLANNING_UI_PREFIX}: attached planning placement click listener`)
+	setPlanningDebugState('attached planning placement listeners', {
+		clickListener: true,
+		eventListener: PLANNING_PLACE_EVENT,
+	})
 }
 
 function armPlanningPlacement() {
 	setPlanningPlacementArmed(true)
 	ensurePlanningPlacementClickHandler()
 	showAlert('Planning placement armed. Click on the live map to place the nation.', 5)
-	planningDebugInfo(`${PLANNING_UI_PREFIX}: placement armed`, {
+	setPlanningDebugState('placement armed', {
 		existingNationCenter: getHardcodedPlanningNation()?.center ?? null,
 	})
 }
@@ -456,9 +1050,11 @@ function addPlanningSection(sidebar) {
 	)
 	section.id = 'planning-section'
 	ensurePlanningPlacementClickHandler()
+	ensurePlanningCursorPreview()
 
 	const placedNation = getHardcodedPlanningNation()
 	const placedCenter = placedNation?.center ?? null
+	const activeRange = placedNation?.rangeRadiusBlocks ?? getPlanningDefaultRange()
 
 	const chipRow = addElement(section, createElement('div', { className: 'planning-chip-row' }, [
 		createElement('div', {
@@ -478,12 +1074,12 @@ function addPlanningSection(sidebar) {
 		createElement('div', { className: 'planning-chip' }, [
 			createElement('span', {
 				className: 'planning-chip-label',
-				text: 'Placement',
+				text: 'Placement Mode',
 			}),
 			createElement('strong', {
 				id: 'planning-placement-status',
 				className: 'planning-chip-value',
-				text: isPlanningPlacementArmed() ? 'Armed' : 'Idle',
+				text: isPlanningPlacementArmed() ? 'Waiting For Click' : 'Off',
 			}),
 		]),
 		createElement('div', { className: 'planning-chip' }, [
@@ -492,8 +1088,9 @@ function addPlanningSection(sidebar) {
 				text: 'Range',
 			}),
 			createElement('strong', {
+				id: 'planning-range-value',
 				className: 'planning-chip-value',
-				text: `${DEFAULT_PLANNING_NATION_RANGE} b`,
+				text: `${activeRange} b`,
 			}),
 		]),
 		createElement('div', { className: 'planning-chip' }, [
@@ -512,8 +1109,49 @@ function addPlanningSection(sidebar) {
 
 	addElement(section, createElement('p', {
 		className: 'sidebar-help planning-inline-note',
-		text: 'The button arms placement. Your next click on the map reads the live coordinate widget and stores the nation center there.',
+		text: 'Placement mode only means whether the tool is waiting for your next map click. Off means no click is armed right now.',
 	}))
+
+	const rangeField = addElement(section, createElement('div', {
+		className: 'sidebar-field-group planning-range-control',
+	}))
+	addElement(rangeField, createElement('label', {
+		className: 'sidebar-field-label',
+		htmlFor: 'planning-range-input',
+		text: 'Nation range (blocks)',
+	}))
+	const rangeControls = addElement(rangeField, createElement('div', {
+		className: 'planning-range-row',
+	}))
+	const rangeInput = addElement(rangeControls, createElement('input', {
+		id: 'planning-range-input',
+		className: 'sidebar-input',
+		type: 'number',
+		value: String(activeRange),
+		attrs: {
+			min: '0',
+			step: '50',
+			inputmode: 'numeric',
+		},
+	}))
+	const rangeButton = addElement(rangeControls, createElement('button', {
+		className: 'sidebar-button sidebar-button-secondary',
+		id: 'planning-range-apply',
+		text: placedNation ? 'Update Range' : 'Save Range',
+		type: 'button',
+	}))
+	const applyPlanningRangeFromInput = () => {
+		if (!updatePlanningNationRange(rangeInput.value, 'planning-range-input')) return
+		if (!getHardcodedPlanningNation()) {
+			syncPlanningSectionState()
+			showAlert('Saved range for the next nation placement.', 4)
+		}
+	}
+	rangeButton.addEventListener('click', applyPlanningRangeFromInput)
+	rangeInput.addEventListener('keyup', event => {
+		if (event.key !== 'Enter') return
+		applyPlanningRangeFromInput()
+	})
 
 	const actionRow = addElement(section, createElement('div', { className: 'planning-actions-grid' }))
 	const createNationButton = addElement(actionRow, createElement('button', {
@@ -549,15 +1187,20 @@ function addPlanningSection(sidebar) {
 		const activeNation = getHardcodedPlanningNation()
 		const isArmed = isPlanningPlacementArmed()
 		const center = activeNation?.center ?? null
+		const currentRange = activeNation?.rangeRadiusBlocks ?? getPlanningDefaultRange()
 		section.querySelector('#planning-nation-status').textContent = activeNation ? 'Placed' : 'Not Placed'
-		section.querySelector('#planning-placement-status').textContent = isArmed ? 'Armed' : 'Idle'
+		section.querySelector('#planning-placement-status').textContent = isArmed ? 'Waiting For Click' : 'Off'
+		section.querySelector('#planning-range-value').textContent = `${currentRange} b`
 		section.querySelector('#planning-center-label').textContent = center ? `X ${center.x} Z ${center.z}` : 'Not set'
+		rangeInput.value = String(currentRange)
+		rangeButton.textContent = activeNation ? 'Update Range' : 'Save Range'
 		createNationButton.textContent = isArmed ? 'Click Map To Place' : (activeNation ? 'Reposition Nation' : 'Place Nation On Map')
 		removeNationButton.textContent = isArmed && !activeNation ? 'Cancel Placement' : 'Remove Nation'
 		removeNationButton.disabled = !activeNation && !isArmed
 
 		const nationChip = section.querySelector('.planning-chip')
 		nationChip?.setAttribute('data-emphasis', String(activeNation != null))
+		updatePlanningCursorPreviewState()
 	}
 
 	createNationButton.addEventListener('click', () => {
@@ -963,7 +1606,7 @@ async function locateNation(nationName, isArchiveMode) {
 	let capitalName = null
 	if (!isArchiveMode) {
 		const queryBody = { query: [nationName], template: { capital: true } }
-		const nations = await postJSON(`${OAPI_BASE}/${CURRENT_MAP}/nations`, queryBody)
+		const nations = await postJSON(getCurrentOapiUrl('nations'), queryBody)
 		if (nations && nations.length > 0) capitalName = nations[0].capital?.name
 	}
 	if (!capitalName) {
@@ -986,7 +1629,7 @@ async function locateResident(residentName, isArchiveMode) {
 	let townName = null
 	if (!isArchiveMode) {
 		const queryBody = { query: [residentName], template: { town: true } }
-		const players = await postJSON(`${OAPI_BASE}/${CURRENT_MAP}/players`, queryBody)
+		const players = await postJSON(getCurrentOapiUrl('players'), queryBody)
 		if (players && players.length > 0) townName = players[0].town?.name
 	}
 	if (!townName) {
@@ -1001,7 +1644,7 @@ async function locateResident(residentName, isArchiveMode) {
 /** @param {string} townName */
 async function getTownSpawn(townName) {
 	const queryBody = { query: [townName], template: { coordinates: true } }
-	const towns = await postJSON(`${OAPI_BASE}/${CURRENT_MAP}/towns`, queryBody)
+	const towns = await postJSON(getCurrentOapiUrl('towns'), queryBody)
 	if (!towns || towns.length < 1) return null
 
 	const spawn = towns[0].coordinates.spawn

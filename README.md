@@ -104,12 +104,14 @@ Available scripts:
 - `npm run extension:chromium`
 - `npm run extension:firefox`
 - `npm run build`
+- `npm run convert:borders:nostra -- <input.geojson> <output.json>`
 
 What they do:
 
 - `userscript`: builds `dist/emc-dynmapplus.user.js`
 - `extension`: builds both browser targets
 - `build`: builds both the userscript and both extension targets
+- `convert:borders:nostra`: converts lon/lat country GeoJSON into Nostra borders JSON using Miller cylindrical projection
 
 ## Automated tests
 

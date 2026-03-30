@@ -4,7 +4,10 @@ import * as path from 'path'
 
 const FORK_REPO = 'JasonSolace/earthmc-dynmap-cross-browser'
 const STYLE_CSS = readFileSync('resources/style.css', 'utf8')
-const BORDERS = JSON.parse(readFileSync('resources/borders.json', 'utf8'))
+const BORDERS_BY_MAP = {
+	aurora: JSON.parse(readFileSync('resources/borders.aurora.json', 'utf8')),
+	nostra: JSON.parse(readFileSync('resources/borders.nostra.json', 'utf8')),
+}
 const MANIFEST = JSON.parse(readFileSync('manifest.json', 'utf8'))
 
 // TODO: Dynamically insert @include tags depending on matches arr count
@@ -25,9 +28,10 @@ const HEADER = `// ==UserScript==
 const outdir = 'dist'
 const outfile = path.join(outdir, 'emc-dynmapplus.user.js')
 const webAccessibleScripts = (MANIFEST.web_accessible_resources?.[0]?.resources || []).filter(file => file.endsWith('.js'))
+const entryPoints = [...new Set([...webAccessibleScripts, ...contentScripts.js])]
 
 const buildOpts = {
-	entryPoints: [...webAccessibleScripts, ...contentScripts.js],
+	entryPoints,
 	outdir,
 	bundle: true,
 	write: false,
@@ -37,7 +41,7 @@ const buildOpts = {
 	define: {
 		IS_USERSCRIPT: 'true',
 		STYLE_CSS: JSON.stringify(STYLE_CSS),
-		BORDERS: JSON.stringify(BORDERS),
+		BORDERS_BY_MAP: JSON.stringify(BORDERS_BY_MAP),
 		MANIFEST: JSON.stringify(MANIFEST),
 		window: 'unsafeWindow',
 	},

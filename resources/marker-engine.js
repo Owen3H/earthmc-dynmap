@@ -11,6 +11,7 @@ if (window[MARKER_ENGINE_GUARD]) {
 window[MARKER_ENGINE_GUARD] = true;
 
 const MARKER_ENGINE_PREFIX = "emcdynmapplus[page-markers]";
+const PAGE_MAP_PREFIX = "emcdynmapplus[page-map]";
 const MARKER_ENGINE_EVENT_PARSED = "EMCDYNMAPPLUS_SYNC_PARSED_MARKERS";
 const MARKER_ENGINE_EVENT_ALERT = "EMCDYNMAPPLUS_SHOW_ALERT";
 const MARKER_ENGINE_EVENT_ARCHIVE_LABEL = "EMCDYNMAPPLUS_UPDATE_ARCHIVE_LABEL";
@@ -32,8 +33,8 @@ const MARKER_ENGINE_RESOURCE_BASE = (() => {
 })();
 
 const PROXY_URL = "https://api.codetabs.com/v1/proxy/?quest=";
+const EARTHMC_MAP = globalThis.EMCDYNMAPPLUS_MAP ?? null;
 const EMC_DOMAIN = "earthmc.net";
-const CURRENT_MAP = "aurora";
 const CAPI_BASE = "https://emcstats.bot.nu";
 const OAPI_BASE = `https://api.${EMC_DOMAIN}/v3`;
 const OAPI_REQ_PER_MIN = 180;
@@ -52,6 +53,34 @@ const EXTRA_BORDER_OPTS = {
 	markup: false,
 };
 
+const getCurrentBordersResourcePath = () =>
+	EARTHMC_MAP?.getBorderResourcePath?.() ?? "resources/borders.aurora.json";
+const getCurrentMapType = () => EARTHMC_MAP?.getCurrentMapType?.() ?? "aurora";
+const getCurrentOapiUrl = (resourcePath = "") =>
+	EARTHMC_MAP?.getMapApiUrl?.(OAPI_BASE, resourcePath)
+		?? `${OAPI_BASE}/aurora${resourcePath ? `/${String(resourcePath).replace(/^\/+/, "")}` : ""}`;
+const getCurrentCapiUrl = (resourcePath = "") =>
+	EARTHMC_MAP?.getMapApiUrl?.(CAPI_BASE, resourcePath)
+		?? `${CAPI_BASE}/aurora${resourcePath ? `/${String(resourcePath).replace(/^\/+/, "")}` : ""}`;
+const getArchiveMarkersSourceUrl = (date) =>
+	EARTHMC_MAP?.getArchiveMarkersSourceUrl?.(date)
+		?? (
+			date < 20230212 ? "https://earthmc.net/map/aurora/tiles/_markers_/marker_earth.json" :
+			date < 20240701 ? "https://earthmc.net/map/aurora/standalone/MySQL_markers.php?marker=_markers_/marker_earth.json" :
+			"https://map.earthmc.net/tiles/minecraft_overworld/markers.json"
+		);
+const getNationClaimBonus = (numNationResidents) =>
+	EARTHMC_MAP?.getNationClaimBonus?.(numNationResidents, getCurrentMapType()) ?? 0;
+
+function getUserscriptBorders() {
+	if (typeof BORDERS_BY_MAP !== "undefined") {
+		return BORDERS_BY_MAP[getCurrentMapType()] ?? BORDERS_BY_MAP.aurora ?? null;
+	}
+
+	if (typeof BORDERS !== "undefined") return BORDERS;
+	return null;
+}
+
 const DEFAULT_ALLIANCE_COLOURS = { fill: "#000000", outline: "#000000" };
 const DEFAULT_BLUE = "#3fb4ff";
 const DEFAULT_GREEN = "#89c500";
@@ -59,8 +88,8 @@ const CHUNKS_PER_RES = 12;
 const PLANNER_STORAGE_KEY = "emcdynmapplus-planner-nations";
 const PLANNING_LAYER_ID = "planning-nations";
 const PLANNING_LAYER_PREFIX = "emcdynmapplus[planning-layer]";
-const DEFAULT_PLANNING_RANGE = 750;
-const PLANNING_CENTER_RADIUS = 40;
+const DEFAULT_PLANNING_RANGE = 5000;
+const PLANNING_CENTER_RADIUS = 48;
 
 let parsedMarkers = [];
 let cachedAlliances = null;
@@ -70,6 +99,15 @@ let pendingBordersLoad = null;
 
 const cachedArchives = new Map();
 const pendingArchiveLoads = new Map();
+const PAGE_MAPS_KEY = "__EMCDYNMAPPLUS_LEAFLET_MAPS__";
+const PAGE_MAP_PATCHED_KEY = "__EMCDYNMAPPLUS_LEAFLET_MAP_PATCHED__";
+const PAGE_MAP_LISTENERS_KEY = "__EMCDYNMAPPLUS_PAGE_MAP_STATE_LISTENERS__";
+const PAGE_MAP_ZOOM_ATTR = "data-emcdynmapplus-leaflet-zoom";
+const PAGE_MAP_CONTAINER_ATTR = "data-emcdynmapplus-leaflet-map-container";
+const PAGE_TILE_ZOOM_ATTR = "data-emcdynmapplus-tile-zoom";
+const PAGE_TILE_URL_ATTR = "data-emcdynmapplus-tile-url";
+const PAGE_TILE_DOMINANT_ZOOM_ATTR = "data-emcdynmapplus-tile-dominant-zoom";
+const PAGE_TILE_SUMMARY_ATTR = "data-emcdynmapplus-tile-zoom-summary";
 
 function pageMarkersDebugEnabled() {
 	try {
@@ -82,6 +120,200 @@ function pageMarkersDebugEnabled() {
 const pageMarkersDebugInfo = (...args) => {
 	if (pageMarkersDebugEnabled()) console.info(...args);
 };
+
+function getKnownLeafletMaps() {
+	const knownMaps = window[PAGE_MAPS_KEY];
+	return Array.isArray(knownMaps) ? knownMaps : [];
+}
+
+function ensureKnownLeafletMaps() {
+	if (!Array.isArray(window[PAGE_MAPS_KEY])) window[PAGE_MAPS_KEY] = [];
+	return window[PAGE_MAPS_KEY];
+}
+
+function describeLeafletMap(map, index = null, source = null) {
+	if (!map) return null;
+
+	let container = null;
+	try {
+		container = typeof map.getContainer === "function" ? map.getContainer() : map._container ?? null;
+	} catch {}
+
+	let center = null;
+	try {
+		const currentCenter = typeof map.getCenter === "function" ? map.getCenter() : null;
+		if (currentCenter) {
+			center = {
+				lat: Number(currentCenter.lat?.toFixed?.(3) ?? currentCenter.lat ?? 0),
+				lng: Number(currentCenter.lng?.toFixed?.(3) ?? currentCenter.lng ?? 0),
+			};
+		}
+	} catch {}
+
+	let size = null;
+	try {
+		const currentSize = typeof map.getSize === "function" ? map.getSize() : null;
+		if (currentSize) {
+			size = {
+				x: currentSize.x,
+				y: currentSize.y,
+			};
+		}
+	} catch {}
+
+	let layerCount = null;
+	try {
+		layerCount = map._layers ? Object.keys(map._layers).length : null;
+	} catch {}
+
+	return {
+		index,
+		source,
+		zoom: typeof map.getZoom === "function" ? map.getZoom() : null,
+		center,
+		size,
+		layerCount,
+		hasOverlayPane: !!map.getPane?.("overlayPane"),
+		hasMarkerPane: !!map.getPane?.("markerPane"),
+		containerClassName: container?.className || null,
+		containerId: container?.id || null,
+		containerTagName: container?.tagName || null,
+	};
+}
+
+function getPrimaryLeafletMap() {
+	const knownMaps = getKnownLeafletMaps();
+	return knownMaps.find((map) => map?.getContainer?.() instanceof HTMLElement)
+		|| knownMaps[0]
+		|| null;
+}
+
+function publishLeafletMapState(map = null) {
+	const targetMap = map || getPrimaryLeafletMap();
+	if (!targetMap) return;
+
+	const root = document.documentElement;
+	if (!root) return;
+
+	try {
+		root.setAttribute(PAGE_MAP_ZOOM_ATTR, String(targetMap.getZoom?.() ?? ""));
+		const container = targetMap.getContainer?.();
+		const containerInfo = [
+			container?.id || null,
+			container?.className || null,
+		]
+			.filter(Boolean)
+			.join(" | ");
+		root.setAttribute(PAGE_MAP_CONTAINER_ATTR, containerInfo);
+	} catch (err) {
+		console.warn(`${PAGE_MAP_PREFIX}: failed to publish Leaflet map state`, err);
+	}
+}
+
+function attachLeafletMapStateListeners(map) {
+	if (!map?.on) return;
+	if (map[PAGE_MAP_LISTENERS_KEY]) return;
+
+	map.on("zoomend moveend resize load", () => publishLeafletMapState(map));
+	map[PAGE_MAP_LISTENERS_KEY] = true;
+}
+
+function recordLeafletMap(map, source) {
+	if (!map) return map;
+
+	const knownMaps = ensureKnownLeafletMaps();
+	if (!knownMaps.includes(map)) {
+		knownMaps.push(map);
+		attachLeafletMapStateListeners(map);
+		publishLeafletMapState(map);
+		pageMarkersDebugInfo(`${PAGE_MAP_PREFIX}: registered Leaflet map`, describeLeafletMap(map, knownMaps.length - 1, source));
+	}
+
+	return map;
+}
+
+function exposeLeafletMapDiagnostics() {
+	window.EMCDYNMAPPLUS_PAGE_MAP_DEBUG = {
+		getKnownMaps: () => getKnownLeafletMaps().map((map, index) => describeLeafletMap(map, index, "known-map")),
+		logKnownMaps: () => {
+			const details = getKnownLeafletMaps().map((map, index) => describeLeafletMap(map, index, "known-map"));
+			console.info(`${PAGE_MAP_PREFIX}: known map diagnostics`, details);
+			return details;
+		},
+	};
+}
+
+function patchLeafletMapCreation() {
+	if (window[PAGE_MAP_PATCHED_KEY]) return true;
+	if (!window.L?.Map || typeof window.L.map !== "function") return false;
+
+	window[PAGE_MAP_PATCHED_KEY] = true;
+
+	try {
+		window.L.Map.addInitHook(function addDynmapPlusInitHook() {
+			recordLeafletMap(this, "map-init-hook");
+		});
+	} catch (err) {
+		console.warn(`${PAGE_MAP_PREFIX}: failed to add Leaflet init hook`, err);
+	}
+
+	const originalLeafletMapFactory = window.L.map;
+	window.L.map = function patchedLeafletMapFactory(...args) {
+		const createdMap = originalLeafletMapFactory.apply(this, args);
+		recordLeafletMap(createdMap, "L.map-factory");
+		return createdMap;
+	};
+
+	pageMarkersDebugInfo(`${PAGE_MAP_PREFIX}: patched Leaflet map creation hooks`);
+	return true;
+}
+
+function tryScanWindowForLeafletMaps() {
+	if (!window.L?.Map) return [];
+
+	const foundMaps = [];
+	for (const [key, value] of Object.entries(window)) {
+		try {
+			if (!(value instanceof window.L.Map)) continue;
+			recordLeafletMap(value, `window.${key}`);
+			foundMaps.push(key);
+		} catch {}
+	}
+
+	if (foundMaps.length > 0) {
+		pageMarkersDebugInfo(`${PAGE_MAP_PREFIX}: found Leaflet maps on window`, { keys: foundMaps });
+	}
+
+	return foundMaps;
+}
+
+function initLeafletMapDiagnostics() {
+	exposeLeafletMapDiagnostics();
+
+	let attempts = 0;
+	const maxAttempts = 80;
+	const poll = () => {
+		attempts += 1;
+		const patched = patchLeafletMapCreation();
+		if (patched) {
+			tryScanWindowForLeafletMaps();
+			pageMarkersDebugInfo(`${PAGE_MAP_PREFIX}: diagnostics ready`, {
+				attempts,
+				knownMaps: getKnownLeafletMaps().map((map, index) => describeLeafletMap(map, index, "ready")),
+			});
+			return;
+		}
+
+		if (attempts >= maxAttempts) {
+			pageMarkersDebugInfo(`${PAGE_MAP_PREFIX}: Leaflet map diagnostics timed out waiting for window.L.Map`);
+			return;
+		}
+
+		setTimeout(poll, 250);
+	};
+
+	poll();
+}
 
 function dispatchPageMarkersEvent(name, detail) {
 	document.dispatchEvent(new CustomEvent(name, {
@@ -227,6 +459,35 @@ const isNumeric = (str) => Number.isFinite(+str);
 const roundTo16 = (num) => Math.round(num / 16) * 16;
 const roundToNearest16 = (num) => Math.round(num / 16) * 16;
 
+function borderEntryToPolylines(line) {
+	const segments = [];
+	let current = [];
+	const length = Math.max(line?.x?.length ?? 0, line?.z?.length ?? 0);
+
+	for (let i = 0; i < length; i++) {
+		const rawX = line?.x?.[i];
+		const rawZ = line?.z?.[i];
+		if (rawX == null || rawZ == null) {
+			if (current.length > 1) segments.push(current);
+			current = [];
+			continue;
+		}
+
+		const x = Number(rawX);
+		const z = Number(rawZ);
+		if (!Number.isFinite(x) || !Number.isFinite(z)) {
+			if (current.length > 1) segments.push(current);
+			current = [];
+			continue;
+		}
+
+		current.push({ x, z });
+	}
+
+	if (current.length > 1) segments.push(current);
+	return segments;
+}
+
 function hashCode(str) {
 	let hexValue = 0x811c9dc5;
 	for (let i = 0; i < str.length; i++) {
@@ -364,19 +625,361 @@ function createPlanningNationMarkers(nation) {
 	}, {
 		type: "polygon",
 		points: [[createPlanningCircleVertices(nation.center, PLANNING_CENTER_RADIUS)]],
-		weight: 2,
+		weight: 3,
 		color: "#1f1200",
 		opacity: 1,
 		fillColor: "#fff3cf",
-		fillOpacity: 0.95,
+		fillOpacity: 0.22,
 		tooltip: `<div><b>${nation.name} Center</b></div>`,
 		popup: [
 			`<div><span style="font-size:120%;"><b>${nation.name} Center</b></span><br>`,
 			`X: ${nation.center.x}<br>`,
 			`Z: ${nation.center.z}<br>`,
-			`Center radius: ${PLANNING_CENTER_RADIUS} blocks</div>`,
+			`Center marker radius: ${PLANNING_CENTER_RADIUS} blocks</div>`,
 		].join(""),
 	}];
+}
+
+function hexToRgb(hex) {
+	if (typeof hex !== "string") return null;
+
+	let normalized = hex.trim();
+	if (!normalized) return null;
+	if (normalized.startsWith("#")) normalized = normalized.slice(1);
+
+	if (normalized.length === 3) {
+		normalized = normalized
+			.split("")
+			.map((char) => char + char)
+			.join("");
+	}
+
+	if (!/^[\da-fA-F]{6}$/.test(normalized)) return null;
+
+	return {
+		r: Number.parseInt(normalized.slice(0, 2), 16),
+		g: Number.parseInt(normalized.slice(2, 4), 16),
+		b: Number.parseInt(normalized.slice(4, 6), 16),
+	};
+}
+
+function measureCanvasColorBounds(canvas, { color, tolerance = 18, minAlpha = 96 } = {}) {
+	if (!(canvas instanceof HTMLCanvasElement)) {
+		return { ok: false, reason: "missing-canvas" };
+	}
+
+	const target = typeof color === "string" ? hexToRgb(color) : color;
+	if (!target) {
+		return { ok: false, reason: "invalid-color" };
+	}
+
+	let imageData = null;
+	try {
+		const ctx = canvas.getContext("2d", { willReadFrequently: true }) || canvas.getContext("2d");
+		imageData = ctx?.getImageData?.(0, 0, canvas.width, canvas.height) ?? null;
+	} catch (err) {
+		return {
+			ok: false,
+			reason: "image-data-read-failed",
+			error: String(err),
+		};
+	}
+
+	if (!imageData?.data?.length) {
+		return { ok: false, reason: "missing-image-data" };
+	}
+
+	let minX = Number.POSITIVE_INFINITY;
+	let minY = Number.POSITIVE_INFINITY;
+	let maxX = Number.NEGATIVE_INFINITY;
+	let maxY = Number.NEGATIVE_INFINITY;
+	let matchCount = 0;
+
+	const { data, width, height } = imageData;
+	for (let y = 0; y < height; y++) {
+		for (let x = 0; x < width; x++) {
+			const index = (y * width + x) * 4;
+			const alpha = data[index + 3];
+			if (alpha < minAlpha) continue;
+
+			const red = data[index];
+			const green = data[index + 1];
+			const blue = data[index + 2];
+			if (
+				Math.abs(red - target.r) > tolerance
+				|| Math.abs(green - target.g) > tolerance
+				|| Math.abs(blue - target.b) > tolerance
+			) {
+				continue;
+			}
+
+			matchCount += 1;
+			if (x < minX) minX = x;
+			if (y < minY) minY = y;
+			if (x > maxX) maxX = x;
+			if (y > maxY) maxY = y;
+		}
+	}
+
+	if (matchCount === 0) {
+		return {
+			ok: false,
+			reason: "no-matching-pixels",
+			matchCount,
+			target,
+			tolerance,
+			minAlpha,
+		};
+	}
+
+	const canvasBounds = {
+		left: minX,
+		top: minY,
+		right: maxX,
+		bottom: maxY,
+		width: maxX - minX + 1,
+		height: maxY - minY + 1,
+	};
+	const rect = canvas.getBoundingClientRect();
+	const scaleX = rect.width > 0 ? rect.width / canvas.width : 1;
+	const scaleY = rect.height > 0 ? rect.height / canvas.height : 1;
+
+	return {
+		ok: true,
+		target,
+		matchCount,
+		tolerance,
+		minAlpha,
+		canvasBounds,
+		cssBounds: {
+			left: Number((canvasBounds.left * scaleX + rect.left).toFixed(2)),
+			top: Number((canvasBounds.top * scaleY + rect.top).toFixed(2)),
+			right: Number((canvasBounds.right * scaleX + rect.left).toFixed(2)),
+			bottom: Number((canvasBounds.bottom * scaleY + rect.top).toFixed(2)),
+			width: Number((canvasBounds.width * scaleX).toFixed(2)),
+			height: Number((canvasBounds.height * scaleY).toFixed(2)),
+		},
+		canvasSize: {
+			width: canvas.width,
+			height: canvas.height,
+		},
+		canvasRect: {
+			left: Number(rect.left.toFixed(2)),
+			top: Number(rect.top.toFixed(2)),
+			width: Number(rect.width.toFixed(2)),
+			height: Number(rect.height.toFixed(2)),
+		},
+	};
+}
+
+function getPlanningCursorPreviewMetrics() {
+	const preview = document.querySelector("#emcdynmapplus-planning-cursor-preview");
+	if (!(preview instanceof HTMLElement) || preview.hidden) {
+		return {
+			ok: false,
+			reason: "missing-preview",
+		};
+	}
+
+	const previewRect = preview.getBoundingClientRect();
+	const ring = preview.querySelector(".planning-cursor-preview-ring");
+	const center = preview.querySelector(".planning-cursor-preview-center");
+	const label = preview.querySelector(".planning-cursor-preview-label");
+	const ringRect = ring instanceof HTMLElement ? ring.getBoundingClientRect() : previewRect;
+	const centerRect = center instanceof HTMLElement ? center.getBoundingClientRect() : null;
+
+	return {
+		ok: true,
+		zoomLevel: preview.dataset.previewZoomLevel ? Number(preview.dataset.previewZoomLevel) : null,
+		zoomSource: preview.dataset.previewZoomSource || null,
+		rawDiameterPx: preview.dataset.previewRawDiameter ? Number(preview.dataset.previewRawDiameter) : null,
+		diameterPx: preview.dataset.previewDiameter ? Number(preview.dataset.previewDiameter) : null,
+		diameterWasClamped: preview.dataset.previewDiameterWasClamped === "true",
+		rawCenterDiameterPx: preview.dataset.previewRawCenterDiameter ? Number(preview.dataset.previewRawCenterDiameter) : null,
+		centerDiameterPx: preview.dataset.previewCenterDiameter ? Number(preview.dataset.previewCenterDiameter) : null,
+		previewBounds: {
+			left: Number(previewRect.left.toFixed(2)),
+			top: Number(previewRect.top.toFixed(2)),
+			width: Number(previewRect.width.toFixed(2)),
+			height: Number(previewRect.height.toFixed(2)),
+		},
+		ringBounds: {
+			left: Number(ringRect.left.toFixed(2)),
+			top: Number(ringRect.top.toFixed(2)),
+			width: Number(ringRect.width.toFixed(2)),
+			height: Number(ringRect.height.toFixed(2)),
+		},
+		centerBounds: centerRect ? {
+			left: Number(centerRect.left.toFixed(2)),
+			top: Number(centerRect.top.toFixed(2)),
+			width: Number(centerRect.width.toFixed(2)),
+			height: Number(centerRect.height.toFixed(2)),
+		} : null,
+		label: label?.textContent?.trim?.() || null,
+	};
+}
+
+function readNumericRootAttribute(name) {
+	const rawValue = document.documentElement.getAttribute(name);
+	if (rawValue == null || rawValue === "") return null;
+
+	const parsedValue = Number(rawValue);
+	return Number.isFinite(parsedValue) ? parsedValue : null;
+}
+
+function readJsonRootAttribute(name) {
+	const rawValue = document.documentElement.getAttribute(name);
+	if (rawValue == null || rawValue === "") return null;
+
+	try {
+		return JSON.parse(rawValue);
+	} catch {
+		return null;
+	}
+}
+
+function parseZoomFromTileUrl(url) {
+	if (typeof url !== "string" || url.length === 0) return null;
+
+	const match = url.match(/\/tiles\/[^/]+\/(-?\d+)\//i);
+	if (!match?.[1]) return null;
+
+	const parsedValue = Number(match[1]);
+	return Number.isFinite(parsedValue) ? parsedValue : null;
+}
+
+function getTransformScale(element) {
+	if (!(element instanceof Element)) return null;
+
+	const transform = getComputedStyle(element).transform;
+	if (!transform || transform === "none") return 1;
+
+	try {
+		const matrix = new DOMMatrixReadOnly(transform);
+		const scaleX = Math.hypot(matrix.a, matrix.b);
+		const scaleY = Math.hypot(matrix.c, matrix.d);
+		const averageScale = (scaleX + scaleY) / 2;
+		return Number.isFinite(averageScale) && averageScale > 0 ? averageScale : 1;
+	} catch {
+		return null;
+	}
+}
+
+function roundDebugValue(value, digits = 4) {
+	return Number.isFinite(value) ? Number(value.toFixed(digits)) : null;
+}
+
+function getPlanningProjectionSignals() {
+	const urlZoom = (() => {
+		const rawValue = new URL(window.location.href).searchParams.get("zoom");
+		if (rawValue == null || rawValue === "") return null;
+		const parsedValue = Number(rawValue);
+		return Number.isFinite(parsedValue) ? parsedValue : null;
+	})();
+	const leafletZoom = readNumericRootAttribute(PAGE_MAP_ZOOM_ATTR);
+	const publishedTileZoom = readNumericRootAttribute(PAGE_TILE_ZOOM_ATTR);
+	const dominantTileZoom = readNumericRootAttribute(PAGE_TILE_DOMINANT_ZOOM_ATTR);
+	const tileSummary = readJsonRootAttribute(PAGE_TILE_SUMMARY_ATTR);
+	const publishedTileUrl = document.documentElement.getAttribute(PAGE_TILE_URL_ATTR) || null;
+	const mapContainer = document.documentElement.getAttribute(PAGE_MAP_CONTAINER_ATTR) || null;
+	const activeTile = document.querySelector(".leaflet-tile-pane img.leaflet-tile[src]");
+	const tileSrc = activeTile instanceof HTMLImageElement ? activeTile.currentSrc || activeTile.src || "" : "";
+	const tileImageZoom = parseZoomFromTileUrl(tileSrc);
+	const tilePaneScale = getTransformScale(document.querySelector(".leaflet-tile-pane"));
+	const tileLayerScale = getTransformScale(document.querySelector(".leaflet-tile-pane .leaflet-layer"));
+	const mapPaneScale = getTransformScale(document.querySelector(".leaflet-map-pane"));
+	const overlayCanvasScale = getTransformScale(document.querySelector(".leaflet-overlay-pane canvas.leaflet-zoom-animated"));
+	const coordsText = document.querySelector(".leaflet-control-layers.coordinates")?.textContent?.trim?.() || null;
+
+	const effectiveZoomFromTilePaneScale = dominantTileZoom == null || tilePaneScale == null || tilePaneScale <= 0
+		? null
+		: dominantTileZoom + Math.log2(tilePaneScale);
+	const effectiveZoomFromTileLayerScale = dominantTileZoom == null || tileLayerScale == null || tileLayerScale <= 0
+		? null
+		: dominantTileZoom + Math.log2(tileLayerScale);
+
+	return {
+		href: window.location.href,
+		urlZoom,
+		leafletZoom,
+		publishedTileZoom,
+		dominantTileZoom,
+		tileImageZoom,
+		publishedTileUrl,
+		tileSrc: tileSrc || null,
+		tileSummary,
+		mapContainer,
+		coordsText,
+		tilePaneScale: roundDebugValue(tilePaneScale),
+		tileLayerScale: roundDebugValue(tileLayerScale),
+		mapPaneScale: roundDebugValue(mapPaneScale),
+		overlayCanvasScale: roundDebugValue(overlayCanvasScale),
+		effectiveZoomFromTilePaneScale: roundDebugValue(effectiveZoomFromTilePaneScale),
+		effectiveZoomFromTileLayerScale: roundDebugValue(effectiveZoomFromTileLayerScale),
+	};
+}
+
+function getPlanningRenderMeasurements(options = {}) {
+	const canvas = document.querySelector(".leaflet-overlay-pane canvas.leaflet-zoom-animated");
+	if (!(canvas instanceof HTMLCanvasElement)) {
+		return {
+			ok: false,
+			reason: "missing-overlay-canvas",
+		};
+	}
+
+	const nations = loadPlanningNations();
+	const nation = nations[0] ?? null;
+	if (!nation) {
+		return {
+			ok: false,
+			reason: "missing-planning-nation",
+		};
+	}
+
+	const outlineColor = typeof options.outlineColor === "string" && options.outlineColor
+		? options.outlineColor
+		: nation.outlineColor || "#fff3cf";
+	const tolerance = Number.isFinite(Number(options.tolerance)) ? Number(options.tolerance) : 18;
+	const minAlpha = Number.isFinite(Number(options.minAlpha)) ? Number(options.minAlpha) : 96;
+	const tileZoomRaw = document.documentElement.getAttribute(PAGE_TILE_ZOOM_ATTR);
+	const tileZoom = tileZoomRaw == null || tileZoomRaw === "" ? null : Number(tileZoomRaw);
+	const rangeMeasurement = measureCanvasColorBounds(canvas, {
+		color: outlineColor,
+		tolerance,
+		minAlpha,
+	});
+
+	return {
+		ok: rangeMeasurement.ok,
+		reason: rangeMeasurement.reason ?? null,
+		zoomLevel: Number.isFinite(tileZoom) ? tileZoom : null,
+		nation: {
+			id: nation.id || null,
+			name: nation.name || null,
+			center: nation.center || null,
+			rangeRadiusBlocks: nation.rangeRadiusBlocks,
+			outlineColor,
+		},
+		rangeMeasurement,
+		renderedDiameterPx: rangeMeasurement.ok
+			? Number(Math.max(rangeMeasurement.cssBounds.width, rangeMeasurement.cssBounds.height).toFixed(2))
+			: null,
+		blocksPerPixel: rangeMeasurement.ok
+			? Number(((nation.rangeRadiusBlocks * 2) / Math.max(rangeMeasurement.cssBounds.width, rangeMeasurement.cssBounds.height)).toFixed(6))
+			: null,
+		cursorPreview: getPlanningCursorPreviewMetrics(),
+	};
+}
+
+function exposePlanningDebugHelpers() {
+	window.EMCDYNMAPPLUS_PAGE_PLANNING_DEBUG = {
+		measureRenderedNation: (options = {}) => {
+			return getPlanningRenderMeasurements(options);
+		},
+		getCursorPreviewMetrics: () => getPlanningCursorPreviewMetrics(),
+		getProjectionSignals: () => getPlanningProjectionSignals(),
+	};
 }
 
 function addPlanningLayer(data) {
@@ -428,15 +1031,17 @@ function addPlanningLayer(data) {
 async function getStyledBorders() {
 	if (cachedStyledBorders != null) return cachedStyledBorders;
 
-	if (typeof BORDERS !== "undefined") {
+	const userscriptBorders = getUserscriptBorders();
+	if (userscriptBorders) {
 		cachedStyledBorders = Object.fromEntries(
-			Object.entries(BORDERS).map(([key, border]) => [key, { ...border, ...EXTRA_BORDER_OPTS }]),
+			Object.entries(userscriptBorders).map(([key, border]) => [key, { ...border, ...EXTRA_BORDER_OPTS }]),
 		);
 		return cachedStyledBorders;
 	}
 
 	if (!pendingBordersLoad) {
-		pendingBordersLoad = fetch(getResourceUrl("borders.json"))
+		const borderFilename = getCurrentBordersResourcePath().split("/").pop() || "borders.aurora.json";
+		pendingBordersLoad = fetch(getResourceUrl(borderFilename))
 			.then(async (response) => {
 				if (!response.ok) return null;
 
@@ -481,16 +1086,7 @@ function addChunksLayer(data) {
 
 function addCountryBordersLayer(data, borders) {
 	try {
-		const points = Object.keys(borders).map((country) => {
-			const countryPoly = [];
-			const line = borders[country];
-			for (let i = 0; i < line.x.length; i++) {
-				if (!isNumeric(line.x[i])) continue;
-				countryPoly.push({ x: line.x[i], z: line.z[i] });
-			}
-
-			return countryPoly;
-		});
+		const points = Object.values(borders).flatMap((line) => borderEntryToPolylines(line));
 
 		const nextData = data.slice();
 		nextData[3] = {
@@ -720,7 +1316,7 @@ function parseColours(colours) {
 }
 
 async function getAlliances() {
-	const alliances = await fetchJSON(`${CAPI_BASE}/${CURRENT_MAP}/alliances`);
+	const alliances = await fetchJSON(getCurrentCapiUrl("alliances"));
 	if (!alliances) {
 		const cache = JSON.parse(localStorage["emcdynmapplus-alliances"] || "null");
 		if (cache == null) {
@@ -760,10 +1356,7 @@ async function getAlliances() {
 const getArchiveURL = (date, markersURL) => `https://web.archive.org/web/${date}id_/${markersURL}`;
 
 async function loadArchiveForDate(date, data) {
-	const markersURL =
-		date < 20230212 ? "https://earthmc.net/map/aurora/tiles/_markers_/marker_earth.json" :
-		date < 20240701 ? "https://earthmc.net/map/aurora/standalone/MySQL_markers.php?marker=_markers_/marker_earth.json" :
-		"https://map.earthmc.net/tiles/minecraft_overworld/markers.json";
+	const markersURL = getArchiveMarkersSourceUrl(date);
 
 	const archive = await fetchJSON(PROXY_URL + getArchiveURL(date, markersURL));
 	if (!archive) {
@@ -847,18 +1440,9 @@ function checkOverclaimedNationless(claimedChunks, numResidents) {
 	};
 }
 
-function auroraNationBonus(numNationResidents) {
-	return numNationResidents >= 200 ? 100 :
-		numNationResidents >= 120 ? 80 :
-		numNationResidents >= 80 ? 60 :
-		numNationResidents >= 60 ? 50 :
-		numNationResidents >= 40 ? 30 :
-		numNationResidents >= 20 ? 10 : 0;
-}
-
 function checkOverclaimed(claimedChunks, numResidents, numNationResidents) {
 	const resLimit = numResidents * CHUNKS_PER_RES;
-	const bonus = auroraNationBonus(numNationResidents);
+	const bonus = getNationClaimBonus(numNationResidents);
 	const totalClaimLimit = resLimit + bonus;
 	const isOverclaimed = claimedChunks > totalClaimLimit;
 	return {
@@ -897,8 +1481,9 @@ async function modifyMarkersInPage(data) {
 	}
 
 	if (mapMode === "overclaim" && cachedApiNations == null) {
-		const nlist = await fetchJSON(`${OAPI_BASE}/${CURRENT_MAP}/nations`);
-		const apiNations = await queryConcurrent(`${OAPI_BASE}/${CURRENT_MAP}/nations`, nlist);
+		const nationsUrl = getCurrentOapiUrl("nations");
+		const nlist = await fetchJSON(nationsUrl);
+		const apiNations = await queryConcurrent(nationsUrl, nlist);
 		cachedApiNations = new Map(apiNations.map((nation) => [nation.name.toLowerCase(), nation]));
 	}
 
@@ -967,4 +1552,6 @@ async function modifyMarkersInPage(data) {
 window.EMCDYNMAPPLUS_PAGE_MARKERS = {
 	modifyMarkers: modifyMarkersInPage,
 };
+exposePlanningDebugHelpers();
+initLeafletMapDiagnostics();
 })();

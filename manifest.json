@@ -18,7 +18,9 @@
 	"web_accessible_resources": [{
 		"matches": ["https://map.earthmc.net/*", "https://nostra.earthmc.net/*"],
 		"resources": [
-			"resources/borders.json",
+			"resources/map-config.js",
+			"resources/borders.aurora.json",
+			"resources/borders.nostra.json",
 			"resources/marker-engine.js",
 			"resources/interceptor.js"
 		]
@@ -29,6 +31,7 @@
 		"css": ["resources/style.css"],
 		"js": [
 			"src/browser.js",
+			"resources/map-config.js",
 			"src/httputil.js",
 			"src/dom.js",
 			"src/screenshot.js",

@@ -6,6 +6,7 @@ function isUserscript() {
 const CONTENT_LOG_PREFIX = 'emcdynmapplus[content]'
 const INIT_GUARD_ATTR = 'data-emcdynmapplus-initialized'
 const PAGE_CONTEXT_GUARD_ATTR = 'data-emcdynmapplus-page-context-injected'
+let pendingArchiveModeLabelDate = null
 
 function isContentDebugLoggingEnabled() {
 	try {
@@ -17,6 +18,21 @@ function isContentDebugLoggingEnabled() {
 
 const contentDebugInfo = (...args) => {
 	if (isContentDebugLoggingEnabled()) console.info(...args)
+}
+
+/** @param {string | null} actualArchiveDate */
+function applyArchiveModeLabel(actualArchiveDate) {
+	if (!actualArchiveDate) return false
+
+	const currentMapModeLabel = document.querySelector('#current-map-mode-label')
+	if (!currentMapModeLabel) {
+		pendingArchiveModeLabelDate = actualArchiveDate
+		return false
+	}
+
+	currentMapModeLabel.textContent = `Map Mode: archive (${actualArchiveDate})`
+	pendingArchiveModeLabelDate = null
+	return true
 }
 
 function parseEventDetail(detail) {
@@ -72,13 +88,11 @@ function parseEventDetail(detail) {
 			return
 		}
 
-		const currentMapModeLabel = document.querySelector('#current-map-mode-label')
-		if (currentMapModeLabel) {
-			currentMapModeLabel.textContent = `Map Mode: archive (${detail.actualArchiveDate})`
-		}
+		const applied = applyArchiveModeLabel(detail.actualArchiveDate)
 
 		contentDebugInfo(`${CONTENT_LOG_PREFIX}: updated archive label from page`, {
 			actualArchiveDate: detail.actualArchiveDate,
+			applied,
 		})
 	})
 
@@ -151,6 +165,7 @@ async function init(manifest) {
 	insertCustomStylesheets()
     
 	await insertSidebarMenu()
+	applyArchiveModeLabel(pendingArchiveModeLabelDate)
 	await insertLayerOptionsMenu()
 	updateServerInfo(await insertServerInfoPanel())
     await editUILayout()
