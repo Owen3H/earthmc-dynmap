@@ -5,11 +5,11 @@ const PROJECT_URL = `https://github.com/3meraldK/earthmc-dynmap`
 const PROXY_URL = `https://proxy.killcors.com/?url=`
 
 const EMC_DOMAIN = "earthmc.net"
-const CURRENT_MAP = "aurora"
+const CURRENT_MAP = location.href.includes('nostra') ? "nostra" : "aurora"
 
 const CAPI_BASE = `https://emcstats.bot.nu`
 const MAPI_BASE = `https://map.${EMC_DOMAIN}`
-const OAPI_BASE = `https://api.${EMC_DOMAIN}/v3` // bump number here after migrating to a new OAPI ver
+const OAPI_BASE = `https://api.${EMC_DOMAIN}/v4` // bump number here after migrating to a new OAPI ver
 
 const OAPI_REQ_PER_MIN = 180
 const OAPI_ITEMS_PER_REQ = 100
