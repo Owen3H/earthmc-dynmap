@@ -301,11 +301,10 @@ function addCountryBordersLayer(data, borders) {
 			return countryPoly
 		})
 
-		// Put it before the last layer 'Folia Regions' but after the 'Chunk Borders' layer.
 		data.push({
 			'name': 'Country Borders',
 			'id': 'borders',
-			'order': 101, // Put it before the last layer 'Folia Regions' (150) but after the 'Chunk Borders' (100) layer.
+			'order': 125, // Put it before the last layer 'Folia Regions' (150) but after the 'Chunk Borders' (100) layer.
 			'hide': true,
 			'control': true,
 			'markers': [makePolyline(points)]
