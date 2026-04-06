@@ -93,9 +93,11 @@ function addCheckboxOption(menu, index, optionId, optionText, variable) {
 
 /** @param {HTMLElement} sidebar */
 function addLocateMenu(sidebar) {
-	const locateMenu = addElement(sidebar, '<div id="locate-menu"></div>', '#locate-menu')
+	const locateMenu = addElement(sidebar, INSERTABLE_HTML.locateMenu, '#locate-menu')
 	const locateButton = addElement(locateMenu, INSERTABLE_HTML.buttons.locate, '#locate-button')
 	const locateSubmenu = addElement(locateMenu, INSERTABLE_HTML.sidebarOption, '.sidebar-option')
+
+	//#region sub menu (dropdown and input)
 	const locateSelect = addElement(locateSubmenu, INSERTABLE_HTML.locateSelect, '#locate-select')
 	const locateInput = addElement(locateSubmenu, INSERTABLE_HTML.locateInput, '#locate-input')
 	locateSelect.addEventListener('change', () => {
@@ -112,6 +114,18 @@ function addLocateMenu(sidebar) {
 	locateButton.addEventListener('click', () => {
 		locate(locateSelect.value, locateInput.value)
 	})
+	//#endregion
+
+	const togglePlayerListButton = addElement(locateMenu, INSERTABLE_HTML.buttons.togglePlayerList)
+	togglePlayerListButton.addEventListener('click', () => {
+		if (currentMapMode == 'archive') return sendMessage(`Can't view player list in archive mode.`)
+        
+		const playerList = document.getElementById('players')
+        const isVisible = playerList.style.display == 'grid'
+        
+		playerList.style.display = isVisible ? 'none' : 'grid'
+		if (!isVisible) showAlert('If the player tracking functionality breaks, just hit refresh :)', 1.8)
+    })
 }
 
 /**  @param {boolean} boxTicked */

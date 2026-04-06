@@ -4,6 +4,13 @@ const { fetch: originalFetch } = window
 let markersIntercepted = false
 window.fetch = async (...args) => {
 	const response = await originalFetch(...args)
+    
+    const playerList = document.querySelector('fieldset#players')
+	if (response.url.includes('players.json') && playerList) {
+		const scroll = playerList.scrollTop
+		setTimeout(() => playerList.scrollTop = scroll, 1)
+	}
+
 	if (!response.ok && response.status != 304) return response
 	if (response.url.includes('web.archive.org')) return response
 

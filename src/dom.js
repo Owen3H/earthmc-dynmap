@@ -23,10 +23,11 @@ const getTilePaneFilter = () => /** @type {const} */ (
 const INSERTABLE_HTML = /** @type {const} */ ({
 	// Used in dom.js
     buttons: {
+		togglePlayerList: '<button class="sidebar-button" id="toggle-player-list">Toggle player list</button>',
         locate: '<button class="sidebar-button" id="locate-button">Locate</button>',
         searchArchive: '<button class="sidebar-button" id="archive-button">Search Archive</button>',
         switchMapMode: '<button class="sidebar-button" id="switch-map-mode">Switch Map Mode</button>',
-        options: '<button class="sidebar-button" id="options-button">Options</button>',
+        options: '<button class="sidebar-button" id="options-button">Options</button>'
     },
     options: {
         menu: '<div id="options-menu"></div>',
@@ -45,12 +46,14 @@ const INSERTABLE_HTML = /** @type {const} */ ({
 	serverInfo: '<div class="leaflet-control-layers leaflet-control" id="server-info"></div>',
     sidebar: '<div class="leaflet-control-layers leaflet-control" id="sidebar"></div>',
     sidebarOption: '<div class="sidebar-option"></div>',
-    locateInput: '<input class="sidebar-input" id="locate-input" placeholder="London">',
+    locateMenu: '<div id="locate-menu"></div>',
+	locateInput: '<input class="sidebar-input" id="locate-input" placeholder="London">',
     locateSelect: '<select class="sidebar-button" id="locate-select"><option>Town</option><option>Nation</option><option>Resident</option></select>',
     archiveInput: `<input class="sidebar-input" id="archive-input" type="date" min="${ARCHIVE_DATE.MIN}" max="${ARCHIVE_DATE.MAX}">`,
     currentMapModeLabel: '<div class="sidebar-option" id="current-map-mode-label">Map Mode: {currentMapMode}</div>',
+    followingPlayer: '<h1 id="following-warning">Stop following this player by clicking on the map.</h1>',
     alertBox: '<div id="alert"><p id="alert-message">{message}</p><button id="alert-close">Dismiss</button></div>',
-    // Used in main.js
+	// Used in main.js
     playerLookup: '<div class="leaflet-control-layers leaflet-control" id="player-lookup"></div>',
     playerLookupLoading: '<div class="leaflet-control-layers leaflet-control" id="player-lookup-loading">Loading...</button>',
     residentClickable: '<span class="resident-clickable">{player}</span>',
@@ -64,7 +67,7 @@ const INSERTABLE_HTML = /** @type {const} */ ({
 		<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap">
 	`,
 	darkMode: `<style id="dark-mode">
-		.leaflet-control, .sidebar-input, #alert,
+		.leaflet-control, .leaflet-control-layers, .sidebar-input, #alert,
 		.sidebar-button, .leaflet-bar > a, .leaflet-tooltip-top,
 		.leaflet-popup-content-wrapper, .leaflet-popup-tip,
 		.leaflet-bar > a.leaflet-disabled {
@@ -576,4 +579,24 @@ async function updateServerInfo(element) {
 	const enabled = localStorage['emcdynmapplus-serverinfo'] === 'true' ? true : false
 	if (!enabled) serverInfoScheduler = null
 	else serverInfoScheduler = setTimeout(() => updateServerInfo(element), SERVERINFO_INTERVAL)
+}
+
+async function insertPlayerList() {
+	waitForElement('#players').then(() => {
+		const playerList = document.getElementById('players')
+		playerList?.classList.add('leaflet-control-layers')
+
+		const mapElement = document.getElementById('map')
+		mapElement.appendChild(playerList)
+		playerList.addEventListener('wheel', e => e.stopImmediatePropagation())
+	})
+	
+	addElement(document.body, INSERTABLE_HTML.followingPlayer)
+	playerFollowTick()
+}
+
+function playerFollowTick() {
+    const isFollowingPlayer = document.querySelector('.following') != null
+    document.querySelector('#following-warning').style.display = isFollowingPlayer ? 'unset' : 'none'
+    requestAnimationFrame(playerFollowTick)
 }

@@ -75,7 +75,9 @@ async function init(manifest) {
 	updateServerInfo(await insertServerInfoPanel())
     await editUILayout()
 	await insertScreenshotBtn()
-	
+
+	await insertPlayerList()
+
 	const insertedPanel = await tryInsertNationClaimsPanel('nationclaims')
 	if (insertedPanel) loadNationClaims(insertedPanel)
 
