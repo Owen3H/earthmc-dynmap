@@ -23,10 +23,10 @@ let cachedApiNations = null
 
 /** @typedef {typeof MAP_MODES[number]} MapMode */
 const MAP_MODES = /** @type {const} */ (["default", "overclaim", "nationclaims", "meganations", "alliances"])
-const BORDER_CHUNK_COORDS = { 
+const BORDER_CHUNK_COORDS = /** @type {const} */ ({ 
 	L: -33280, R: 33088,
 	U: -16640, D: 16512
-}
+})
 
 const EXTRA_BORDER_OPTS = {
 	label: "Country Border",
@@ -289,13 +289,26 @@ async function modifyMarkers(data) {
  */
 function addCountryBordersLayer(data, borders) {
 	try {
+		const isNostra = CURRENT_MAP == 'nostra'
 		const points = Object.keys(borders).map(country => {
 			/** @type {Polygon} */
 			const countryPoly = []
 			const line = borders[country]
 			for (let i = 0; i < line.x.length; i++) {
 				if (!isNumeric(line.x[i])) continue
-				countryPoly.push({ x: line.x[i], z: line.z[i] })
+
+				// Hand-picked constants
+				// 1.94 is how many times Nostra map horizontally bigger is than Aurora's
+				// 382.5 is to how much to move layer to right by
+				// 8175 ... same as above but move down
+				// 1.0015 is a horizontal adjustment for Aurora map
+				countryPoly.push(isNostra ? {
+					x: line.x[i] * 1.94133 + 382.5, 
+					z: millerProjection(line.z[i]) + 8175
+				} : {
+					x: line.x[i] * 1.0015, 
+					z: line.z[i] 
+				})
 			}
 
 			return countryPoly
@@ -807,4 +820,26 @@ function auroraNationBonus(numNationResidents) {
 		: numNationResidents >= 60 ? 50
 		: numNationResidents >= 40 ? 30
 		: numNationResidents >= 20 ? 10 : 0
-} 
+}
+
+// 16574 is a mean average of old map vertical bounds
+// 2.304 is a magic number from 5/4 * Math.asinh(Math.tan(4/5 * (90 * (Math.PI / 180))))
+const MILLER_Y_NORMALIZER = 16574 / 2.3034125433763912
+
+// project from Plate Carree to Miller Cylindrical. Adjust projection of north hemisphere
+const NORTH_HEMISPHERE_FACTOR = 0.994
+
+// 33148 = height of old map | 94704 = estimated height of new (Nostra) map if it wasn't cropped
+const MAP_SCALE_FACTOR = 94704 / 33148
+
+function millerProjection(z) {
+	// -16640 and 16508 are vertical bounds of old map (Plate Carree projection)
+	// Converts old (Aurora) map's Z-coord to latitude. Assuming old map covers every latitude. 
+	const latDeg = (z + 16640) * 180 / (16508 + 16640) - 90
+	const latRad = latDeg * (Math.PI / 180)
+
+	let millerOldZ = 5/4 * Math.asinh(Math.tan(4/5 * latRad)) * MILLER_Y_NORMALIZER
+	if (millerOldZ < 0) millerOldZ *= NORTH_HEMISPHERE_FACTOR
+
+	return millerOldZ * MAP_SCALE_FACTOR
+}
