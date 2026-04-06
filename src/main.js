@@ -259,16 +259,15 @@ async function modifyMarkers(data) {
 	return data
 }
 
-/** @param {number} x */
-const ver = (x) => [{ x, z: U }, { x, z: D }, { x, z: U }]
-
-/** @param {number} z */
-const hor = (z) => [{ x: L, z }, { x: R, z }, { x: L, z }]
-
 /** @param {MarkersResponse} data - The markers response JSON data. */
 function addChunksLayer(data) {
 	const { L, R, U, D } = BORDER_CHUNK_COORDS
 	
+	/** @param {number} x */
+	const ver = (x) => [{ x, z: U }, { x, z: D }, { x, z: U }]
+	/** @param {number} z */
+	const hor = (z) => [{ x: L, z }, { x: R, z }, { x: L, z }]
+
 	/** @type {MarkerPoints} */
 	const chunkLines = []
 	for (let x = L; x <= R; x += 16) chunkLines.push(ver(x))
