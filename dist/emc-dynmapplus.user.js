@@ -15,6 +15,11 @@ var { fetch: originalFetch } = unsafeWindow;
 var markersIntercepted = false;
 unsafeWindow.fetch = async (...args) => {
   const response = await originalFetch(...args);
+  const playerList = document.querySelector("fieldset#players");
+  if (response.url.includes("players.json") && playerList) {
+    const scroll = playerList.scrollTop;
+    setTimeout(() => playerList.scrollTop = scroll, 1);
+  }
   if (!response.ok && response.status != 304) return response;
   if (response.url.includes("web.archive.org")) return response;
   const isMarkers = response.url.includes("markers.json");
@@ -90,10 +95,10 @@ var _TokenBucket_instances, save_fn;
 var PROJECT_URL = `https://github.com/3meraldK/earthmc-dynmap`;
 var PROXY_URL = `https://proxy.killcors.com/?url=`;
 var EMC_DOMAIN = "earthmc.net";
-var CURRENT_MAP = "aurora";
+var CURRENT_MAP = location.href.includes("nostra") ? "nostra" : "aurora";
 var CAPI_BASE = `https://emcstats.bot.nu`;
 var MAPI_BASE = `https://map.${EMC_DOMAIN}`;
-var OAPI_BASE = `https://api.${EMC_DOMAIN}/v3`;
+var OAPI_BASE = `https://api.${EMC_DOMAIN}/v4`;
 var OAPI_REQ_PER_MIN = 180;
 var OAPI_ITEMS_PER_REQ = 100;
 var TokenBucket = class {
@@ -201,6 +206,7 @@ var INSERTABLE_HTML = (
   {
     // Used in dom.js
     buttons: {
+      togglePlayerList: '<button class="sidebar-button" id="toggle-player-list">Toggle player list</button>',
       locate: '<button class="sidebar-button" id="locate-button">Locate</button>',
       searchArchive: '<button class="sidebar-button" id="archive-button">Search Archive</button>',
       switchMapMode: '<button class="sidebar-button" id="switch-map-mode">Switch Map Mode</button>',
@@ -219,10 +225,12 @@ var INSERTABLE_HTML = (
     serverInfo: '<div class="leaflet-control-layers leaflet-control" id="server-info"></div>',
     sidebar: '<div class="leaflet-control-layers leaflet-control" id="sidebar"></div>',
     sidebarOption: '<div class="sidebar-option"></div>',
+    locateMenu: '<div id="locate-menu"></div>',
     locateInput: '<input class="sidebar-input" id="locate-input" placeholder="London">',
     locateSelect: '<select class="sidebar-button" id="locate-select"><option>Town</option><option>Nation</option><option>Resident</option></select>',
     archiveInput: `<input class="sidebar-input" id="archive-input" type="date" min="${ARCHIVE_DATE.MIN}" max="${ARCHIVE_DATE.MAX}">`,
     currentMapModeLabel: '<div class="sidebar-option" id="current-map-mode-label">Map Mode: {currentMapMode}</div>',
+    followingPlayer: '<h1 id="following-warning">Stop following this player by clicking on the map.</h1>',
     alertBox: '<div id="alert"><p id="alert-message">{message}</p><button id="alert-close">Dismiss</button></div>',
     // Used in main.js
     playerLookup: '<div class="leaflet-control-layers leaflet-control" id="player-lookup"></div>',
@@ -238,7 +246,7 @@ var INSERTABLE_HTML = (
 		<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap">
 	`,
     darkMode: `<style id="dark-mode">
-		.leaflet-control, .sidebar-input, #alert,
+		.leaflet-control, .leaflet-control-layers, .sidebar-input, #alert,
 		.sidebar-button, .leaflet-bar > a, .leaflet-tooltip-top,
 		.leaflet-popup-content-wrapper, .leaflet-popup-tip,
 		.leaflet-bar > a.leaflet-disabled {
@@ -585,6 +593,22 @@ async function updateServerInfo(element) {
   if (!enabled) serverInfoScheduler = null;
   else serverInfoScheduler = setTimeout(() => updateServerInfo(element), SERVERINFO_INTERVAL);
 }
+async function insertPlayerList() {
+  waitForElement("#players").then(() => {
+    const playerList = document.getElementById("players");
+    playerList?.classList.add("leaflet-control-layers");
+    const mapElement = document.getElementById("map");
+    mapElement.appendChild(playerList);
+    playerList.addEventListener("wheel", (e) => e.stopImmediatePropagation());
+  });
+  addElement(document.body, INSERTABLE_HTML.followingPlayer);
+  playerFollowTick();
+}
+function playerFollowTick() {
+  const isFollowingPlayer = document.querySelector(".following") != null;
+  document.querySelector("#following-warning").style.display = isFollowingPlayer ? "unset" : "none";
+  requestAnimationFrame(playerFollowTick);
+}
 
 // src/screenshot.js
 var delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -718,7 +742,7 @@ function addCheckboxOption(menu, index, optionId, optionText, variable) {
   return checkbox;
 }
 function addLocateMenu(sidebar) {
-  const locateMenu = addElement(sidebar, '<div id="locate-menu"></div>', "#locate-menu");
+  const locateMenu = addElement(sidebar, INSERTABLE_HTML.locateMenu, "#locate-menu");
   const locateButton = addElement(locateMenu, INSERTABLE_HTML.buttons.locate, "#locate-button");
   const locateSubmenu = addElement(locateMenu, INSERTABLE_HTML.sidebarOption, ".sidebar-option");
   const locateSelect = addElement(locateSubmenu, INSERTABLE_HTML.locateSelect, "#locate-select");
@@ -742,6 +766,14 @@ function addLocateMenu(sidebar) {
   });
   locateButton.addEventListener("click", () => {
     locate(locateSelect.value, locateInput.value);
+  });
+  const togglePlayerListButton = addElement(locateMenu, INSERTABLE_HTML.buttons.togglePlayerList);
+  togglePlayerListButton.addEventListener("click", () => {
+    if (currentMapMode == "archive") return sendMessage(`Can't view player list in archive mode.`);
+    const playerList = document.getElementById("players");
+    const isVisible = playerList.style.display == "grid";
+    playerList.style.display = isVisible ? "none" : "grid";
+    if (!isVisible) showAlert("If the player tracking functionality breaks, just hit refresh :)", 1.8);
   });
 }
 function toggleDarkened(boxTicked) {
@@ -1566,8 +1598,59 @@ input[type="color"]::-webkit-color-swatch {\r
 	text-align: center;\r
 }\r
 \r
-/* Player popup */\r
+/* Player list */\r
+fieldset#players {\r
+	display: none;\r
+	position: fixed;\r
+	z-index: 500;\r
+	overflow-y: scroll;\r
+	height: stretch;\r
+	right: 0;\r
+	margin: 10px 0 10px 0;\r
+	background-color: rgba(0, 0, 0, .5);\r
+	backdrop-filter: blur(5px);\r
+	scrollbar-width: thin;\r
+	scrollbar-color: #aaa rgba(0, 0, 0, 0.1);\r
+}\r
 \r
+fieldset#players > legend {\r
+	color: white;\r
+	font-weight: bold;\r
+	font-size: 20px;\r
+	font-family: "Inter", 'Open Sans', sans-serif;\r
+	text-shadow: rgba(0, 0, 0, 1) -2px -2px 10px;\r
+}\r
+\r
+fieldset#players > a {\r
+	color: white;\r
+	display: inline-flex;\r
+	align-items: center;\r
+	padding-top: 5px;\r
+	gap: 5px;\r
+}\r
+\r
+fieldset#players > a:hover {\r
+	background-color: rgba(127, 127, 125, 0.5);\r
+	cursor: pointer;\r
+}\r
+\r
+.following {\r
+	background-color: rgba(0, 255, 0, 0.5);\r
+}\r
+\r
+#following-warning {\r
+	position: fixed;\r
+	bottom: 0;\r
+	left: 50%;\r
+	transform: translate(-50%, -50%);\r
+	z-index: 99999;\r
+	color: white;\r
+	font-family: "Inter", 'Open Sans', sans-serif;\r
+    text-shadow: rgb(0, 0, 0, 1) -2px 2px 8px;\r
+	backdrop-filter: blur(5px);\r
+}\r
+\r
+/* Player popup */\r
 #player-lookup-loading {\r
 	font-size: larger;\r
 	font-weight: 500;\r
@@ -1852,6 +1935,7 @@ div.leaflet-control-layers.screenshot img {\r
   updateServerInfo(await insertServerInfoPanel());
   await editUILayout();
   await insertScreenshotBtn();
+  await insertPlayerList();
   const insertedPanel = await tryInsertNationClaimsPanel("nationclaims");
   if (insertedPanel) loadNationClaims(insertedPanel);
   initToggleOptions();
