@@ -88,7 +88,7 @@ var __privateMethod = (obj, member, method) => (__accessCheck(obj, member, "acce
 // src/httputil.js
 var _TokenBucket_instances, save_fn;
 var PROJECT_URL = `https://github.com/3meraldK/earthmc-dynmap`;
-var PROXY_URL = `https://api.codetabs.com/v1/proxy/?quest=`;
+var PROXY_URL = `https://proxy.killcors.com/?url=`;
 var EMC_DOMAIN = "earthmc.net";
 var CURRENT_MAP = "aurora";
 var CAPI_BASE = `https://emcstats.bot.nu`;
@@ -1010,7 +1010,6 @@ async function modifyMarkers(data) {
     const apiNations = await queryConcurrent(`${OAPI_BASE}/${CURRENT_MAP}/nations`, nlist);
     cachedApiNations = new Map(apiNations.map((n) => [n.name.toLowerCase(), n]));
   }
-  addChunksLayer(data);
   const borders = isUserscript() ? define_BORDERS_default : await fetch(GM_getResourceURL("resources/borders.json")).then((r) => r.json());
   if (!borders) showAlert("An unexpected error occurred fetching the borders resource file.");
   else {
@@ -1046,21 +1045,6 @@ async function modifyMarkers(data) {
   console.log(`emcdynmapplus: modified description and colour of all markers. took ${elapsed.toFixed(2)}ms`);
   return data;
 }
-function addChunksLayer(data) {
-  const { L, R, U, D } = BORDER_CHUNK_COORDS;
-  const ver = (x) => [{ x, z: U }, { x, z: D }, { x, z: U }];
-  const hor = (z) => [{ x: L, z }, { x: R, z }, { x: L, z }];
-  const chunkLines = [];
-  for (let x = L; x <= R; x += 16) chunkLines.push(ver(x));
-  for (let z = U; z <= D; z += 16) chunkLines.push(hor(z));
-  data[2] = {
-    "name": "Chunks",
-    "id": "chunks",
-    "hide": true,
-    "control": true,
-    "markers": [makePolyline(chunkLines, 0.33, "#000000")]
-  };
-}
 function addCountryBordersLayer(data, borders) {
   try {
     const points = Object.keys(borders).map((country) => {
@@ -1072,14 +1056,15 @@ function addCountryBordersLayer(data, borders) {
       }
       return countryPoly;
     });
-    data[3] = {
+    data.push({
       "name": "Country Borders",
       "id": "borders",
-      "order": 999,
+      "order": 125,
+      // Put it before the last layer 'Folia Regions' (150) but after the 'Chunk Borders' (100) layer.
       "hide": true,
       "control": true,
       "markers": [makePolyline(points)]
-    };
+    });
   } catch (e) {
     showAlert(`Could not set up a layer of country borders. You may need to clear this website's data. If problem persists, contact the developer.`);
     console.error(e);
@@ -1274,13 +1259,19 @@ function parseColours(colours) {
 async function getAlliances() {
   const alliances = await fetchJSON(`${CAPI_BASE}/${CURRENT_MAP}/alliances`);
   if (!alliances) {
-    const cache = JSON.parse(localStorage["emcdynmapplus-alliances"]);
-    if (cache == null) {
+    try {
+      const cache = JSON.parse(localStorage["emcdynmapplus-alliances"]);
+      if (!cache) throw new Error("No alliance data in cache");
+      for (const alliance of cache) {
+        const [ownNations, puppetNations] = [alliance.ownNations || [], alliance.puppetNations || []];
+        alliance._nationSet = /* @__PURE__ */ new Set([...ownNations, ...puppetNations]);
+      }
+      showAlert("Service responsible for loading alliances is unavailable, falling back to locally cached data.", 5);
+      return cache;
+    } catch (_) {
       showAlert("Service responsible for loading alliances will be available later.");
-      return [];
     }
-    showAlert("Service responsible for loading alliances is unavailable, falling back to locally cached data.", 5);
-    return cache;
+    return [];
   }
   const childrenByParent = /* @__PURE__ */ new Map();
   for (const a of alliances) {
@@ -1293,12 +1284,15 @@ async function getAlliances() {
   for (const alliance of alliances) {
     const allianceType = alliance.type?.toLowerCase() || "mega";
     const children = childrenByParent.get(alliance.identifier) || [];
+    const puppetNations = children.flatMap((a) => a.ownNations || []);
+    const ownNations = alliance.ownNations || [];
     allianceData.push({
       name: alliance.label || alliance.identifier,
       modeType: allianceType == "mega" ? "meganations" : "alliances",
-      ownNations: alliance.ownNations || [],
-      puppetNations: children.flatMap((a) => a.ownNations || []),
-      colours: parseColours(alliance.optional.colours)
+      colours: parseColours(alliance.optional.colours),
+      ownNations,
+      puppetNations,
+      _nationSet: /* @__PURE__ */ new Set([...ownNations, ...puppetNations])
     });
   }
   localStorage["emcdynmapplus-alliances"] = JSON.stringify(allianceData);
@@ -1309,8 +1303,7 @@ function getNationAlliances(nationName, mapMode) {
   const nationAlliances = [];
   for (const alliance of cachedAlliances) {
     if (alliance.modeType != mapMode) continue;
-    const nations = [...alliance.ownNations, ...alliance.puppetNations];
-    if (!nations.includes(nationName)) continue;
+    if (!alliance._nationSet.has(nationName)) continue;
     nationAlliances.push({ name: alliance.name, colours: alliance.colours });
   }
   return nationAlliances;
