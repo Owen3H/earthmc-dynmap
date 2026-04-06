@@ -930,12 +930,15 @@ var MAP_MODES = (
   /** @type {const} */
   ["default", "overclaim", "nationclaims", "meganations", "alliances"]
 );
-var BORDER_CHUNK_COORDS = {
-  L: -33280,
-  R: 33088,
-  U: -16640,
-  D: 16512
-};
+var BORDER_CHUNK_COORDS = (
+  /** @type {const} */
+  {
+    L: -33280,
+    R: 33088,
+    U: -16640,
+    D: 16512
+  }
+);
 var EXTRA_BORDER_OPTS = {
   label: "Country Border",
   opacity: 0.5,
@@ -1079,12 +1082,19 @@ async function modifyMarkers(data) {
 }
 function addCountryBordersLayer(data, borders) {
   try {
+    const isNostra = CURRENT_MAP == "nostra";
     const points = Object.keys(borders).map((country) => {
       const countryPoly = [];
       const line = borders[country];
       for (let i = 0; i < line.x.length; i++) {
         if (!isNumeric(line.x[i])) continue;
-        countryPoly.push({ x: line.x[i], z: line.z[i] });
+        countryPoly.push(isNostra ? {
+          x: line.x[i] * 1.94133 + 382.5,
+          z: millerProjection(line.z[i]) + 8175
+        } : {
+          x: line.x[i] * 1.0015,
+          z: line.z[i]
+        });
       }
       return countryPoly;
     });
@@ -1398,6 +1408,16 @@ function checkOverclaimed(claimedChunks, numResidents, numNationResidents) {
 }
 function auroraNationBonus(numNationResidents) {
   return numNationResidents >= 200 ? 100 : numNationResidents >= 120 ? 80 : numNationResidents >= 80 ? 60 : numNationResidents >= 60 ? 50 : numNationResidents >= 40 ? 30 : numNationResidents >= 20 ? 10 : 0;
+}
+var MILLER_Y_NORMALIZER = 16574 / 2.3034125433763912;
+var NORTH_HEMISPHERE_FACTOR = 0.994;
+var MAP_SCALE_FACTOR = 94704 / 33148;
+function millerProjection(z) {
+  const latDeg = (z + 16640) * 180 / (16508 + 16640) - 90;
+  const latRad = latDeg * (Math.PI / 180);
+  let millerOldZ = 5 / 4 * Math.asinh(Math.tan(4 / 5 * latRad)) * MILLER_Y_NORMALIZER;
+  if (millerOldZ < 0) millerOldZ *= NORTH_HEMISPHERE_FACTOR;
+  return millerOldZ * MAP_SCALE_FACTOR;
 }
 
 // <define:MANIFEST>
