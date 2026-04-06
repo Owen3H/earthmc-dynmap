@@ -74,16 +74,19 @@ declare global {
     }
 
     // --------------------- ALLIANCE TYPES ---------------------
+    export interface Alliance {
+        name: string
+        modeType: string
+        colours: AllianceColours
+        ownNations: Array<string>
+        puppetNations: Array<string>
+        /** Set of all nations (own & puppets) in this alliance. */
+        _nationSet: Set<string>
+    }
+
     export interface AllianceColours {
         fill: string
         outline: string
-    }
-
-    export interface CachedAlliance {
-        name: string
-        modeType: string
-        nations: Array<string>
-        colours: AllianceColours
     }
 
     // --------------------- RESPONSE TYPES ---------------------

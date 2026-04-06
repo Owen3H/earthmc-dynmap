@@ -15,7 +15,7 @@ waitForElement('.leaflet-nameplate-pane').then(element => {
 /** @type {Array<ParsedMarker>} */
 let parsedMarkers = []
 
-/** @type {Array<CachedAlliance>} */
+/** @type {Array<Alliance>} */
 let cachedAlliances = null
 
 /** @type {Map<string, any>} */
@@ -259,24 +259,28 @@ async function modifyMarkers(data) {
 	return data
 }
 
+/** @param {number} x */
+const ver = (x) => [{ x, z: U }, { x, z: D }, { x, z: U }]
+
+/** @param {number} z */
+const hor = (z) => [{ x: L, z }, { x: R, z }, { x: L, z }]
+
 /** @param {MarkersResponse} data - The markers response JSON data. */
 function addChunksLayer(data) {
 	const { L, R, U, D } = BORDER_CHUNK_COORDS
-	const ver = (x) => [{ x, z: U }, { x, z: D }, { x, z: U }]
-	const hor = (z) => [{ x: L, z }, { x: R, z }, { x: L, z }]
 	
 	/** @type {MarkerPoints} */
 	const chunkLines = []
 	for (let x = L; x <= R; x += 16) chunkLines.push(ver(x))
 	for (let z = U; z <= D; z += 16) chunkLines.push(hor(z))
 
-	data[2] = {
+	data.push({
 		'name': 'Chunks',
 		'id': 'chunks',
 		'hide': true,
 		'control': true,
 		'markers': [makePolyline(chunkLines, 0.33, '#000000')]
-	}
+	})
 }
 
 /**
@@ -297,14 +301,14 @@ function addCountryBordersLayer(data, borders) {
 			return countryPoly
 		})
 
-		data[3] = {
+		data.push({
 			'name': 'Country Borders',
 			'id': 'borders',
 			'order': 999,
 			'hide': true,
 			'control': true,
 			'markers': [makePolyline(points)]
-		}
+		})
 	} catch (e) {
 		showAlert(`Could not set up a layer of country borders. You may need to clear this website's data. If problem persists, contact the developer.`)
 		console.error(e)
@@ -633,20 +637,25 @@ function parseColours(colours) {
 	return colours
 }
 
-/**
- * @returns {Promise<Array<CachedAlliance>>}
- */
 async function getAlliances() {
 	const alliances = await fetchJSON(`${CAPI_BASE}/${CURRENT_MAP}/alliances`)
 	if (!alliances) {
-		const cache = JSON.parse(localStorage['emcdynmapplus-alliances'])
-		if (cache == null) {
-			showAlert('Service responsible for loading alliances will be available later.')
-			return []
-		}
+		try {
+			const cache = JSON.parse(localStorage['emcdynmapplus-alliances'])
+			if (!cache) throw new Error('No alliance data in cache')
 
-		showAlert('Service responsible for loading alliances is unavailable, falling back to locally cached data.', 5)
-		return cache
+			for (const alliance of cache) {
+				const [ownNations, puppetNations] = [alliance.ownNations || [], alliance.puppetNations || []]
+				alliance._nationSet = new Set([...ownNations, ...puppetNations])
+			}
+
+			showAlert('Service responsible for loading alliances is unavailable, falling back to locally cached data.', 5)
+			return cache
+		} catch (_) {
+			showAlert('Service responsible for loading alliances will be available later.')
+		}
+		
+		return []
 	}
 
 	// Build map of parentAlliance (identifier) -> child alliances for O(1) lookup
@@ -659,18 +668,22 @@ async function getAlliances() {
 		childrenByParent.set(a.parentAlliance, arr)
 	}
 
+	/** @type {Array<Alliance>} */
 	const allianceData = []
 	for (const alliance of alliances) {
 		const allianceType = alliance.type?.toLowerCase() || 'mega'
 		//if (alliance.parentAlliance) continue // this is a child alliance, skip it
 
 		const children = childrenByParent.get(alliance.identifier) || []
+		const puppetNations = children.flatMap(a => a.ownNations || [])
+		const ownNations = alliance.ownNations || []
+
 		allianceData.push({
 			name: alliance.label || alliance.identifier,
 			modeType: allianceType == 'mega' ? 'meganations' : 'alliances',
-			ownNations: alliance.ownNations || [],
-			puppetNations: children.flatMap(a => a.ownNations || []),
-			colours: parseColours(alliance.optional.colours)
+			colours: parseColours(alliance.optional.colours),
+			ownNations, puppetNations,
+			_nationSet: new Set([...ownNations, ...puppetNations])
 		})
 	}
 
@@ -690,9 +703,7 @@ function getNationAlliances(nationName, mapMode) {
 	const nationAlliances = []
 	for (const alliance of cachedAlliances) {
 		if (alliance.modeType != mapMode) continue
-
-		const nations = [...alliance.ownNations, ...alliance.puppetNations]
-		if (!nations.includes(nationName)) continue
+		if (!alliance._nationSet.has(nationName)) continue
 
 		nationAlliances.push({ name: alliance.name, colours: alliance.colours })
 	}

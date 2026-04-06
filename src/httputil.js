@@ -2,7 +2,7 @@
 //console.log('emcdynmapplus: loaded httputil')
 
 const PROJECT_URL = `https://github.com/3meraldK/earthmc-dynmap`
-const PROXY_URL = `https://api.codetabs.com/v1/proxy/?quest=`
+const PROXY_URL = `https://proxy.killcors.com/?url=`
 
 const EMC_DOMAIN = "earthmc.net"
 const CURRENT_MAP = "aurora"
