@@ -206,7 +206,8 @@ async function modifyMarkers(data) {
 		cachedApiNations = new Map(apiNations.map(n => [n.name.toLowerCase(), n]))
 	}
 
-	addChunksLayer(data)
+	// The map now has this natively. Uncomment if they ever take it away again.
+	// addChunksLayer(data)
 
 	const borders = isUserscript() ? BORDERS : await fetch(chrome.runtime.getURL('resources/borders.json')).then(r => r.json())
 	if (!borders) showAlert("An unexpected error occurred fetching the borders resource file.")
@@ -260,27 +261,27 @@ async function modifyMarkers(data) {
 }
 
 /** @param {MarkersResponse} data - The markers response JSON data. */
-function addChunksLayer(data) {
-	const { L, R, U, D } = BORDER_CHUNK_COORDS
-	
-	/** @param {number} x */
-	const ver = (x) => [{ x, z: U }, { x, z: D }, { x, z: U }]
-	/** @param {number} z */
-	const hor = (z) => [{ x: L, z }, { x: R, z }, { x: L, z }]
+// function addChunksLayer(data) {
+// 	const { L, R, U, D } = BORDER_CHUNK_COORDS
 
-	/** @type {MarkerPoints} */
-	const chunkLines = []
-	for (let x = L; x <= R; x += 16) chunkLines.push(ver(x))
-	for (let z = U; z <= D; z += 16) chunkLines.push(hor(z))
+// 	/** @param {number} x */
+// 	const ver = (x) => [{ x, z: U }, { x, z: D }, { x, z: U }]
+// 	/** @param {number} z */
+// 	const hor = (z) => [{ x: L, z }, { x: R, z }, { x: L, z }]
 
-	data.push({
-		'name': 'Chunks',
-		'id': 'chunks',
-		'hide': true,
-		'control': true,
-		'markers': [makePolyline(chunkLines, 0.33, '#000000')]
-	})
-}
+// 	/** @type {MarkerPoints} */
+// 	const chunkLines = []
+// 	for (let x = L; x <= R; x += 16) chunkLines.push(ver(x))
+// 	for (let z = U; z <= D; z += 16) chunkLines.push(hor(z))
+
+// 	data.push({
+// 		'name': 'Chunks',
+// 		'id': 'chunks',
+// 		'hide': true,
+// 		'control': true,
+// 		'markers': [makePolyline(chunkLines, 0.33, '#000000')]
+// 	})
+// }
 
 /**
  * @param {MarkersResponse} data - The markers response JSON data.
@@ -303,7 +304,7 @@ function addCountryBordersLayer(data, borders) {
 		data.push({
 			'name': 'Country Borders',
 			'id': 'borders',
-			'order': 999,
+			'order': 101, // Put it before the last layer 'Folia Regions' (150) but after the 'Chunk Borders' (100) layer.
 			'hide': true,
 			'control': true,
 			'markers': [makePolyline(points)]
