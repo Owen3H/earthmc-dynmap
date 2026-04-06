@@ -301,6 +301,7 @@ function addCountryBordersLayer(data, borders) {
 			return countryPoly
 		})
 
+		// Put it before the last layer 'Folia Regions' but after the 'Chunk Borders' layer.
 		data.push({
 			'name': 'Country Borders',
 			'id': 'borders',
