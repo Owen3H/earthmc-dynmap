@@ -66,7 +66,7 @@ const INSERTABLE_HTML = /** @type {const} */ ({
 		<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap">
 	`,
 	darkMode: `<style id="dark-mode">
-		.leaflet-control, .leaflet-control-layers, .sidebar-input, #locate-select, #alert,
+		.leaflet-control, .sidebar-input, #locate-select, #alert,
 		.sidebar-button, .leaflet-bar > a, .leaflet-tooltip-top,
 		.leaflet-popup-content-wrapper, .leaflet-popup-tip,
 		.leaflet-bar > a.leaflet-disabled {
@@ -586,6 +586,7 @@ async function updateServerInfo(element) {
 async function insertPlayerList() {
 	waitForElement('#players').then(el => {
 		el?.classList.add('leaflet-control-layers')
+		el?.classList.add('leaflet-control')
 
 		const topRight = document.querySelector('.leaflet-top.leaflet-right')
 		topRight.appendChild(el)
