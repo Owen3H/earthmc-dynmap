@@ -1,7 +1,8 @@
 :root {
 	--max-menu-width: 210px;
-  	--player-lookup-width: 220px;
+	--player-lookup-width: 220px;
 	--map-mode-btn-width: 130px;
+	--yellow-colour: #b58a3f;
 	/** TODO: Make these more robust. Probably not my best idea */
 	--screenshot-bg-image: url("https://raw.githubusercontent.com/Owen3H/earthmc-dynmap/refs/heads/main/resources/icon-screenshot.png");
 	--show-icon: url("https://raw.githubusercontent.com/Owen3H/earthmc-dynmap/refs/heads/main/resources/icon-show.png");
@@ -189,7 +190,7 @@ fieldset#players > a:hover {
 }
 
 .following {
-	background-color: rgba(0, 255, 0, 0.5);
+	background-color: var(--yellow-colour);
 }
 
 #following-warning {
@@ -300,7 +301,7 @@ fieldset#players > a:hover {
     font-weight: 500;
     font-size: 12px;
     font-family: "Inter", 'Open Sans', sans-serif;
-    border: 2px dashed #d18f1f;
+    border: 2px dashed var(--yellow-colour);
     border-radius: 2px;
 }
 
