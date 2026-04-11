@@ -5,7 +5,7 @@ let markersIntercepted = false
 window.fetch = async (...args) => {
 	const response = await originalFetch(...args)
     
-    const playerList = document.querySelector('fieldset#players')
+    const playerList = document.getElementById('players')
 	if (response.url.includes('players.json') && playerList) {
 		const scroll = playerList.scrollTop
 		setTimeout(() => playerList.scrollTop = scroll, 1)

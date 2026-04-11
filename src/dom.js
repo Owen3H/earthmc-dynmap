@@ -595,11 +595,11 @@ async function insertPlayerList() {
 	})
 	
 	addElement(document.body, INSERTABLE_HTML.followingPlayer)
-	playerFollowTick()
+	followWarningTick()
 }
 
-function playerFollowTick() {
-    const isFollowingPlayer = document.querySelector('.following') != null
-    document.querySelector('#following-warning').style.display = isFollowingPlayer ? 'unset' : 'none'
-    requestAnimationFrame(playerFollowTick)
+function followWarningTick() {
+    const following = document.querySelector('.following')?.isConnected
+    document.querySelector('#following-warning').style.display = following ? 'unset' : 'none'
+    requestAnimationFrame(followWarningTick)
 }
