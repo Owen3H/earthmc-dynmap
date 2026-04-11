@@ -426,7 +426,8 @@ function modifyDescription(marker, mapMode) {
  * @returns {ParsedMarker}
  */
 function modifyDynmapDescription(marker, curArchiveDate) {
-	const residents = marker.popup.match(/Members <span style="font-weight:bold">(.*)<\/span><br \/>Flags/)?.[1]
+	const membersTitle = marker.popup.match(/Members <span/) ? 'Members' : 'Associates'
+	const residents = marker.popup.match(`${membersTitle} <span style="font-weight:bold">(.*)<\/span><br \/>Flags`)?.[1]
 	const residentList = residents?.split(', ') ?? []
 	const residentNum = residentList.length
 	const isCapital = marker.popup.match(/capital: true/) != null
@@ -451,10 +452,10 @@ function modifyDynmapDescription(marker, curArchiveDate) {
 		.replace(/<br \/>capital:.*<\/span>/, '</span>')
 		.replaceAll('true<', '&#9;<span style="color:green">Yes</span><')
 		.replaceAll('false<', '&#9;<span style="color:red">No</span><')
-		.replace(`Members <span`, `Members <b>[${residentNum}]</b> <span`)
+		.replace(`${membersTitle} <span`, `${membersTitle} <b>[${residentNum}]</b> <span`)
 	if (area > 0) {
 		marker.popup = marker.popup
-		.replace(`</span><br /> Members`, `</span><br>Size:<span style="font-weight:bold"> ${area} chunks</span><br> Members`)
+		.replace(`</span><br /> ${membersTitle}`, `</span><br>Size:<span style="font-weight:bold"> ${area} chunks</span><br> ${membersTitle}`)
 	}
 	// Scrollable resident list
 	if (residentNum > 50) {
