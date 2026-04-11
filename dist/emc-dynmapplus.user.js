@@ -15,7 +15,7 @@ var { fetch: originalFetch } = unsafeWindow;
 var markersIntercepted = false;
 unsafeWindow.fetch = async (...args) => {
   const response = await originalFetch(...args);
-  const playerList = document.querySelector("fieldset#players");
+  const playerList = document.getElementById("players");
   if (response.url.includes("players.json") && playerList) {
     const scroll = playerList.scrollTop;
     setTimeout(() => playerList.scrollTop = scroll, 1);
@@ -206,7 +206,6 @@ var INSERTABLE_HTML = (
   {
     // Used in dom.js
     buttons: {
-      togglePlayerList: '<button class="sidebar-button" id="toggle-player-list">Toggle player list</button>',
       locate: '<button class="sidebar-button" id="locate-button">Locate</button>',
       searchArchive: '<button class="sidebar-button" id="archive-button">Search Archive</button>',
       switchMapMode: '<button class="sidebar-button" id="switch-map-mode">Switch Map Mode</button>',
@@ -227,7 +226,7 @@ var INSERTABLE_HTML = (
     sidebarOption: '<div class="sidebar-option"></div>',
     locateMenu: '<div id="locate-menu"></div>',
     locateInput: '<input class="sidebar-input" id="locate-input" placeholder="London">',
-    locateSelect: '<select class="sidebar-button" id="locate-select"><option>Town</option><option>Nation</option><option>Resident</option></select>',
+    locateSelect: '<select id="locate-select"><option>Town</option><option>Nation</option><option>Resident</option></select>',
     archiveInput: `<input class="sidebar-input" id="archive-input" type="date" min="${ARCHIVE_DATE.MIN}" max="${ARCHIVE_DATE.MAX}">`,
     currentMapModeLabel: '<div class="sidebar-option" id="current-map-mode-label">Map Mode: {currentMapMode}</div>',
     followingPlayer: '<h1 id="following-warning">Stop following this player by clicking on the map.</h1>',
@@ -246,12 +245,12 @@ var INSERTABLE_HTML = (
 		<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap">
 	`,
     darkMode: `<style id="dark-mode">
-		.leaflet-control, .leaflet-control-layers, .sidebar-input, #alert,
+		.leaflet-control, .sidebar-input, #locate-select, #alert,
 		.sidebar-button, .leaflet-bar > a, .leaflet-tooltip-top,
 		.leaflet-popup-content-wrapper, .leaflet-popup-tip,
 		.leaflet-bar > a.leaflet-disabled {
 			background: #131313d4 !important;
-			color: #dedede;
+			color: #e0e0e0;
 		}
 		div.leaflet-control-layers.link img {
 			filter: invert(1);
@@ -332,8 +331,10 @@ function initToggleOptions() {
     localStorage["emcdynmapplus-darkmode"] = "true";
     loadDarkMode();
   }
-  const showServerInfo = localStorage["emcdynmapplus-serverinfo"] == "true" ? true : false;
-  waitForElement("#server-info").then((_) => toggleServerInfo(showServerInfo));
+  const displayServerInfo = localStorage["emcdynmapplus-serverinfo"] == "true" ? true : false;
+  waitForElement("#server-info").then((_) => toggleServerInfo(displayServerInfo));
+  const displayPlayerList = localStorage["emcdynmapplus-playerlist"] == "true" ? true : false;
+  waitForElement("#players").then((_) => togglePlayerList(displayPlayerList));
   const archiveDate = localStorage["emcdynmapplus-archive-date"];
   if (archiveDate) {
     const formattedDate = archiveDate.slice(0, 4) + "-" + archiveDate.slice(4, 6) + "-" + archiveDate.slice(6, 8);
@@ -594,20 +595,20 @@ async function updateServerInfo(element) {
   else serverInfoScheduler = setTimeout(() => updateServerInfo(element), SERVERINFO_INTERVAL);
 }
 async function insertPlayerList() {
-  waitForElement("#players").then(() => {
-    const playerList = document.getElementById("players");
-    playerList?.classList.add("leaflet-control-layers");
-    const mapElement = document.getElementById("map");
-    mapElement.appendChild(playerList);
-    playerList.addEventListener("wheel", (e) => e.stopImmediatePropagation());
+  waitForElement("#players").then((el) => {
+    el?.classList.add("leaflet-control-layers");
+    el?.classList.add("leaflet-control");
+    const topRight = document.querySelector(".leaflet-top.leaflet-right");
+    topRight.appendChild(el);
+    el.addEventListener("wheel", (e) => e.stopImmediatePropagation());
   });
   addElement(document.body, INSERTABLE_HTML.followingPlayer);
-  playerFollowTick();
+  followWarningTick();
 }
-function playerFollowTick() {
-  const isFollowingPlayer = document.querySelector(".following") != null;
-  document.querySelector("#following-warning").style.display = isFollowingPlayer ? "unset" : "none";
-  requestAnimationFrame(playerFollowTick);
+function followWarningTick() {
+  const following = document.querySelector(".following")?.isConnected;
+  document.querySelector("#following-warning").style.display = following ? "unset" : "none";
+  requestAnimationFrame(followWarningTick);
 }
 
 // src/screenshot.js
@@ -719,26 +720,42 @@ function addOptions(sidebar, curMapMode) {
     optionsMenu.style.display = optionsMenu.style.display == "none" ? "grid" : "none";
   });
   let i = 0;
-  const checkboxes = {
-    normalizeScroll: addCheckboxOption(optionsMenu, i++, "toggle-normalize-scroll", "Normalize scroll inputs", "normalize-scroll"),
-    decreaseBrightness: addCheckboxOption(optionsMenu, i++, "toggle-darkened", "Decrease brightness", "darkened"),
-    darkMode: addCheckboxOption(optionsMenu, i++, "toggle-darkmode", "Toggle dark mode", "darkmode"),
-    serverInfo: addCheckboxOption(optionsMenu, i++, "toggle-serverinfo", "Display server info", "serverinfo")
-  };
-  checkboxes.normalizeScroll.addEventListener("change", (e) => toggleScrollNormalize(e.target.checked));
-  checkboxes.decreaseBrightness.addEventListener("change", (e) => toggleDarkened(e.target.checked));
-  checkboxes.darkMode.addEventListener("change", (e) => toggleDarkMode(e.target.checked));
-  checkboxes.serverInfo.addEventListener("change", (e) => toggleServerInfo(e.target.checked));
+  addCheckboxOption(
+    optionsMenu,
+    i++,
+    "toggle-normalize-scroll",
+    "Normalize scroll inputs",
+    "normalize-scroll",
+    (e) => toggleScrollNormalize(e.target.checked)
+  );
+  addCheckboxOption(optionsMenu, i++, "toggle-darkened", "Decrease brightness", "darkened", (e) => toggleDarkened(e.target.checked));
+  addCheckboxOption(optionsMenu, i++, "toggle-darkmode", "Toggle dark mode", "darkmode", (e) => toggleDarkMode(e.target.checked));
+  addCheckboxOption(optionsMenu, i++, "toggle-serverinfo", "Display server info", "serverinfo", (e) => toggleServerInfo(e.target.checked));
   if (curMapMode != "archive") {
-    const showCapitalStars = addCheckboxOption(optionsMenu, i++, "toggle-capital-stars", "Show capital stars", "capital-stars");
-    showCapitalStars.addEventListener("change", (e) => toggleShowCapitalStars(e.target.checked));
+    addCheckboxOption(
+      optionsMenu,
+      i++,
+      "toggle-playerlist",
+      "Display player list",
+      "playerlist",
+      (e) => togglePlayerList(e.target.checked)
+    );
+    addCheckboxOption(
+      optionsMenu,
+      i++,
+      "toggle-capital-stars",
+      "Show capital stars",
+      "capital-stars",
+      (e) => toggleShowCapitalStars(e.target.checked)
+    );
   }
 }
-function addCheckboxOption(menu, index, optionId, optionText, variable) {
+function addCheckboxOption(menu, index, optionId, optionText, variable, listener) {
   const option = addElement(menu, INSERTABLE_HTML.options.option, ".option", true)[index];
   option.insertAdjacentHTML("beforeend", INSERTABLE_HTML.options.label.replace("{option}", optionId).replace("{optionText}", optionText));
   const checkbox = addElement(option, INSERTABLE_HTML.options.checkbox.replace("{option}", optionId), "#" + optionId);
   checkbox.checked = localStorage["emcdynmapplus-" + variable] == "true";
+  if (listener) checkbox.addEventListener("change", listener);
   return checkbox;
 }
 function addLocateMenu(sidebar) {
@@ -767,14 +784,6 @@ function addLocateMenu(sidebar) {
   locateButton.addEventListener("click", () => {
     locate(locateSelect.value, locateInput.value);
   });
-  const togglePlayerListButton = addElement(locateMenu, INSERTABLE_HTML.buttons.togglePlayerList);
-  togglePlayerListButton.addEventListener("click", () => {
-    if (currentMapMode == "archive") return sendMessage(`Can't view player list in archive mode.`);
-    const playerList = document.getElementById("players");
-    const isVisible = playerList.style.display == "grid";
-    playerList.style.display = isVisible ? "none" : "grid";
-    if (!isVisible) showAlert("If the player tracking functionality breaks, just hit refresh :)", 1.8);
-  });
 }
 function toggleDarkened(boxTicked) {
   const element = document.querySelector(".leaflet-tile-pane");
@@ -785,13 +794,22 @@ function toggleDarkened(boxTicked) {
 function toggleServerInfo(boxTicked) {
   localStorage["emcdynmapplus-serverinfo"] = boxTicked;
   const serverInfoPanel = document.querySelector("#server-info");
-  serverInfoPanel?.setAttribute("style", `visibility: ${boxTicked ? "visible" : "hidden"}`);
+  const visibility = boxTicked ? "visible" : "hidden";
+  const float = boxTicked ? "none !important" : "right !important";
+  serverInfoPanel?.setAttribute("style", `visibility: ${visibility}; float: ${float};`);
   if (!boxTicked) {
     if (serverInfoScheduler != null) clearTimeout(serverInfoScheduler);
     serverInfoScheduler = null;
     return;
   }
   if (serverInfoScheduler == null) updateServerInfo(serverInfoPanel);
+}
+function togglePlayerList(boxTicked) {
+  localStorage["emcdynmapplus-playerlist"] = boxTicked;
+  const playerList = document.getElementById("players");
+  const isVisible = boxTicked ? "grid" : "none";
+  playerList?.setAttribute("style", `display: ${isVisible};`);
+  if (boxTicked) showAlert("If the player tracking functionality breaks, just hit refresh :)", 1.5);
 }
 function toggleShowCapitalStars(boxTicked) {
   localStorage["emcdynmapplus-capital-stars"] = boxTicked;
@@ -1162,7 +1180,8 @@ function modifyDescription(marker, mapMode) {
   };
 }
 function modifyDynmapDescription(marker, curArchiveDate) {
-  const residents = marker.popup.match(/Members <span style="font-weight:bold">(.*)<\/span><br \/>Flags/)?.[1];
+  const membersTitle = marker.popup.match(/Members <span/) ? "Members" : "Associates";
+  const residents = marker.popup.match(`${membersTitle} <span style="font-weight:bold">(.*)</span><br />Flags`)?.[1];
   const residentList = residents?.split(", ") ?? [];
   const residentNum = residentList.length;
   const isCapital = marker.popup.match(/capital: true/) != null;
@@ -1172,9 +1191,9 @@ function modifyDynmapDescription(marker, curArchiveDate) {
   if (curArchiveDate < 20220906) {
     marker.popup = marker.popup.replace(/">hasUpkeep:.+?(?<=<br \/>)/, '; white-space:pre">');
   } else marker.popup = marker.popup.replace('">pvp:', '; white-space:pre">pvp:');
-  marker.popup = marker.popup.replace("Mayor", "Mayor:").replace("Flags<br />", "<br>Flags<br>").replace(">pvp:", ">PVP allowed:").replace(">mobs:", ">Mob spawning:").replace(">public:", ">Public status:").replace(">explosion:", ">Explosions:&#9;").replace(">fire:", ">Fire spread:&#9;").replace(/<br \/>capital:.*<\/span>/, "</span>").replaceAll("true<", '&#9;<span style="color:green">Yes</span><').replaceAll("false<", '&#9;<span style="color:red">No</span><').replace(`Members <span`, `Members <b>[${residentNum}]</b> <span`);
+  marker.popup = marker.popup.replace("Mayor", "Mayor:").replace("Flags<br />", "<br>Flags<br>").replace(">pvp:", ">PVP allowed:").replace(">mobs:", ">Mob spawning:").replace(">public:", ">Public status:").replace(">explosion:", ">Explosions:&#9;").replace(">fire:", ">Fire spread:&#9;").replace(/<br \/>capital:.*<\/span>/, "</span>").replaceAll("true<", '&#9;<span style="color:green">Yes</span><').replaceAll("false<", '&#9;<span style="color:red">No</span><').replace(`${membersTitle} <span`, `${membersTitle} <b>[${residentNum}]</b> <span`);
   if (area > 0) {
-    marker.popup = marker.popup.replace(`</span><br /> Members`, `</span><br>Size:<span style="font-weight:bold"> ${area} chunks</span><br> Members`);
+    marker.popup = marker.popup.replace(`</span><br /> ${membersTitle}`, `</span><br>Size:<span style="font-weight:bold"> ${area} chunks</span><br> ${membersTitle}`);
   }
   if (residentNum > 50) {
     marker.popup = marker.popup.replace(
@@ -1421,7 +1440,7 @@ function millerProjection(z) {
 }
 
 // <define:MANIFEST>
-var define_MANIFEST_default = { manifest_version: 3, name: "EarthMC Dynmap+ (Owen3H Fork)", version: "2.0", author: "3meraldK", description: "Extension to enrich the EarthMC map experience", icons: { "48": "resources/icon48.png", "128": "resources/icon128.png" }, web_accessible_resources: [{ run_at: "document_start", matches: ["https://map.earthmc.net/*", "https://nostra.earthmc.net/*"], resources: ["resources/borders.json", "resources/interceptor.js"] }], content_scripts: [{ matches: ["https://map.earthmc.net/*", "https://nostra.earthmc.net/*"], css: ["resources/style.css"], js: ["src/httputil.js", "src/dom.js", "src/screenshot.js", "src/menu.js", "src/main.js", "src/entrypoint.js"] }] };
+var define_MANIFEST_default = { manifest_version: 3, name: "EarthMC Dynmap+ (Owen3H Fork)", version: "2.0", author: "3meraldK", description: "Extension to enrich the EarthMC map experience", icons: { "48": "resources/icon48.png", "128": "resources/icon128.png" }, web_accessible_resources: [{ run_at: "document_idle", matches: ["https://map.earthmc.net/*", "https://nostra.earthmc.net/*"], resources: ["resources/interceptor.js", "resources/borders.json"] }], content_scripts: [{ matches: ["https://map.earthmc.net/*", "https://nostra.earthmc.net/*"], css: ["resources/style.css"], js: ["src/httputil.js", "src/dom.js", "src/screenshot.js", "src/menu.js", "src/main.js", "src/entrypoint.js"] }] };
 
 // src/entrypoint.js
 function isUserscript() {
@@ -1467,8 +1486,9 @@ async function init(manifest) {
   if (isUserscript2) {
     GM_addStyle(`:root {\r
 	--max-menu-width: 210px;\r
-  	--player-lookup-width: 220px;\r
+	--player-lookup-width: 220px;\r
 	--map-mode-btn-width: 130px;\r
+	--yellow-colour: #b58a3f;\r
 	/** TODO: Make these more robust. Probably not my best idea */\r
 	--screenshot-bg-image: url("https://raw.githubusercontent.com/Owen3H/earthmc-dynmap/refs/heads/main/resources/icon-screenshot.png");\r
 	--show-icon: url("https://raw.githubusercontent.com/Owen3H/earthmc-dynmap/refs/heads/main/resources/icon-show.png");\r
@@ -1625,7 +1645,8 @@ fieldset#players {\r
 	z-index: 500;\r
 	overflow-y: scroll;\r
 	height: stretch;\r
-	right: 0;\r
+	right: 10px;\r
+	min-width: 190px;\r
 	margin: 10px 0 10px 0;\r
 	background-color: rgba(0, 0, 0, .5);\r
 	backdrop-filter: blur(5px);\r
@@ -1655,7 +1676,7 @@ fieldset#players > a:hover {\r
 }\r
 \r
 .following {\r
-	background-color: rgba(0, 255, 0, 0.5);\r
+	background-color: var(--yellow-colour);\r
 }\r
 \r
 #following-warning {\r
@@ -1756,6 +1777,8 @@ fieldset#players > a:hover {\r
 \r
 .sidebar-input {\r
 	width: 100%;\r
+	border: 1px solid rgba(255, 255, 255, 0.5) !important;\r
+	border-radius: 0px 2px 2px 0px;\r
 }\r
 \r
 .sidebar-button {\r
@@ -1764,8 +1787,8 @@ fieldset#players > a:hover {\r
     font-weight: 500;\r
     font-size: 12px;\r
     font-family: "Inter", 'Open Sans', sans-serif;\r
-    border: 1px solid;\r
-    border-radius: 3px;\r
+    border: 2px dashed var(--yellow-colour);\r
+    border-radius: 2px;\r
 }\r
 \r
 #archive-button {\r
@@ -1775,9 +1798,6 @@ fieldset#players > a:hover {\r
 #archive-input {\r
 	width: inherit;\r
 	max-width: 100px;\r
-	border-radius: 0px 3px 4px 0px;\r
-    border-right: white 1px solid;\r
-    border-top: white 1px solid;\r
 }\r
 \r
 #locate-menu {\r
@@ -1786,6 +1806,11 @@ fieldset#players > a:hover {\r
 \r
 #locate-select {\r
 	text-align: center;\r
+	height: 30px;\r
+	font-kerning: none;\r
+    font-weight: 500;\r
+    font-size: 12px;\r
+    font-family: "Inter", 'Open Sans', sans-serif;\r
 }\r
 \r
 #locate-button {\r
@@ -1946,6 +1971,7 @@ div.leaflet-control-layers.screenshot img {\r
   localStorage["emcdynmapplus-normalize-scroll"] ?? (localStorage["emcdynmapplus-normalize-scroll"] = "true");
   localStorage["emcdynmapplus-darkened"] ?? (localStorage["emcdynmapplus-darkened"] = "true");
   localStorage["emcdynmapplus-serverinfo"] ?? (localStorage["emcdynmapplus-serverinfo"] = "true");
+  localStorage["emcdynmapplus-playerlist"] ?? (localStorage["emcdynmapplus-playerlist"] = "true");
   localStorage["emcdynmapplus-capital-stars"] ?? (localStorage["emcdynmapplus-capital-stars"] = "true");
   localStorage["emcdynmapplus-nation-claims-opaque-colors"] ?? (localStorage["emcdynmapplus-nation-claims-opaque-colors"] = "true");
   localStorage["emcdynmapplus-nation-claims-show-excluded"] ?? (localStorage["emcdynmapplus-nation-claims-show-excluded"] = "true");
