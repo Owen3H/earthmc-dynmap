@@ -9,11 +9,11 @@
 		"128": "resources/icon128.png"
 	},
 	"web_accessible_resources": [{
-		"run_at": "document_start",
+		"run_at": "document_idle",
 		"matches": ["https://map.earthmc.net/*", "https://nostra.earthmc.net/*"],
 		"resources": [
-			"resources/borders.json",
-			"resources/interceptor.js"
+			"resources/interceptor.js",
+			"resources/borders.json"
 		]
 	}],
 	"content_scripts": [{
