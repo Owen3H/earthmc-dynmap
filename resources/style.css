@@ -158,7 +158,8 @@ fieldset#players {
 	z-index: 500;
 	overflow-y: scroll;
 	height: stretch;
-	right: 0;
+	right: 10px;
+	min-width: 190px;
 	margin: 10px 0 10px 0;
 	background-color: rgba(0, 0, 0, .5);
 	backdrop-filter: blur(5px);
@@ -289,6 +290,8 @@ fieldset#players > a:hover {
 
 .sidebar-input {
 	width: 100%;
+	border: 1px solid rgba(255, 255, 255, 0.5) !important;
+	border-radius: 0px 2px 2px 0px;
 }
 
 .sidebar-button {
@@ -297,8 +300,8 @@ fieldset#players > a:hover {
     font-weight: 500;
     font-size: 12px;
     font-family: "Inter", 'Open Sans', sans-serif;
-    border: 1px solid;
-    border-radius: 3px;
+    border: 2px dashed #d18f1f;
+    border-radius: 2px;
 }
 
 #archive-button {
@@ -308,9 +311,6 @@ fieldset#players > a:hover {
 #archive-input {
 	width: inherit;
 	max-width: 100px;
-	border-radius: 0px 3px 4px 0px;
-    border-right: white 1px solid;
-    border-top: white 1px solid;
 }
 
 #locate-menu {
@@ -319,6 +319,11 @@ fieldset#players > a:hover {
 
 #locate-select {
 	text-align: center;
+	height: 30px;
+	font-kerning: none;
+    font-weight: 500;
+    font-size: 12px;
+    font-family: "Inter", 'Open Sans', sans-serif;
 }
 
 #locate-button {

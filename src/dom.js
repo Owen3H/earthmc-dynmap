@@ -23,7 +23,6 @@ const getTilePaneFilter = () => /** @type {const} */ (
 const INSERTABLE_HTML = /** @type {const} */ ({
 	// Used in dom.js
     buttons: {
-		togglePlayerList: '<button class="sidebar-button" id="toggle-player-list">Toggle player list</button>',
         locate: '<button class="sidebar-button" id="locate-button">Locate</button>',
         searchArchive: '<button class="sidebar-button" id="archive-button">Search Archive</button>',
         switchMapMode: '<button class="sidebar-button" id="switch-map-mode">Switch Map Mode</button>',
@@ -48,7 +47,7 @@ const INSERTABLE_HTML = /** @type {const} */ ({
     sidebarOption: '<div class="sidebar-option"></div>',
     locateMenu: '<div id="locate-menu"></div>',
 	locateInput: '<input class="sidebar-input" id="locate-input" placeholder="London">',
-    locateSelect: '<select class="sidebar-button" id="locate-select"><option>Town</option><option>Nation</option><option>Resident</option></select>',
+    locateSelect: '<select id="locate-select"><option>Town</option><option>Nation</option><option>Resident</option></select>',
     archiveInput: `<input class="sidebar-input" id="archive-input" type="date" min="${ARCHIVE_DATE.MIN}" max="${ARCHIVE_DATE.MAX}">`,
     currentMapModeLabel: '<div class="sidebar-option" id="current-map-mode-label">Map Mode: {currentMapMode}</div>',
     followingPlayer: '<h1 id="following-warning">Stop following this player by clicking on the map.</h1>',
@@ -67,12 +66,12 @@ const INSERTABLE_HTML = /** @type {const} */ ({
 		<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap">
 	`,
 	darkMode: `<style id="dark-mode">
-		.leaflet-control, .leaflet-control-layers, .sidebar-input, #alert,
+		.leaflet-control, .leaflet-control-layers, .sidebar-input, #locate-select, #alert,
 		.sidebar-button, .leaflet-bar > a, .leaflet-tooltip-top,
 		.leaflet-popup-content-wrapper, .leaflet-popup-tip,
 		.leaflet-bar > a.leaflet-disabled {
 			background: #131313d4 !important;
-			color: #dedede;
+			color: #e0e0e0;
 		}
 		div.leaflet-control-layers.link img {
 			filter: invert(1);
@@ -205,8 +204,11 @@ function initToggleOptions() {
         loadDarkMode()
     }
 
-	const showServerInfo = localStorage['emcdynmapplus-serverinfo'] == 'true' ? true : false
-	waitForElement('#server-info').then(_ => toggleServerInfo(showServerInfo))
+	const displayServerInfo = localStorage['emcdynmapplus-serverinfo'] == 'true' ? true : false
+	waitForElement('#server-info').then(_ => toggleServerInfo(displayServerInfo))
+
+	const displayPlayerList = localStorage['emcdynmapplus-playerlist'] == 'true' ? true : false
+	waitForElement('#players').then(_ => togglePlayerList(displayPlayerList))
 
 	// Initialize date input from stored date. 20260801 -> 2026-08-01
 	const archiveDate = localStorage['emcdynmapplus-archive-date']
@@ -582,13 +584,13 @@ async function updateServerInfo(element) {
 }
 
 async function insertPlayerList() {
-	waitForElement('#players').then(() => {
-		const playerList = document.getElementById('players')
-		playerList?.classList.add('leaflet-control-layers')
+	waitForElement('#players').then(el => {
+		el?.classList.add('leaflet-control-layers')
 
-		const mapElement = document.getElementById('map')
-		mapElement.appendChild(playerList)
-		playerList.addEventListener('wheel', e => e.stopImmediatePropagation())
+		const topRight = document.querySelector('.leaflet-top.leaflet-right')
+		topRight.appendChild(el)
+
+		el.addEventListener('wheel', e => e.stopImmediatePropagation())
 	})
 	
 	addElement(document.body, INSERTABLE_HTML.followingPlayer)

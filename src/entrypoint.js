@@ -62,6 +62,7 @@ async function init(manifest) {
 	localStorage['emcdynmapplus-normalize-scroll'] ??= 'true'
     localStorage['emcdynmapplus-darkened'] ??= 'true'
 	localStorage['emcdynmapplus-serverinfo'] ??= 'true'
+	localStorage['emcdynmapplus-playerlist'] ??= 'true'
 	localStorage['emcdynmapplus-capital-stars'] ??= 'true'
 
 	localStorage['emcdynmapplus-nation-claims-opaque-colors'] ??= 'true'

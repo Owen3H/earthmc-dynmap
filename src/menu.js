@@ -52,32 +52,34 @@ function addOptions(sidebar, curMapMode) {
 	})
 
 	let i = 0
-	const checkboxes = {
-		normalizeScroll: addCheckboxOption(optionsMenu, i++, 'toggle-normalize-scroll', 'Normalize scroll inputs', 'normalize-scroll'),
-		decreaseBrightness: addCheckboxOption(optionsMenu, i++, 'toggle-darkened', 'Decrease brightness', 'darkened'),
-		darkMode: addCheckboxOption(optionsMenu, i++, 'toggle-darkmode', 'Toggle dark mode', 'darkmode'),
-		serverInfo: addCheckboxOption(optionsMenu, i++, 'toggle-serverinfo', 'Display server info', 'serverinfo'),
-	}
-
-	checkboxes.normalizeScroll.addEventListener('change', e => toggleScrollNormalize(e.target.checked))
-	checkboxes.decreaseBrightness.addEventListener('change', e => toggleDarkened(e.target.checked))
-	checkboxes.darkMode.addEventListener('change', e => toggleDarkMode(e.target.checked))
-	checkboxes.serverInfo.addEventListener('change', e => toggleServerInfo(e.target.checked))
+	addCheckboxOption(optionsMenu, i++, 'toggle-normalize-scroll', 'Normalize scroll inputs', 'normalize-scroll', e => 
+		toggleScrollNormalize(e.target.checked)
+	)
+	addCheckboxOption(optionsMenu, i++, 'toggle-darkened', 'Decrease brightness', 'darkened', e => toggleDarkened(e.target.checked))
+	addCheckboxOption(optionsMenu, i++, 'toggle-darkmode', 'Toggle dark mode', 'darkmode', e => toggleDarkMode(e.target.checked))
+	addCheckboxOption(optionsMenu, i++, 'toggle-serverinfo', 'Display server info', 'serverinfo', e => toggleServerInfo(e.target.checked))
 	
 	if (curMapMode != 'archive') {
-		const showCapitalStars = addCheckboxOption(optionsMenu, i++, 'toggle-capital-stars', 'Show capital stars', 'capital-stars')
-		showCapitalStars.addEventListener('change', e => toggleShowCapitalStars(e.target.checked))
+		addCheckboxOption(optionsMenu, i++, 'toggle-playerlist', 'Display player list', 'playerlist', 
+			e => togglePlayerList(e.target.checked)
+		)
+		addCheckboxOption(
+			optionsMenu, i++, 'toggle-capital-stars', 'Show capital stars', 'capital-stars', 
+			e => toggleShowCapitalStars(e.target.checked)
+		)
 	}
 }
 
 /**
- * Adds a option which displays a checkbox
+ * Adds a option which displays a checkbox with an optional listener which triggers when the checkbox is toggled. 
+ * The checkbox's state is saved in local storage under the key 'emcdynmapplus-{variable}'.
  * @param {number} index - The number determining the order of this option in the list 
  * @param {string} optionId - The unique string used to query this option
  * @param {string} optionText - The text to display next to the checkbox
  * @param {string} variable - The variable name in storage used to keep the 'checked' state 
+ * @param {(e: Event) => void} listener - An optional function to call when the checkbox is toggled
  */
-function addCheckboxOption(menu, index, optionId, optionText, variable) {
+function addCheckboxOption(menu, index, optionId, optionText, variable, listener) {
 	/** @type {HTMLElement} */
 	const option = addElement(menu, INSERTABLE_HTML.options.option, '.option', true)[index]
 	option.insertAdjacentHTML('beforeend', INSERTABLE_HTML.options.label
@@ -88,6 +90,8 @@ function addCheckboxOption(menu, index, optionId, optionText, variable) {
 	/** @type {HTMLInputElement} */
 	const checkbox = addElement(option, INSERTABLE_HTML.options.checkbox.replace('{option}', optionId), '#' + optionId)
 	checkbox.checked = (localStorage['emcdynmapplus-' + variable] == 'true')
+	
+	if (listener) checkbox.addEventListener('change', listener)
 	return checkbox
 }
 
@@ -115,17 +119,6 @@ function addLocateMenu(sidebar) {
 		locate(locateSelect.value, locateInput.value)
 	})
 	//#endregion
-
-	const togglePlayerListButton = addElement(locateMenu, INSERTABLE_HTML.buttons.togglePlayerList)
-	togglePlayerListButton.addEventListener('click', () => {
-		if (currentMapMode == 'archive') return sendMessage(`Can't view player list in archive mode.`)
-        
-		const playerList = document.getElementById('players')
-        const isVisible = playerList.style.display == 'grid'
-        
-		playerList.style.display = isVisible ? 'none' : 'grid'
-		if (!isVisible) showAlert('If the player tracking functionality breaks, just hit refresh :)', 1.8)
-    })
 }
 
 /**  @param {boolean} boxTicked */
@@ -141,7 +134,10 @@ function toggleDarkened(boxTicked) {
 function toggleServerInfo(boxTicked) {
 	localStorage['emcdynmapplus-serverinfo'] = boxTicked
 	const serverInfoPanel = document.querySelector('#server-info')
-	serverInfoPanel?.setAttribute('style', `visibility: ${boxTicked ? 'visible' : 'hidden'}`)
+
+	const visibility = boxTicked ? 'visible' : 'hidden'
+	const float = boxTicked ? 'none !important' : 'right !important'
+	serverInfoPanel?.setAttribute('style', `visibility: ${visibility}; float: ${float};`)
 
 	if (!boxTicked) {
 		if (serverInfoScheduler != null) clearTimeout(serverInfoScheduler) // stop future runs
@@ -151,6 +147,17 @@ function toggleServerInfo(boxTicked) {
 	}
 
 	if (serverInfoScheduler == null) updateServerInfo(serverInfoPanel) // immediate fetch without spam
+}
+
+/** @param {boolean} boxTicked */
+function togglePlayerList(boxTicked) {
+	localStorage['emcdynmapplus-playerlist'] = boxTicked
+	const playerList = document.getElementById('players')
+
+	const isVisible = boxTicked ? 'grid' : 'none'
+	playerList?.setAttribute('style', `display: ${isVisible};`)
+
+	if (boxTicked) showAlert('If the player tracking functionality breaks, just hit refresh :)', 1.5)
 }
 
 /** @param {boolean} boxTicked */
