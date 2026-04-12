@@ -21,8 +21,6 @@ let cachedAlliances = null
 /** @type {Map<string, any>} */
 let cachedApiNations = null
 
-/** @typedef {typeof MAP_MODES[number]} MapMode */
-const MAP_MODES = /** @type {const} */ (["default", "overclaim", "nationclaims", "meganations", "alliances"])
 const BORDER_CHUNK_COORDS = /** @type {const} */ ({ 
 	L: -33280, R: 33088,
 	U: -16640, D: 16512
@@ -41,21 +39,10 @@ const DEFAULT_ALLIANCE_COLOURS = { fill: '#000000', outline: '#000000' }
 const CHUNKS_PER_RES = 12
 const DAY_MS = 86_400_000 // 24hr in millisec
 
-/** @type {() => MapMode | "archive"} */
-const currentMapMode = () => localStorage['emcdynmapplus-mapmode'] ?? 'meganations'
 const archiveDate = () => parseInt(localStorage['emcdynmapplus-archive-date'])
 
 /** @type {() => Array<{color: string | null, input: string | null}>} */
 const nationClaimsInfo = () => JSON.parse(localStorage['emcdynmapplus-nation-claims-info'] || '[]')
-
-/** @param {MapMode} currentMode */
-function switchMapMode(currentMode) {
-	const nextModeIndex = (MAP_MODES.indexOf(currentMode) + 1) % MAP_MODES.length
-	const nextMode = MAP_MODES[nextModeIndex]
-
-	localStorage['emcdynmapplus-mapmode'] = nextMode
-	location.reload()
-}
 
 /** @param {string} str */
 const isNumeric = (str) => Number.isFinite(+str)
@@ -186,7 +173,7 @@ const makePolyline = (linePoints, weight = 1, colour = '#ffffff') => ({
  */
 async function modifyMarkers(data) {
 	const mapMode = currentMapMode()
-	if (mapMode == 'archive') {
+	if (mapMode == MapMode.ARCHIVE) {
 		data = await getArchive(data)
 	}
 
@@ -195,12 +182,12 @@ async function modifyMarkers(data) {
 		return data
 	}
 
-	const isAllianceMode = mapMode == 'alliances' || mapMode == 'meganations'
+	const isAllianceMode = mapMode == MapMode.ALLIANCES || mapMode == MapMode.MEGANATIONS
     if (isAllianceMode && cachedAlliances == null) {
         cachedAlliances = await getAlliances()
     }
 
-	if (mapMode == 'overclaim' && cachedApiNations == null) {
+	if (mapMode == MapMode.OVERCLAIM && cachedApiNations == null) {
 		const nlist = await fetchJSON(`${OAPI_BASE}/${CURRENT_MAP}/nations`)
 		const apiNations = await queryConcurrent(`${OAPI_BASE}/${CURRENT_MAP}/nations`, nlist)
 		cachedApiNations = new Map(apiNations.map(n => [n.name.toLowerCase(), n]))
@@ -244,8 +231,8 @@ async function modifyMarkers(data) {
 		marker.fillOpacity = 0.33
 		marker.weight = 1.5
 
-		if (mapMode == 'default' || mapMode == 'archive') continue
-		if (mapMode == 'nationclaims') {
+		if (mapMode == MapMode.DEFAULT || mapMode == MapMode.ARCHIVE) continue
+		if (mapMode == MapMode.NATIONCLAIMS) {
 			colorTownNationClaims(marker, parsedInfo.nationName, claimsCustomizerInfo, useOpaque, showExcluded)
 			continue
 		}
@@ -358,7 +345,7 @@ function modifyDescription(marker, mapMode) {
 	if (marker.points) location = midrange(marker.points.flat(2))
 
 	// Create clickable resident lists
-	const isArchiveMode = mapMode == 'archive'
+	const isArchiveMode = mapMode == MapMode.ARCHIVE
 	const residentList = isArchiveMode ? residents :
 		residents.split(', ').map(resident => INSERTABLE_HTML.residentClickable.replaceAll('{player}', resident)).join(', ')
 	const councillorList = isArchiveMode ? councillors :
@@ -401,7 +388,7 @@ function modifyDescription(marker, mapMode) {
 		.replace(town, fixedTownName)
 		.replace(nation, fixedNationName)
 
-	if (mapMode == 'alliances' || mapMode == 'meganations') {
+	if (mapMode == MapMode.ALLIANCES || mapMode == MapMode.MEGANATIONS) {
 		// Add 'Part of' label
 		const nationAlliances = getNationAlliances(nation, mapMode)
 		if (nationAlliances.length > 0) {
@@ -502,12 +489,12 @@ function colorTown(rawMarker, parsedMarker, mapMode) {
 
 	const { nationName } = parsedMarker
 
-	if (mapMode == 'meganations') {
+	if (mapMode.name == 'meganations') {
 		const isDefaultCol = rawMarker.color == DEFAULT_BLUE && rawMarker.fillColor == DEFAULT_BLUE
 		rawMarker.color = isDefaultCol ? '#363636' : DEFAULT_GREEN
 		rawMarker.fillColor = isDefaultCol ? hashCode(nationName) : rawMarker.fillColor
 	}
-	else if (mapMode == 'overclaim') {
+	else if (mapMode.name == 'overclaim') {
 		const nation = nationName ? cachedApiNations.get(nationName.toLowerCase()) : null
 		const overclaimInfo = !nation
 			? checkOverclaimedNationless(parsedMarker.area, parsedMarker.residentNum)

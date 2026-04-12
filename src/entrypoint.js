@@ -58,7 +58,7 @@ async function init(manifest) {
 		GM_addStyle(STYLE_CSS)
 	}
 
-    localStorage['emcdynmapplus-mapmode'] ??= 'meganations'
+    localStorage['emcdynmapplus-mapmode'] ??= MapMode.MEGANATIONS.name
 	localStorage['emcdynmapplus-normalize-scroll'] ??= 'true'
     localStorage['emcdynmapplus-darkened'] ??= 'true'
 	localStorage['emcdynmapplus-serverinfo'] ??= 'true'
@@ -80,7 +80,7 @@ async function init(manifest) {
 
 	await insertPlayerList()
 
-	const insertedPanel = await tryInsertNationClaimsPanel('nationclaims')
+	const insertedPanel = await tryInsertNationClaimsPanel(MapMode.NATIONCLAIMS)
 	if (insertedPanel) loadNationClaims(insertedPanel)
 
 	initToggleOptions()
