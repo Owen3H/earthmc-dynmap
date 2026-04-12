@@ -23,6 +23,7 @@
 			"src/httputil.js",
 			"src/dom.js",
 			"src/screenshot.js",
+			"src/modeselector.js",
 			"src/menu.js",
 			"src/main.js",
 			"src/entrypoint.js"

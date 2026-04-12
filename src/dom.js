@@ -397,6 +397,14 @@ function insertExtensionMenu() {
     })
 }
 
+/** @returns {Promise<Element | null>} The "#map-mode-selector" element. */
+function insertMapModeSelector() {
+	return waitForElement('.leaflet-control-container').then(el => {
+		disablePanAndZoom(el)
+		return addMapModeSelector(el)
+	})
+}
+
 /** @param {HTMLElement} element - The element to prevent dblckick and mousedown events on. */
 function disablePanAndZoom(element) {
 	// Prevents panning the map when on this element by

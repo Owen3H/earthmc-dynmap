@@ -71,7 +71,8 @@ async function init(manifest) {
 	console.log("emcdynmapplus: Initializing UI elements..")
 
 	insertCustomStylesheets()
-
+    
+	await insertMapModeSelector()
 	await insertExtensionMenu()
 	updateServerInfo(await insertServerInfoPanel())
     await editUILayout()
