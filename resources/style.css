@@ -17,7 +17,7 @@
 	/* Position in the center of the screen, 10px from the top */
     position: fixed;
 	text-align: center;
-    top: 10px;
+    top: 130px;
     left: 50%;
     transform: translateX(-50%);
 }
@@ -59,7 +59,7 @@
     display: grid;
     grid-template-columns: repeat(3, 1fr);
 	min-height: 40vh;
-    max-height: calc(100vh - 200px);
+    max-height: calc(100vh - 320px);
     overflow-y: auto;
 	margin-bottom: 5px;
 	margin-top: 10px;
@@ -163,7 +163,7 @@ fieldset#players {
 	min-width: 190px;
 	margin: 10px 0 10px 0;
 	background-color: rgba(0, 0, 0, .5);
-	backdrop-filter: blur(5px);
+	backdrop-filter: blur(3px) opacity(0.7);
 	scrollbar-width: thin;
 	scrollbar-color: #aaa rgba(0, 0, 0, 0.1);
 }
@@ -325,6 +325,7 @@ fieldset#players > a:hover {
     font-weight: 500;
     font-size: 12px;
     font-family: "Inter", 'Open Sans', sans-serif;
+	border-radius: 0px 0px 0px 2px;
 }
 
 #locate-button {
@@ -346,7 +347,63 @@ fieldset#players > a:hover {
 	gap: 1px;
 }
 
+/* Map mode selector */
+
+#map-mode-selector {
+	position: fixed;
+	display: flex;
+    align-items: center;
+    flex-direction: column;
+	margin: 0px;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+	padding: 20px;
+	gap: 10px;
+}
+
 #current-map-mode-label {
+	color: white;
+    font-family: 'Inter';
+    font-size: 20px;
+    font-weight: 600;
+	line-height: normal;
+	text-align: center;
+	white-space: nowrap;
+	user-select: none;
+	pointer-events: none;
+}
+
+#map-mode-option-container {
+    display: flex;
+    gap: 10px;
+    flex-direction: row;
+}
+
+.map-mode-btn-option {
+	padding: 0;
+	background: black;
+	border: 2px dashed white;
+  	box-sizing: border-box;
+	width: 35px;
+	height: 35px;
+	overflow: hidden; /* ensures no bleed */
+}
+
+.map-mode-btn-option > img {
+	width: 100%;
+  	height: 100%;
+  	display: block;
+}
+
+.map-mode-btn-option:hover {
+	width: 40px;
+	height: 40px;
+	border: 3px dashed var(--yellow-colour);
+	cursor: pointer;
+}
+
+/* #current-map-mode-label {
 	display: block;
 	box-sizing: border-box;
 	margin: 5px 5px 5px 5px;
@@ -354,7 +411,7 @@ fieldset#players > a:hover {
 	font-weight: bold;
 	font-family: "Inter", 'Open Sans', sans-serif;
 	text-align: center;
-}
+} */
 
 /* Town popup */
 
@@ -451,6 +508,10 @@ fieldset#players > a:hover {
 .leaflet-control-layers.coordinates {
 	font-family: "Inter", 'Open Sans', sans-serif;
 	font-weight: 500 !important;
+}
+
+.leaflet-control-zoom {
+	border: none !important;
 }
 
 /* Fix blurry link icon */

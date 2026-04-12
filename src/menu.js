@@ -32,10 +32,6 @@ function addMainMenu(parent) {
 	// Options button and checkboxes
 	addOptions(sidebar, curMapMode)
 
-	// Current map mode label
-	const currentMapModeLabel = addElement(sidebar, INSERTABLE_HTML.currentMapModeLabel)
-	currentMapModeLabel.textContent = currentMapModeLabel.textContent.replace('{currentMapMode}', curMapMode)
-
 	return sidebar
 }
 
@@ -250,27 +246,31 @@ function searchArchive(date) {
 }
 
 /** 
- * @param {string} townName
+ * @param {string} name
  * @param {boolean} isArchiveMode
  */
-async function locateTown(townName, isArchiveMode) {
-	townName = townName.trim().toLowerCase()
+async function locateTown(name, isArchiveMode) {
+	name = name.trim()
+
+	const townName = name.toLowerCase()
 	if (townName == '') return
 
 	let coords = null
 	if (!isArchiveMode) coords = await getTownSpawn(townName)
 	if (!coords) coords = getTownMidpoint(townName)
 
-	if (!coords) return showAlert(`Could not find town/capital with name '${townName}'.`, 5)
+	if (!coords) return showAlert(`Could not find town/capital with name '${name}'.`, 5)
 	updateUrlLocation(coords)
 }
 
 /** 
- * @param {string} nationName
+ * @param {string} name
  * @param {boolean} isArchiveMode
  */
-async function locateNation(nationName, isArchiveMode) {
-	nationName = nationName.trim().toLowerCase()
+async function locateNation(name, isArchiveMode) {
+	name = name.trim()
+	
+	const nationName = name.toLowerCase()
 	if (nationName == '') return
 
 	let capitalName = null
@@ -289,11 +289,13 @@ async function locateNation(nationName, isArchiveMode) {
 }
 
 /** 
- * @param {string} residentName
+ * @param {string} name
  * @param {boolean} isArchiveMode
  */
-async function locateResident(residentName, isArchiveMode) {
-	residentName = residentName.trim().toLowerCase()
+async function locateResident(name, isArchiveMode) {
+	name = name.trim()
+
+	const residentName = name.toLowerCase()
 	if (residentName == '') return
 
 	let townName = null

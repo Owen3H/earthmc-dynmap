@@ -72,6 +72,7 @@ async function init(manifest) {
 
 	insertCustomStylesheets()
     
+	await insertMapModeSelector()
 	await insertSidebarMenu()
 	updateServerInfo(await insertServerInfoPanel())
     await editUILayout()

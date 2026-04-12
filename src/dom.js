@@ -49,7 +49,13 @@ const INSERTABLE_HTML = /** @type {const} */ ({
 	locateInput: '<input class="sidebar-input" id="locate-input" placeholder="London">',
     locateSelect: '<select id="locate-select"><option>Town</option><option>Nation</option><option>Resident</option></select>',
     archiveInput: `<input class="sidebar-input" id="archive-input" type="date" min="${ARCHIVE_DATE.MIN}" max="${ARCHIVE_DATE.MAX}">`,
-    currentMapModeLabel: '<div class="sidebar-option" id="current-map-mode-label">Map Mode: {currentMapMode}</div>',
+	mapMode: {
+		selector: '<div class="leaflet-control-layers leaflet-control" id="map-mode-selector"></div>',
+		optionContainer: '<div id="map-mode-option-container"></div>',
+		btnOption: '<button class="map-mode-btn-option"></button>',
+		currentModeLabel: '<div id="current-map-mode-label">Map Mode: {currentMapMode}</div>',
+	},
+	currentMapModeLabel: '<div id="current-map-mode-label">Map Mode: {currentMapMode}</div>',
     followingPlayer: '<h1 id="following-warning">Stop following this player by clicking on the map.</h1>',
     alertBox: '<div id="alert"><p id="alert-message">{message}</p><button id="alert-close">Dismiss</button></div>',
 	// Used in main.js
@@ -386,6 +392,14 @@ function insertSidebarMenu() {
         disablePanAndZoom(el)
         return addMainMenu(el)
     })
+}
+
+/** @returns {Promise<Element | null>} The "#map-mode-selector" element. */
+function insertMapModeSelector() {
+	return waitForElement('.leaflet-control-container').then(el => {
+		disablePanAndZoom(el)
+		return addMapModeSelector(el)
+	})
 }
 
 /** @param {HTMLElement} element - The element to prevent dblckick and mousedown events on. */
