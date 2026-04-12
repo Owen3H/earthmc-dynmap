@@ -228,7 +228,7 @@ function removeScrollNormalizer(mapEl) {
  * @param {string} inputValue
  */
 function locate(selectValue, inputValue) {
-	const isArchiveMode = currentMapMode() == 'archive'
+	const isArchiveMode = currentMapMode() == MapMode.ARCHIVE
 	switch (selectValue) {
 		case 'Town': locateTown(inputValue, isArchiveMode); break
 		case 'Nation': locateNation(inputValue, isArchiveMode); break
@@ -241,7 +241,7 @@ function searchArchive(date) {
 	if (date == '') return
 	const URLDate = date.replaceAll('-', '') // 2026-06-01 -> 20260601
 	localStorage['emcdynmapplus-archive-date'] = URLDate // In case 'change' event doesn't already update it
-	localStorage['emcdynmapplus-mapmode'] = 'archive'
+	localStorage['emcdynmapplus-mapmode'] = MapMode.ARCHIVE.name
 	location.reload()
 }
 
