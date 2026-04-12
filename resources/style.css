@@ -207,14 +207,15 @@ fieldset#players > a:hover {
 
 /* Player popup */
 #player-lookup-loading {
+	width: auto;
 	font-size: larger;
 	font-weight: 500;
 	font-family: "Inter", 'Open Sans', sans-serif;
 	padding: 5px;
 	/* ensure it stays on the left below the menu */
-	clear: both !important;
 	display: block !important;
-	width: auto;
+	float: left !important;
+	clear: both !important;
 }
 
 #player-lookup {
