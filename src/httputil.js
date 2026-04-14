@@ -5,7 +5,7 @@ const PROJECT_URL = `https://github.com/3meraldK/earthmc-dynmap`
 const PROXY_URL = `https://proxy.killcors.com/?url=`
 
 const EMC_DOMAIN = "earthmc.net"
-const CURRENT_MAP = location.href.includes('nostra') ? "nostra" : "aurora"
+const CURRENT_MAP = location.href.includes('aurora') ? "aurora" : "nostra"
 
 const CAPI_BASE = `https://emcstats.bot.nu`
 const MAPI_BASE = `https://map.${EMC_DOMAIN}`
