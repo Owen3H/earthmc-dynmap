@@ -5,11 +5,11 @@
 
 /** @param {HTMLElement} parent - The "leaflet-top leaflet-left" element. */
 function addMainMenu(parent) {
-	const sidebar = addElement(parent, INSERTABLE_HTML.sidebar)
-	addLocateMenu(sidebar) // Locator button and input box
+	const menu = addElement(parent, INSERTABLE_HTML.menu)
+	addLocateMenu(menu) // Locator button and input box
 
 	//#region Archive search and date input
-	const archiveContainer = addElement(sidebar, INSERTABLE_HTML.sidebarOption, '.sidebar-option', true)[1]
+	const archiveContainer = addElement(menu, INSERTABLE_HTML.menuOption, '.menu-option', true)[1]
 	const archiveButton = addElement(archiveContainer, INSERTABLE_HTML.buttons.searchArchive)
 	const archiveInput = addElement(archiveContainer, INSERTABLE_HTML.archiveInput)
 	
@@ -26,26 +26,22 @@ function addMainMenu(parent) {
 	const curMapMode = currentMapMode()
 
 	// Switch map mode button
-	const switchMapModeButton = addElement(sidebar, INSERTABLE_HTML.buttons.switchMapMode)
+	const switchMapModeButton = addElement(menu, INSERTABLE_HTML.buttons.switchMapMode)
 	switchMapModeButton.addEventListener('click', _ => switchMapMode(curMapMode))
 
 	// Options button and checkboxes
-	addOptions(sidebar, curMapMode)
+	addOptions(menu, curMapMode)
 
-	// Current map mode label
-	const currentMapModeLabel = addElement(sidebar, INSERTABLE_HTML.currentMapModeLabel)
-	currentMapModeLabel.textContent = currentMapModeLabel.textContent.replace('{currentMapMode}', curMapMode)
-
-	return sidebar
+	return menu
 }
 
 /** 
- * @param {HTMLElement} sidebar 
+ * @param {HTMLElement} menu 
  * @param {MapMode} curMapMode 
 */
-function addOptions(sidebar, curMapMode) {
-	const optionsButton = addElement(sidebar, INSERTABLE_HTML.buttons.options)
-	const optionsMenu = addElement(sidebar, INSERTABLE_HTML.options.menu)
+function addOptions(menu, curMapMode) {
+	const optionsButton = addElement(menu, INSERTABLE_HTML.buttons.options)
+	const optionsMenu = addElement(menu, INSERTABLE_HTML.options.menu)
 	optionsMenu.style.display = 'none'
 	optionsButton.addEventListener('click', _ => {
 		optionsMenu.style.display = (optionsMenu.style.display == 'none') ? 'grid' : 'none'
@@ -95,11 +91,11 @@ function addCheckboxOption(menu, index, optionId, optionText, variable, listener
 	return checkbox
 }
 
-/** @param {HTMLElement} sidebar */
-function addLocateMenu(sidebar) {
-	const locateMenu = addElement(sidebar, INSERTABLE_HTML.locateMenu, '#locate-menu')
+/** @param {HTMLElement} menu */
+function addLocateMenu(menu) {
+	const locateMenu = addElement(menu, INSERTABLE_HTML.locateMenu, '#locate-menu')
 	const locateButton = addElement(locateMenu, INSERTABLE_HTML.buttons.locate, '#locate-button')
-	const locateSubmenu = addElement(locateMenu, INSERTABLE_HTML.sidebarOption, '.sidebar-option')
+	const locateSubmenu = addElement(locateMenu, INSERTABLE_HTML.menuOption, '.menu-option')
 
 	//#region sub menu (dropdown and input)
 	const locateSelect = addElement(locateSubmenu, INSERTABLE_HTML.locateSelect, '#locate-select')

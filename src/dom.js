@@ -23,10 +23,10 @@ const getTilePaneFilter = () => /** @type {const} */ (
 const INSERTABLE_HTML = /** @type {const} */ ({
 	// Used in dom.js
     buttons: {
-        locate: '<button class="sidebar-button" id="locate-button">Locate</button>',
-        searchArchive: '<button class="sidebar-button" id="archive-button">Search Archive</button>',
-        switchMapMode: '<button class="sidebar-button" id="switch-map-mode">Switch Map Mode</button>',
-        options: '<button class="sidebar-button" id="options-button">Options</button>'
+        locate: '<button class="menu-button-option" id="locate-button">Locate</button>',
+        searchArchive: '<button class="menu-button-option" id="archive-button">Search Archive</button>',
+        switchMapMode: '<button class="menu-button-option" id="switch-map-mode">Switch Map Mode</button>',
+        options: '<button class="menu-button-option" id="options-button">Options</button>'
     },
     options: {
         menu: '<div id="options-menu"></div>',
@@ -43,13 +43,19 @@ const INSERTABLE_HTML = /** @type {const} */ ({
 		'<div class="leaflet-control-layers link leaflet-control"><a href=""><img class="crisp-edges" src="images/clear.png"></a></div>' +
 		'</div>',
 	serverInfo: '<div class="leaflet-control-layers leaflet-control" id="server-info"></div>',
-    sidebar: '<div class="leaflet-control-layers leaflet-control" id="sidebar"></div>',
-    sidebarOption: '<div class="sidebar-option"></div>',
+    menu: '<div class="leaflet-control-layers leaflet-control" id="menu"></div>',
+    menuOption: '<div class="menu-option"></div>',
     locateMenu: '<div id="locate-menu"></div>',
-	locateInput: '<input class="sidebar-input" id="locate-input" placeholder="London">',
+	locateInput: '<input class="menu-input-option" id="locate-input" placeholder="London">',
     locateSelect: '<select id="locate-select"><option>Town</option><option>Nation</option><option>Resident</option></select>',
-    archiveInput: `<input class="sidebar-input" id="archive-input" type="date" min="${ARCHIVE_DATE.MIN}" max="${ARCHIVE_DATE.MAX}">`,
-    currentMapModeLabel: '<div class="sidebar-option" id="current-map-mode-label">Map Mode: {currentMapMode}</div>',
+    archiveInput: `<input class="menu-input-option" id="archive-input" type="date" min="${ARCHIVE_DATE.MIN}" max="${ARCHIVE_DATE.MAX}">`,
+	mapMode: {
+		selector: '<div class="leaflet-control-layers leaflet-control" id="map-mode-selector"></div>',
+		optionContainer: '<div id="map-mode-option-container"></div>',
+		btnOption: '<button class="map-mode-btn-option"></button>',
+		currentModeLabel: '<div id="current-map-mode-label">Map Mode: {currentMapMode}</div>',
+	},
+	currentMapModeLabel: '<div id="current-map-mode-label">Map Mode: {currentMapMode}</div>',
     followingPlayer: '<h1 id="following-warning">Stop following this player by clicking on the map.</h1>',
     alertBox: '<div id="alert"><p id="alert-message">{message}</p><button id="alert-close">Dismiss</button></div>',
 	// Used in main.js
@@ -66,8 +72,8 @@ const INSERTABLE_HTML = /** @type {const} */ ({
 		<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap">
 	`,
 	darkMode: `<style id="dark-mode">
-		.leaflet-control, .sidebar-input, #locate-select, #alert,
-		.sidebar-button, .leaflet-bar > a, .leaflet-tooltip-top,
+		.leaflet-control, .menu-input-option, #locate-select, #alert,
+		.menu-button-option, .leaflet-bar > a, .leaflet-tooltip-top,
 		.leaflet-popup-content-wrapper, .leaflet-popup-tip,
 		.leaflet-bar > a.leaflet-disabled {
 			background: #131313d4 !important;
@@ -355,6 +361,9 @@ async function editUILayout() {
 			lookupPlayer(target.textContent)
 		}
 	}))
+
+	// Remove the sidebar that contains the list of worlds
+	waitForElement('#sidebar').then(el => el?.remove())
 }
 
 /** 
@@ -380,8 +389,8 @@ function insertServerInfoPanel() {
 	})
 }
 
-/** @returns {Promise<Element | null>} The "#sidebar" element. */
-function insertSidebarMenu() {
+/** @returns {Promise<Element | null>} The "#menu" element. */
+function insertExtensionMenu() {
     return waitForElement('.leaflet-top.leaflet-left').then(el => {
         disablePanAndZoom(el)
         return addMainMenu(el)
@@ -395,7 +404,7 @@ function disablePanAndZoom(element) {
 	element.addEventListener('mousedown', e => e.stopPropagation())
 
 	// blocks the map (Leaflet) from zooming when 
-	// double clicking in the sidebar main menu.
+	// double clicking in the extension menu.
 	element.addEventListener('dblclick', e => {
 		e.stopPropagation()
 		e.preventDefault()
@@ -475,7 +484,7 @@ function addNationClaimsPanel(parent) {
 	const div = appendHTML(contentContainer, '<div id="nation-claims-btn-container"></div>')
 
 	/** @type {HTMLElement} */
-	const applyBtn = appendHTML(div, '<button class="sidebar-button" id="nation-claims-apply">Apply</button>')
+	const applyBtn = appendHTML(div, '<button class="menu-button-option" id="nation-claims-apply">Apply</button>')
 	applyBtn.addEventListener('click', () => {
 		const colorInputs = entriesContainer.querySelectorAll('[id^="nation-color-entry"]')
 		const textInputs  = entriesContainer.querySelectorAll('[id^="nation-text-entry"]')
@@ -489,7 +498,7 @@ function addNationClaimsPanel(parent) {
 	})
 
 	/** @type {HTMLElement} */
-	const resetAllBtn = appendHTML(div, '<button class="sidebar-button" id="nation-claims-reset-all">Reset All</button>')
+	const resetAllBtn = appendHTML(div, '<button class="menu-button-option" id="nation-claims-reset-all">Reset All</button>')
 	resetAllBtn.addEventListener('click', () => {
 		const entries = Array.from({ length: MAX_NATION_CLAIM_ENTRIES }, () => ({ color: null, input: null }))
 		localStorage['emcdynmapplus-nation-claims-info'] = JSON.stringify(entries)

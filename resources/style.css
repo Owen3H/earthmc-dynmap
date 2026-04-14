@@ -266,8 +266,8 @@ fieldset#players > a:hover {
 	font-size: 18px;
 }
 
-/* Main sidebar */
-#sidebar {
+/* Onscreen extension menu */
+#menu {
 	width: auto;
 	max-width: 210px;
 	padding: 5px;
@@ -282,7 +282,7 @@ fieldset#players > a:hover {
 	padding-right: 5px;
 }
 
-.sidebar-option {
+.menu-option {
 	width: inherit;
 	height: fit-content;
 	display: flex;
@@ -290,13 +290,13 @@ fieldset#players > a:hover {
 	margin-bottom: 10px;
 }
 
-.sidebar-input {
+.menu-input-option {
 	width: 100%;
 	border: 1px solid rgba(255, 255, 255, 0.5) !important;
 	border-radius: 0px 2px 2px 0px;
 }
 
-.sidebar-button {
+.menu-button-option {
 	height: 30px;
 	font-kerning: none;
     font-weight: 500;
@@ -428,7 +428,7 @@ fieldset#players > a:hover {
 }
 
 .leaflet-control {
-	float: inline-end !important; /** sidebar and player lookup are float: left !important */
+	float: inline-end !important; /** menu and player lookup are float: left !important */
 	clear: none !important;
 	backdrop-filter: blur(5px);
 }
