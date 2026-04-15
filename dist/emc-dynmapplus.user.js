@@ -2092,11 +2092,11 @@ div.leaflet-control-layers.screenshot img {\r
   console.log("emcdynmapplus: Initializing UI elements..");
   insertCustomStylesheets();
   await insertMapModeSelector();
+  await insertPlayerList();
   await insertExtensionMenu();
   updateServerInfo(await insertServerInfoPanel());
   await editUILayout();
   await insertScreenshotBtn();
-  await insertPlayerList();
   const insertedPanel = await tryInsertNationClaimsPanel(MapMode.NATIONCLAIMS);
   if (insertedPanel) loadNationClaims(insertedPanel);
   initToggleOptions();
