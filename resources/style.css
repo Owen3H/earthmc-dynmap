@@ -399,9 +399,10 @@ fieldset#players > a:hover {
 }
 
 .map-mode-btn-option > img {
+	display: block;
 	width: 100%;
-  	height: 100%;
-  	display: block;
+	height: 100%;
+	image-rendering: auto !important;
 }
 
 /* #current-map-mode-label {
@@ -535,7 +536,7 @@ div.leaflet-control-layers.screenshot img {
 }
 
 .crisp-edges {
-	image-rendering: optimizeSpeed;             /* Legal fallback	*/
+	image-rendering: optimizeQuality;             /* Legal fallback	*/
 	image-rendering: -moz-crisp-edges;          /* Firefox        	*/
 	image-rendering: -o-crisp-edges;            /* Opera			*/
 	image-rendering: -webkit-optimize-contrast; /* Chrome + Safari	*/

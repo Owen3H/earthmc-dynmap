@@ -161,6 +161,11 @@ async function fetchJSON(url, options = null) {
 }
 var postJSON = (url, body) => fetchJSON(url, { body: JSON.stringify(body), method: "POST" });
 var fetchServerInfo = async () => fetchJSON(`${OAPI_BASE}/${CURRENT_MAP}`);
+var fetchArchive = async (date) => {
+  const markersURL = date < 20230212 ? "https://earthmc.net/map/aurora/tiles/_markers_/marker_earth.json" : date < 20240701 ? "https://earthmc.net/map/aurora/standalone/MySQL_markers.php?marker=_markers_/marker_earth.json" : "https://map.earthmc.net/tiles/minecraft_overworld/markers.json";
+  const archiveURL = `https://web.archive.org/web/${date}id_/${markersURL}`;
+  return fetchJSON(PROXY_URL + archiveURL);
+};
 async function queryConcurrent(url, arr) {
   const chunks = chunkArr(arr, OAPI_ITEMS_PER_REQ);
   const promises = chunks.map(async (chunk) => {
@@ -715,13 +720,15 @@ var MAP_MODES = (
   /** @type {const} */
   {
     DEFAULT: { name: "default", img: "resources/map-mode-default.png", order: 0 },
-    ALLIANCES: { name: "alliances", img: "resources/map-mode-alliances.png", order: 1 },
-    MEGANATIONS: { name: "meganations", img: "resources/map-mode-meganations.png", order: 2 },
+    MEGANATIONS: { name: "meganations", img: "resources/map-mode-meganations.png", order: 1 },
+    ALLIANCES: { name: "alliances", img: "resources/map-mode-alliances.png", order: 2 },
     OVERCLAIM: { name: "overclaim", img: "resources/map-mode-overclaim.png", order: 3 },
     NATIONCLAIMS: { name: "nationclaims", img: "resources/map-mode-nationclaims.png", order: 4 },
     ARCHIVE: { name: "archive", img: null, order: 5 }
+    // null img to avoid showing up in the selector
   }
 );
+Object.freeze(MAP_MODES);
 var MapMode = MAP_MODES;
 function addMapModeSelector(parent) {
   const selectorDiv = addElement(parent, INSERTABLE_HTML.mapMode.selector);
@@ -739,7 +746,7 @@ function addMapModeSelector(parent) {
 var GITHUB_REPO = "https://raw.githubusercontent.com/Owen3H/earthmc-dynmap/refs/heads/main/";
 function addMapModeBtn(iconContainer, mode, clickHandler = null) {
   const button = addElement(iconContainer, INSERTABLE_HTML.mapMode.btnOption);
-  addElement(button, `<img alt="${mode.name}" src="${GITHUB_REPO + mode.img}">`);
+  addElement(button, `<img title="${mode.name}" alt="${mode.name}" src="${GITHUB_REPO + mode.img}">`);
   if (clickHandler) button.addEventListener("click", clickHandler);
 }
 var currentMapMode = () => {
@@ -1421,12 +1428,10 @@ function getNationAlliances(nationName, mapMode) {
   }
   return nationAlliances;
 }
-var getArchiveURL = (date, markersURL) => `https://web.archive.org/web/${date}id_/${markersURL}`;
 async function getArchive(data) {
   const loadingAlert = showAlert("Loading archive, please wait...");
   const date = archiveDate();
-  const markersURL = date < 20230212 ? "https://earthmc.net/map/aurora/tiles/_markers_/marker_earth.json" : date < 20240701 ? "https://earthmc.net/map/aurora/standalone/MySQL_markers.php?marker=_markers_/marker_earth.json" : "https://map.earthmc.net/tiles/minecraft_overworld/markers.json";
-  const archive = await fetchJSON(PROXY_URL + getArchiveURL(date, markersURL));
+  const archive = await fetchArchive(date);
   if (!archive) return showAlert("Archive service is currently unavailable, please try later.");
   let actualArchiveDate;
   if (date < 20240701) {
@@ -1940,6 +1945,7 @@ fieldset#players > a:hover {\r
 	width: 100%;\r
   	height: 100%;\r
   	display: block;\r
+	image-rendering: optimizeQuality !important;\r
 }\r
 \r
 /* #current-map-mode-label {\r
