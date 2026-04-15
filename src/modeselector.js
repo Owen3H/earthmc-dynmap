@@ -22,16 +22,19 @@ const MapMode = MAP_MODES // this exists at runtime to replace the typedef
 function addMapModeSelector(parent) {
     const selectorDiv = addElement(parent, INSERTABLE_HTML.mapMode.selector)
 
-    const currentMapModeLabel = addElement(selectorDiv, INSERTABLE_HTML.mapMode.currentModeLabel)
-	currentMapModeLabel.textContent = currentMapModeLabel.textContent.replace('{currentMapMode}', currentMapMode().name)
-
+    const label = addElement(selectorDiv, INSERTABLE_HTML.mapMode.currentModeLabel)
     const iconContainer = addElement(selectorDiv, INSERTABLE_HTML.mapMode.optionContainer)
     
     const modes = sortedMapModes()
     for (const mode of modes) {
         if (mode.img == null) continue
-        addMapModeBtn(iconContainer, mode, _ => switchMapMode(mode))
+        addMapModeBtn(iconContainer, mode, _ => selectMapMode(mode))
     }
+
+    const curMode = currentMapMode()
+    console.log(curMode.name)
+
+    label.textContent = `Map Mode: ${curMode.name}`
 }
 
 /**
@@ -56,13 +59,7 @@ const currentMapMode = () => {
 }
 
 /** @param {MapMode} currentMode */
-function switchMapMode(currentMode) {
-    const modes = sortedMapModes()
-
-    const currentIndex = modes.findIndex(m => m.name === currentMode.name)
-    const nextIndex = (currentIndex + 1) % modes.length
-    const nextMode = modes[nextIndex]
-
-    localStorage['emcdynmapplus-mapmode'] = nextMode.name
+function selectMapMode(mode) {
+    localStorage['emcdynmapplus-mapmode'] = mode.name
     location.reload()
 }
