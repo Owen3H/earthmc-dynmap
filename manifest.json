@@ -12,6 +12,11 @@
 		"run_at": "document_idle",
 		"matches": ["https://map.earthmc.net/*", "https://nostra.earthmc.net/*"],
 		"resources": [
+			"resources/map-mode-default.png",
+			"resources/map-mode-alliances.png",
+			"resources/map-mode-meganations.png",
+			"resources/map-mode-overclaim.png",
+			"resources/map-mode-nationclaims.png",
 			"resources/interceptor.js",
 			"resources/borders.json"
 		]
