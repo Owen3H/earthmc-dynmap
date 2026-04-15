@@ -4,12 +4,14 @@
 const sortedMapModes = () => Object.values(MAP_MODES).sort((a, b) => a.order - b.order)
 const MAP_MODES = /** @type {const} */ ({
     DEFAULT:        { name: "default",      img: "resources/map-mode-default.png", order: 0 },
-    ALLIANCES:      { name: "alliances",    img: "resources/map-mode-alliances.png", order: 1 },
-    MEGANATIONS:    { name: "meganations",  img: "resources/map-mode-meganations.png", order: 2 },
+    MEGANATIONS:    { name: "meganations",  img: "resources/map-mode-meganations.png", order: 1 },
+    ALLIANCES:      { name: "alliances",    img: "resources/map-mode-alliances.png", order: 2 },
     OVERCLAIM:      { name: "overclaim",    img: "resources/map-mode-overclaim.png", order: 3 },
     NATIONCLAIMS:   { name: "nationclaims", img: "resources/map-mode-nationclaims.png", order: 4 },
-    ARCHIVE:        { name: "archive",      img: null, order: 5 },
+    ARCHIVE:        { name: "archive",      img: null, order: 5 }, // null img to avoid showing up in the selector
 })
+
+Object.freeze(MAP_MODES)
 
 const MapMode = MAP_MODES // this exists at runtime to replace the typedef
 
