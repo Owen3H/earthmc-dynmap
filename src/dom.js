@@ -13,9 +13,9 @@ const SCROLL_LINE_DELTA = 30  // 1 scroll line = ~30 deltaY in windows
 const SCROLL_THRESHOLD 	= 5	  // increase zoom by this many scroll lines
 
 // TODO: Add sliders under a "Tile Filters" section and bind these variables to their respective values.
-const BRIGHTNESS_PERCENTAGE = 60
-const CONTRAST_PERCENTAGE = 105
-const SATURATE_PERCENTAGE = 95
+const BRIGHTNESS_PERCENTAGE = 65
+const CONTRAST_PERCENTAGE = 102
+const SATURATE_PERCENTAGE = 97
 const getTilePaneFilter = () => /** @type {const} */ (
 	`brightness(${BRIGHTNESS_PERCENTAGE}%) contrast(${CONTRAST_PERCENTAGE}%) saturate(${SATURATE_PERCENTAGE}%)`
 )
@@ -80,6 +80,14 @@ const INSERTABLE_HTML = /** @type {const} */ ({
 		}
 		div.leaflet-control-layers.link img {
 			filter: invert(1);
+		}
+		.map-mode-btn-option {
+			background: black;
+			border: 2px dashed white;
+		}
+		.map-mode-btn-option:hover {
+			border: 3px dashed var(--yellow-colour);
+			background: black;
 		}
 		</style>
 	`,
