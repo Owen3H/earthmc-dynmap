@@ -1942,10 +1942,10 @@ fieldset#players > a:hover {\r
 }\r
 \r
 .map-mode-btn-option > img {\r
+	display: block;\r
 	width: 100%;\r
-  	height: 100%;\r
-  	display: block;\r
-	image-rendering: optimizeQuality !important;\r
+	height: 100%;\r
+	image-rendering: auto !important;\r
 }\r
 \r
 /* #current-map-mode-label {\r
@@ -2079,7 +2079,7 @@ div.leaflet-control-layers.screenshot img {\r
 }\r
 \r
 .crisp-edges {\r
-	image-rendering: optimizeSpeed;             /* Legal fallback	*/\r
+	image-rendering: optimizeQuality;             /* Legal fallback	*/\r
 	image-rendering: -moz-crisp-edges;          /* Firefox        	*/\r
 	image-rendering: -o-crisp-edges;            /* Opera			*/\r
 	image-rendering: -webkit-optimize-contrast; /* Chrome + Safari	*/\r
