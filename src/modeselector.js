@@ -37,6 +37,8 @@ function addMapModeSelector(parent) {
     label.textContent = `Map Mode: ${curMode.name}`
 }
 
+const GITHUB_REPO = "https://raw.githubusercontent.com/Owen3H/earthmc-dynmap/refs/heads/main/"
+
 /**
  * Adds a map mode button to its parent container div using its img/icon and btn handler.
  * @param {HTMLDivElement} iconContainer 
@@ -45,7 +47,7 @@ function addMapModeSelector(parent) {
  */
 function addMapModeBtn(iconContainer, mode, clickHandler = null) {
     const button = addElement(iconContainer, INSERTABLE_HTML.mapMode.btnOption)
-    addElement(button, `<img alt="${mode.name}" src="${chrome.runtime.getURL(mode.img)}">`)
+    addElement(button, `<img alt="${mode.name}" src="${GITHUB_REPO + mode.img}">`)
 
     if (clickHandler) button.addEventListener('click', clickHandler)
 }

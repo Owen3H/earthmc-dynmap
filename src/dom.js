@@ -53,7 +53,7 @@ const INSERTABLE_HTML = /** @type {const} */ ({
 		selector: '<div class="leaflet-control-layers leaflet-control" id="map-mode-selector"></div>',
 		optionContainer: '<div id="map-mode-option-container"></div>',
 		btnOption: '<button class="map-mode-btn-option"></button>',
-		currentModeLabel: '<div id="current-map-mode-label">Map Mode: {currentMapMode}</div>',
+		currentModeLabel: '<div id="current-map-mode-label">Map Mode: null</div>',
 	},
     followingPlayer: '<h1 id="following-warning">Stop following this player by clicking on the map.</h1>',
     alertBox: '<div id="alert"><p id="alert-message">{message}</p><button id="alert-close">Dismiss</button></div>',
@@ -370,7 +370,7 @@ async function editUILayout() {
 	}))
 
 	// Remove the sidebar that contains the list of worlds
-	waitForElement('#sidebar').then(el => el?.remove())
+	if (CURRENT_MAP == 'nostra') waitForElement('#sidebar').then(el => el?.remove())
 }
 
 /** 

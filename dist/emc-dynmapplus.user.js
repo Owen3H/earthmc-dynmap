@@ -4,7 +4,7 @@
 // @description Extension to enrich the EarthMC map experience
 // @author      3meraldK
 // @include     https://map.earthmc.net/*
-// @include     https://nostra.earthmc.net/*
+// @include     https://aurora.earthmc.net/*
 // @icon        https://raw.githubusercontent.com/Owen3H/earthmc-dynmap/main/resources/icon48.png
 // @downloadURL https://raw.githubusercontent.com/Owen3H/earthmc-dynmap/main/dist/emc-dynmapplus.user.js
 // @grant       GM_addStyle
@@ -95,7 +95,7 @@ var _TokenBucket_instances, save_fn;
 var PROJECT_URL = `https://github.com/3meraldK/earthmc-dynmap`;
 var PROXY_URL = `https://proxy.killcors.com/?url=`;
 var EMC_DOMAIN = "earthmc.net";
-var CURRENT_MAP = location.href.includes("nostra") ? "nostra" : "aurora";
+var CURRENT_MAP = location.href.includes("aurora") ? "aurora" : "nostra";
 var CAPI_BASE = `https://emcstats.bot.nu`;
 var MAPI_BASE = `https://map.${EMC_DOMAIN}`;
 var OAPI_BASE = `https://api.${EMC_DOMAIN}/v4`;
@@ -194,9 +194,9 @@ var MAX_NATION_CLAIM_ENTRIES = 300;
 var SCROLL_BASE_ZOOM = 90;
 var SCROLL_LINE_DELTA = 30;
 var SCROLL_THRESHOLD = 5;
-var BRIGHTNESS_PERCENTAGE = 60;
-var CONTRAST_PERCENTAGE = 105;
-var SATURATE_PERCENTAGE = 95;
+var BRIGHTNESS_PERCENTAGE = 65;
+var CONTRAST_PERCENTAGE = 102;
+var SATURATE_PERCENTAGE = 97;
 var getTilePaneFilter = () => (
   /** @type {const} */
   `brightness(${BRIGHTNESS_PERCENTAGE}%) contrast(${CONTRAST_PERCENTAGE}%) saturate(${SATURATE_PERCENTAGE}%)`
@@ -206,10 +206,10 @@ var INSERTABLE_HTML = (
   {
     // Used in dom.js
     buttons: {
-      locate: '<button class="sidebar-button" id="locate-button">Locate</button>',
-      searchArchive: '<button class="sidebar-button" id="archive-button">Search Archive</button>',
-      switchMapMode: '<button class="sidebar-button" id="switch-map-mode">Switch Map Mode</button>',
-      options: '<button class="sidebar-button" id="options-button">Options</button>'
+      locate: '<button class="menu-button-option" id="locate-button">Locate</button>',
+      searchArchive: '<button class="menu-button-option" id="archive-button">Search Archive</button>',
+      //switchMapMode: '<button class="menu-button-option" id="switch-map-mode">Switch Map Mode</button>',
+      options: '<button class="menu-button-option" id="options-button">Show Options</button>'
     },
     options: {
       menu: '<div id="options-menu"></div>',
@@ -222,13 +222,18 @@ var INSERTABLE_HTML = (
     nationClaimsTextInput: '<input type="text" id="nation-text-entry{index}" placeholder="Enter nation name..."></input>',
     nationClaimsTitlebar: '<div id="nation-claims-titlebar"><p>Nation Claims Customizer</p><div class="leaflet-control-layers link leaflet-control"><a href=""><img class="crisp-edges" src="images/clear.png"></a></div></div>',
     serverInfo: '<div class="leaflet-control-layers leaflet-control" id="server-info"></div>',
-    sidebar: '<div class="leaflet-control-layers leaflet-control" id="sidebar"></div>',
-    sidebarOption: '<div class="sidebar-option"></div>',
+    menu: '<div class="leaflet-control-layers leaflet-control" id="menu"></div>',
+    menuOption: '<div class="menu-option"></div>',
     locateMenu: '<div id="locate-menu"></div>',
-    locateInput: '<input class="sidebar-input" id="locate-input" placeholder="London">',
+    locateInput: '<input class="menu-input-option" id="locate-input" placeholder="London">',
     locateSelect: '<select id="locate-select"><option>Town</option><option>Nation</option><option>Resident</option></select>',
-    archiveInput: `<input class="sidebar-input" id="archive-input" type="date" min="${ARCHIVE_DATE.MIN}" max="${ARCHIVE_DATE.MAX}">`,
-    currentMapModeLabel: '<div class="sidebar-option" id="current-map-mode-label">Map Mode: {currentMapMode}</div>',
+    archiveInput: `<input class="menu-input-option" id="archive-input" type="date" min="${ARCHIVE_DATE.MIN}" max="${ARCHIVE_DATE.MAX}">`,
+    mapMode: {
+      selector: '<div class="leaflet-control-layers leaflet-control" id="map-mode-selector"></div>',
+      optionContainer: '<div id="map-mode-option-container"></div>',
+      btnOption: '<button class="map-mode-btn-option"></button>',
+      currentModeLabel: '<div id="current-map-mode-label">Map Mode: null</div>'
+    },
     followingPlayer: '<h1 id="following-warning">Stop following this player by clicking on the map.</h1>',
     alertBox: '<div id="alert"><p id="alert-message">{message}</p><button id="alert-close">Dismiss</button></div>',
     // Used in main.js
@@ -245,8 +250,8 @@ var INSERTABLE_HTML = (
 		<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap">
 	`,
     darkMode: `<style id="dark-mode">
-		.leaflet-control, .sidebar-input, #locate-select, #alert,
-		.sidebar-button, .leaflet-bar > a, .leaflet-tooltip-top,
+		.leaflet-control, .menu-input-option, #locate-select, #alert,
+		.menu-button-option, .leaflet-bar > a, .leaflet-tooltip-top,
 		.leaflet-popup-content-wrapper, .leaflet-popup-tip,
 		.leaflet-bar > a.leaflet-disabled {
 			background: #131313d4 !important;
@@ -254,6 +259,14 @@ var INSERTABLE_HTML = (
 		}
 		div.leaflet-control-layers.link img {
 			filter: invert(1);
+		}
+		.map-mode-btn-option {
+			background: black;
+			border: 2px dashed white;
+		}
+		.map-mode-btn-option:hover {
+			border: 3px dashed var(--yellow-colour);
+			background: black;
 		}
 		</style>
 	`
@@ -439,9 +452,10 @@ async function editUILayout() {
       lookupPlayer(target.textContent);
     }
   }));
+  if (CURRENT_MAP == "nostra") waitForElement("#sidebar").then((el) => el?.remove());
 }
 function tryInsertNationClaimsPanel(mapMode) {
-  const mode = localStorage["emcdynmapplus-mapmode"];
+  const mode = currentMapMode();
   if (mode != mapMode) return null;
   return waitForElement(".leaflet-control-container").then((el) => {
     disablePanAndZoom(el);
@@ -454,10 +468,16 @@ function insertServerInfoPanel() {
     return addServerInfoPanel(el);
   });
 }
-function insertSidebarMenu() {
+function insertExtensionMenu() {
   return waitForElement(".leaflet-top.leaflet-left").then((el) => {
     disablePanAndZoom(el);
     return addMainMenu(el);
+  });
+}
+function insertMapModeSelector() {
+  return waitForElement(".leaflet-control-container").then((el) => {
+    disablePanAndZoom(el);
+    return addMapModeSelector(el);
   });
 }
 function disablePanAndZoom(element) {
@@ -519,7 +539,7 @@ function addNationClaimsPanel(parent) {
     (e) => localStorage["emcdynmapplus-nation-claims-opaque-colors"] = e.target.checked
   );
   const div = appendHTML(contentContainer, '<div id="nation-claims-btn-container"></div>');
-  const applyBtn = appendHTML(div, '<button class="sidebar-button" id="nation-claims-apply">Apply</button>');
+  const applyBtn = appendHTML(div, '<button class="menu-button-option" id="nation-claims-apply">Apply</button>');
   applyBtn.addEventListener("click", () => {
     const colorInputs = entriesContainer.querySelectorAll('[id^="nation-color-entry"]');
     const textInputs = entriesContainer.querySelectorAll('[id^="nation-text-entry"]');
@@ -530,7 +550,7 @@ function addNationClaimsPanel(parent) {
     localStorage["emcdynmapplus-nation-claims-info"] = JSON.stringify(entries);
     location.reload();
   });
-  const resetAllBtn = appendHTML(div, '<button class="sidebar-button" id="nation-claims-reset-all">Reset All</button>');
+  const resetAllBtn = appendHTML(div, '<button class="menu-button-option" id="nation-claims-reset-all">Reset All</button>');
   resetAllBtn.addEventListener("click", () => {
     const entries = Array.from({ length: MAX_NATION_CLAIM_ENTRIES }, () => ({ color: null, input: null }));
     localStorage["emcdynmapplus-nation-claims-info"] = JSON.stringify(entries);
@@ -689,11 +709,54 @@ function drawMarkers(ctx, overlay = null) {
   }
 }
 
+// src/modeselector.js
+var sortedMapModes = () => Object.values(MAP_MODES).sort((a, b) => a.order - b.order);
+var MAP_MODES = (
+  /** @type {const} */
+  {
+    DEFAULT: { name: "default", img: "resources/map-mode-default.png", order: 0 },
+    ALLIANCES: { name: "alliances", img: "resources/map-mode-alliances.png", order: 1 },
+    MEGANATIONS: { name: "meganations", img: "resources/map-mode-meganations.png", order: 2 },
+    OVERCLAIM: { name: "overclaim", img: "resources/map-mode-overclaim.png", order: 3 },
+    NATIONCLAIMS: { name: "nationclaims", img: "resources/map-mode-nationclaims.png", order: 4 },
+    ARCHIVE: { name: "archive", img: null, order: 5 }
+  }
+);
+var MapMode = MAP_MODES;
+function addMapModeSelector(parent) {
+  const selectorDiv = addElement(parent, INSERTABLE_HTML.mapMode.selector);
+  const label = addElement(selectorDiv, INSERTABLE_HTML.mapMode.currentModeLabel);
+  const iconContainer = addElement(selectorDiv, INSERTABLE_HTML.mapMode.optionContainer);
+  const modes = sortedMapModes();
+  for (const mode of modes) {
+    if (mode.img == null) continue;
+    addMapModeBtn(iconContainer, mode, (_) => selectMapMode(mode));
+  }
+  const curMode = currentMapMode();
+  console.log(curMode.name);
+  label.textContent = `Map Mode: ${curMode.name}`;
+}
+var GITHUB_REPO = "https://raw.githubusercontent.com/Owen3H/earthmc-dynmap/refs/heads/main/";
+function addMapModeBtn(iconContainer, mode, clickHandler = null) {
+  const button = addElement(iconContainer, INSERTABLE_HTML.mapMode.btnOption);
+  addElement(button, `<img alt="${mode.name}" src="${GITHUB_REPO + mode.img}">`);
+  if (clickHandler) button.addEventListener("click", clickHandler);
+}
+var currentMapMode = () => {
+  const name = localStorage["emcdynmapplus-mapmode"];
+  if (!name) return MapMode.DEFAULT;
+  return sortedMapModes().find((m) => m.name == name) ?? MapMode.DEFAULT;
+};
+function selectMapMode(mode) {
+  localStorage["emcdynmapplus-mapmode"] = mode.name;
+  location.reload();
+}
+
 // src/menu.js
 function addMainMenu(parent) {
-  const sidebar = addElement(parent, INSERTABLE_HTML.sidebar);
-  addLocateMenu(sidebar);
-  const archiveContainer = addElement(sidebar, INSERTABLE_HTML.sidebarOption, ".sidebar-option", true)[1];
+  const menu = addElement(parent, INSERTABLE_HTML.menu);
+  addLocateMenu(menu);
+  const archiveContainer = addElement(menu, INSERTABLE_HTML.menuOption, ".menu-option", true)[1];
   const archiveButton = addElement(archiveContainer, INSERTABLE_HTML.buttons.searchArchive);
   const archiveInput = addElement(archiveContainer, INSERTABLE_HTML.archiveInput);
   archiveButton.addEventListener("click", (_) => searchArchive(archiveInput.value));
@@ -705,19 +768,16 @@ function addMainMenu(parent) {
     localStorage["emcdynmapplus-archive-date"] = URLDate;
   });
   const curMapMode = currentMapMode();
-  const switchMapModeButton = addElement(sidebar, INSERTABLE_HTML.buttons.switchMapMode);
-  switchMapModeButton.addEventListener("click", (_) => switchMapMode(curMapMode));
-  addOptions(sidebar, curMapMode);
-  const currentMapModeLabel = addElement(sidebar, INSERTABLE_HTML.currentMapModeLabel);
-  currentMapModeLabel.textContent = currentMapModeLabel.textContent.replace("{currentMapMode}", curMapMode);
-  return sidebar;
+  addOptions(menu, curMapMode);
+  return menu;
 }
-function addOptions(sidebar, curMapMode) {
-  const optionsButton = addElement(sidebar, INSERTABLE_HTML.buttons.options);
-  const optionsMenu = addElement(sidebar, INSERTABLE_HTML.options.menu);
+function addOptions(menu, curMapMode) {
+  const optionsButton = addElement(menu, INSERTABLE_HTML.buttons.options);
+  const optionsMenu = addElement(menu, INSERTABLE_HTML.options.menu);
   optionsMenu.style.display = "none";
   optionsButton.addEventListener("click", (_) => {
     optionsMenu.style.display = optionsMenu.style.display == "none" ? "grid" : "none";
+    optionsButton.textContent = optionsMenu.style.display == "none" ? "Show Options" : "Close Options";
   });
   let i = 0;
   addCheckboxOption(
@@ -758,10 +818,10 @@ function addCheckboxOption(menu, index, optionId, optionText, variable, listener
   if (listener) checkbox.addEventListener("change", listener);
   return checkbox;
 }
-function addLocateMenu(sidebar) {
-  const locateMenu = addElement(sidebar, INSERTABLE_HTML.locateMenu, "#locate-menu");
+function addLocateMenu(menu) {
+  const locateMenu = addElement(menu, INSERTABLE_HTML.locateMenu, "#locate-menu");
   const locateButton = addElement(locateMenu, INSERTABLE_HTML.buttons.locate, "#locate-button");
-  const locateSubmenu = addElement(locateMenu, INSERTABLE_HTML.sidebarOption, ".sidebar-option");
+  const locateSubmenu = addElement(locateMenu, INSERTABLE_HTML.menuOption, ".menu-option");
   const locateSelect = addElement(locateSubmenu, INSERTABLE_HTML.locateSelect, "#locate-select");
   const locateInput = addElement(locateSubmenu, INSERTABLE_HTML.locateInput, "#locate-input");
   locateSelect.addEventListener("change", () => {
@@ -852,7 +912,7 @@ function removeScrollNormalizer(mapEl) {
   document.dispatchEvent(new CustomEvent("EMCDYNMAPPLUS_ADJUST_SCROLL", eventData));
 }
 function locate(selectValue, inputValue) {
-  const isArchiveMode = currentMapMode() == "archive";
+  const isArchiveMode = currentMapMode() == MapMode.ARCHIVE;
   switch (selectValue) {
     case "Town":
       locateTown(inputValue, isArchiveMode);
@@ -869,20 +929,22 @@ function searchArchive(date) {
   if (date == "") return;
   const URLDate = date.replaceAll("-", "");
   localStorage["emcdynmapplus-archive-date"] = URLDate;
-  localStorage["emcdynmapplus-mapmode"] = "archive";
+  localStorage["emcdynmapplus-mapmode"] = MapMode.ARCHIVE.name;
   location.reload();
 }
-async function locateTown(townName, isArchiveMode) {
-  townName = townName.trim().toLowerCase();
+async function locateTown(name, isArchiveMode) {
+  name = name.trim();
+  const townName = name.toLowerCase();
   if (townName == "") return;
   let coords = null;
   if (!isArchiveMode) coords = await getTownSpawn(townName);
   if (!coords) coords = getTownMidpoint(townName);
-  if (!coords) return showAlert(`Could not find town/capital with name '${townName}'.`, 5);
+  if (!coords) return showAlert(`Could not find town/capital with name '${name}'.`, 5);
   updateUrlLocation(coords);
 }
-async function locateNation(nationName, isArchiveMode) {
-  nationName = nationName.trim().toLowerCase();
+async function locateNation(name, isArchiveMode) {
+  name = name.trim();
+  const nationName = name.toLowerCase();
   if (nationName == "") return;
   let capitalName = null;
   if (!isArchiveMode) {
@@ -897,8 +959,9 @@ async function locateNation(nationName, isArchiveMode) {
   if (!capitalName) return showAlert("Searched nation could not be found.", 3);
   await locateTown(capitalName, isArchiveMode);
 }
-async function locateResident(residentName, isArchiveMode) {
-  residentName = residentName.trim().toLowerCase();
+async function locateResident(name, isArchiveMode) {
+  name = name.trim();
+  const residentName = name.toLowerCase();
   if (residentName == "") return;
   let townName = null;
   if (!isArchiveMode) {
@@ -944,10 +1007,6 @@ waitForElement(".leaflet-nameplate-pane").then((element) => {
 var parsedMarkers = [];
 var cachedAlliances = null;
 var cachedApiNations = null;
-var MAP_MODES = (
-  /** @type {const} */
-  ["default", "overclaim", "nationclaims", "meganations", "alliances"]
-);
 var BORDER_CHUNK_COORDS = (
   /** @type {const} */
   {
@@ -967,15 +1026,8 @@ var EXTRA_BORDER_OPTS = {
 var DEFAULT_ALLIANCE_COLOURS = { fill: "#000000", outline: "#000000" };
 var CHUNKS_PER_RES = 12;
 var DAY_MS = 864e5;
-var currentMapMode = () => localStorage["emcdynmapplus-mapmode"] ?? "meganations";
 var archiveDate = () => parseInt(localStorage["emcdynmapplus-archive-date"]);
 var nationClaimsInfo = () => JSON.parse(localStorage["emcdynmapplus-nation-claims-info"] || "[]");
-function switchMapMode(currentMode) {
-  const nextModeIndex = (MAP_MODES.indexOf(currentMode) + 1) % MAP_MODES.length;
-  const nextMode = MAP_MODES[nextModeIndex];
-  localStorage["emcdynmapplus-mapmode"] = nextMode;
-  location.reload();
-}
 var isNumeric = (str) => Number.isFinite(+str);
 var roundTo16 = (num) => Math.round(num / 16) * 16;
 function hashCode(str) {
@@ -1047,18 +1099,18 @@ var makePolyline = (linePoints, weight = 1, colour = "#ffffff") => ({
 });
 async function modifyMarkers(data) {
   const mapMode = currentMapMode();
-  if (mapMode == "archive") {
+  if (mapMode == MapMode.ARCHIVE) {
     data = await getArchive(data);
   }
   if (!data?.[0]?.markers?.length) {
     showAlert("Unexpected error occurred while loading the map, EarthMC may be down. Try again later.");
     return data;
   }
-  const isAllianceMode = mapMode == "alliances" || mapMode == "meganations";
+  const isAllianceMode = mapMode == MapMode.ALLIANCES || mapMode == MapMode.MEGANATIONS;
   if (isAllianceMode && cachedAlliances == null) {
     cachedAlliances = await getAlliances();
   }
-  if (mapMode == "overclaim" && cachedApiNations == null) {
+  if (mapMode == MapMode.OVERCLAIM && cachedApiNations == null) {
     const nlist = await fetchJSON(`${OAPI_BASE}/${CURRENT_MAP}/nations`);
     const apiNations = await queryConcurrent(`${OAPI_BASE}/${CURRENT_MAP}/nations`, nlist);
     cachedApiNations = new Map(apiNations.map((n) => [n.name.toLowerCase(), n]));
@@ -1087,8 +1139,8 @@ async function modifyMarkers(data) {
     marker.opacity = 1;
     marker.fillOpacity = 0.33;
     marker.weight = 1.5;
-    if (mapMode == "default" || mapMode == "archive") continue;
-    if (mapMode == "nationclaims") {
+    if (mapMode == MapMode.DEFAULT || mapMode == MapMode.ARCHIVE) continue;
+    if (mapMode == MapMode.NATIONCLAIMS) {
       colorTownNationClaims(marker, parsedInfo.nationName, claimsCustomizerInfo, useOpaque, showExcluded);
       continue;
     }
@@ -1142,9 +1194,9 @@ function modifyDescription(marker, mapMode) {
   const fixedTownName = town.replaceAll("<", "&lt;").replaceAll(">", "&gt;");
   const fixedNationName = nation?.replaceAll("<", "&lt;").replaceAll(">", "&gt;") ?? nation;
   const area = calcMarkerArea(marker);
-  let location2 = { x: 0, z: 0 };
-  if (marker.points) location2 = midrange(marker.points.flat(2));
-  const isArchiveMode = mapMode == "archive";
+  let location = { x: 0, z: 0 };
+  if (marker.points) location = midrange(marker.points.flat(2));
+  const isArchiveMode = mapMode == MapMode.ARCHIVE;
   const residentList = isArchiveMode ? residents : residents.split(", ").map((resident) => INSERTABLE_HTML.residentClickable.replaceAll("{player}", resident)).join(", ");
   const councillorList = isArchiveMode ? councillors : councillors.map((councillor) => INSERTABLE_HTML.residentClickable.replaceAll("{player}", councillor)).join(", ");
   if (residentNum > 50) {
@@ -1160,7 +1212,7 @@ function modifyDescription(marker, mapMode) {
     marker.popup = marker.popup.replace('<span style="font-size:120%;">', '<span style="font-size: 120%">\u2605 ');
   }
   marker.tooltip = marker.tooltip.replace("<i>/town set board [msg]</i>", "<i></i>").replace("<br>\n    <i></i>", "").replace("\n    <i>", '\n    <i id="clamped-board">').replace(town, fixedTownName).replace(nation, fixedNationName);
-  if (mapMode == "alliances" || mapMode == "meganations") {
+  if (mapMode == MapMode.ALLIANCES || mapMode == MapMode.MEGANATIONS) {
     const nationAlliances = getNationAlliances(nation, mapMode);
     if (nationAlliances.length > 0) {
       const allianceList = nationAlliances.map((alliance) => alliance.name).join(", ");
@@ -1176,7 +1228,7 @@ function modifyDescription(marker, mapMode) {
     isCapital,
     mayor,
     area,
-    ...location2
+    ...location
   };
 }
 function modifyDynmapDescription(marker, curArchiveDate) {
@@ -1186,7 +1238,7 @@ function modifyDynmapDescription(marker, curArchiveDate) {
   const residentNum = residentList.length;
   const isCapital = marker.popup.match(/capital: true/) != null;
   const area = calcPolygonArea(marker.points);
-  const location2 = midrange(marker.points.flat(2));
+  const location = midrange(marker.points.flat(2));
   if (isCapital) marker.popup = marker.popup.replace('120%">', '120%">\u2605 ');
   if (curArchiveDate < 20220906) {
     marker.popup = marker.popup.replace(/">hasUpkeep:.+?(?<=<br \/>)/, '; white-space:pre">');
@@ -1210,7 +1262,7 @@ function modifyDynmapDescription(marker, curArchiveDate) {
     residentNum,
     isCapital,
     area,
-    ...location2
+    ...location
   };
 }
 var colorMarker = (marker, fill, outline, weight = null) => {
@@ -1225,11 +1277,11 @@ function colorTown(rawMarker, parsedMarker, mapMode) {
   const isRuin = !!mayor?.match(/NPC[0-9]+/);
   if (isRuin) return colorMarker(rawMarker, "#000000", "#000000");
   const { nationName } = parsedMarker;
-  if (mapMode == "meganations") {
+  if (mapMode.name == "meganations") {
     const isDefaultCol = rawMarker.color == DEFAULT_BLUE && rawMarker.fillColor == DEFAULT_BLUE;
     rawMarker.color = isDefaultCol ? "#363636" : DEFAULT_GREEN;
     rawMarker.fillColor = isDefaultCol ? hashCode(nationName) : rawMarker.fillColor;
-  } else if (mapMode == "overclaim") {
+  } else if (mapMode.name == "overclaim") {
     const nation = nationName ? cachedApiNations.get(nationName.toLowerCase()) : null;
     const overclaimInfo = !nation ? checkOverclaimedNationless(parsedMarker.area, parsedMarker.residentNum) : checkOverclaimed(parsedMarker.area, parsedMarker.residentNum, nation.stats.numResidents);
     const colour = overclaimInfo.isOverclaimed ? "#ff0000" : "#00ff00";
@@ -1440,7 +1492,7 @@ function millerProjection(z) {
 }
 
 // <define:MANIFEST>
-var define_MANIFEST_default = { manifest_version: 3, name: "EarthMC Dynmap+ (Owen3H Fork)", version: "2.0", author: "3meraldK", description: "Extension to enrich the EarthMC map experience", icons: { "48": "resources/icon48.png", "128": "resources/icon128.png" }, web_accessible_resources: [{ run_at: "document_idle", matches: ["https://map.earthmc.net/*", "https://nostra.earthmc.net/*"], resources: ["resources/interceptor.js", "resources/borders.json"] }], content_scripts: [{ matches: ["https://map.earthmc.net/*", "https://nostra.earthmc.net/*"], css: ["resources/style.css"], js: ["src/httputil.js", "src/dom.js", "src/screenshot.js", "src/menu.js", "src/main.js", "src/entrypoint.js"] }] };
+var define_MANIFEST_default = { manifest_version: 3, name: "EarthMC Dynmap+ (Owen3H Fork)", version: "2.0", author: "3meraldK", description: "Extension to enrich the EarthMC map experience", icons: { "48": "resources/icon48.png", "128": "resources/icon128.png" }, web_accessible_resources: [{ run_at: "document_idle", matches: ["https://map.earthmc.net/*", "https://aurora.earthmc.net/*"], resources: ["resources/map-mode-default.png", "resources/map-mode-alliances.png", "resources/map-mode-meganations.png", "resources/map-mode-overclaim.png", "resources/map-mode-nationclaims.png", "resources/interceptor.js", "resources/borders.json"] }], content_scripts: [{ matches: ["https://map.earthmc.net/*", "https://aurora.earthmc.net/*"], css: ["resources/style.css"], js: ["src/httputil.js", "src/dom.js", "src/screenshot.js", "src/modeselector.js", "src/menu.js", "src/main.js", "src/entrypoint.js"] }] };
 
 // src/entrypoint.js
 function isUserscript() {
@@ -1487,7 +1539,6 @@ async function init(manifest) {
     GM_addStyle(`:root {\r
 	--max-menu-width: 210px;\r
 	--player-lookup-width: 220px;\r
-	--map-mode-btn-width: 130px;\r
 	--yellow-colour: #b58a3f;\r
 	/** TODO: Make these more robust. Probably not my best idea */\r
 	--screenshot-bg-image: url("https://raw.githubusercontent.com/Owen3H/earthmc-dynmap/refs/heads/main/resources/icon-screenshot.png");\r
@@ -1503,7 +1554,7 @@ async function init(manifest) {
 	/* Position in the center of the screen, 10px from the top */\r
     position: fixed;\r
 	text-align: center;\r
-    top: 10px;\r
+    top: 130px;\r
     left: 50%;\r
     transform: translateX(-50%);\r
 }\r
@@ -1545,7 +1596,7 @@ async function init(manifest) {
     display: grid;\r
     grid-template-columns: repeat(3, 1fr);\r
 	min-height: 40vh;\r
-    max-height: calc(100vh - 200px);\r
+    max-height: calc(100vh - 320px);\r
     overflow-y: auto;\r
 	margin-bottom: 5px;\r
 	margin-top: 10px;\r
@@ -1649,7 +1700,7 @@ fieldset#players {\r
 	min-width: 190px;\r
 	margin: 10px 0 10px 0;\r
 	background-color: rgba(0, 0, 0, .5);\r
-	backdrop-filter: blur(5px);\r
+	backdrop-filter: blur(3px) opacity(0.7);\r
 	scrollbar-width: thin;\r
 	scrollbar-color: #aaa rgba(0, 0, 0, 0.1);\r
 }\r
@@ -1693,14 +1744,15 @@ fieldset#players > a:hover {\r
 \r
 /* Player popup */\r
 #player-lookup-loading {\r
+	width: auto;\r
 	font-size: larger;\r
 	font-weight: 500;\r
 	font-family: "Inter", 'Open Sans', sans-serif;\r
 	padding: 5px;\r
 	/* ensure it stays on the left below the menu */\r
-	clear: both !important;\r
 	display: block !important;\r
-	width: auto;\r
+	float: left !important;\r
+	clear: both !important;\r
 }\r
 \r
 #player-lookup {\r
@@ -1751,8 +1803,8 @@ fieldset#players > a:hover {\r
 	font-size: 18px;\r
 }\r
 \r
-/* Main sidebar */\r
-#sidebar {\r
+/* Onscreen extension menu */\r
+#menu {\r
 	width: auto;\r
 	max-width: 210px;\r
 	padding: 5px;\r
@@ -1767,7 +1819,7 @@ fieldset#players > a:hover {\r
 	padding-right: 5px;\r
 }\r
 \r
-.sidebar-option {\r
+.menu-option {\r
 	width: inherit;\r
 	height: fit-content;\r
 	display: flex;\r
@@ -1775,13 +1827,13 @@ fieldset#players > a:hover {\r
 	margin-bottom: 10px;\r
 }\r
 \r
-.sidebar-input {\r
+.menu-input-option {\r
 	width: 100%;\r
 	border: 1px solid rgba(255, 255, 255, 0.5) !important;\r
 	border-radius: 0px 2px 2px 0px;\r
 }\r
 \r
-.sidebar-button {\r
+.menu-button-option {\r
 	height: 30px;\r
 	font-kerning: none;\r
     font-weight: 500;\r
@@ -1811,18 +1863,20 @@ fieldset#players > a:hover {\r
     font-weight: 500;\r
     font-size: 12px;\r
     font-family: "Inter", 'Open Sans', sans-serif;\r
+	border-radius: 0px 0px 0px 2px;\r
 }\r
 \r
 #locate-button {\r
 	width: inherit;\r
 }\r
 \r
-#switch-map-mode {\r
+/* #switch-map-mode {\r
 	width: var(--map-mode-btn-width);\r
-}\r
+} */\r
 \r
 #options-button {\r
-	width: calc(var(--max-menu-width) - var(--map-mode-btn-width));\r
+	width: 100%;\r
+	/* width: calc(var(--max-menu-width) - var(--map-mode-btn-width)); */\r
 }\r
 \r
 #options-menu {\r
@@ -1832,7 +1886,63 @@ fieldset#players > a:hover {\r
 	gap: 1px;\r
 }\r
 \r
+/* Map mode selector */\r
+\r
+#map-mode-selector {\r
+	position: fixed;\r
+	display: flex;\r
+    align-items: center;\r
+    flex-direction: column;\r
+	margin: 0px;\r
+    top: 10px;\r
+    left: 50%;\r
+    transform: translateX(-50%);\r
+	padding: 20px;\r
+	gap: 10px;\r
+}\r
+\r
 #current-map-mode-label {\r
+    font-family: 'Inter';\r
+    font-size: 20px;\r
+    font-weight: 600;\r
+	line-height: normal;\r
+	text-align: center;\r
+	white-space: nowrap;\r
+	user-select: none;\r
+	pointer-events: none;\r
+}\r
+\r
+#map-mode-option-container {\r
+    display: flex;\r
+    gap: 10px;\r
+    flex-direction: row;\r
+}\r
+\r
+.map-mode-btn-option {\r
+	padding: 0;\r
+	background: white;\r
+	border: 2px dashed black;\r
+  	box-sizing: border-box;\r
+	width: 35px;\r
+	height: 35px;\r
+	overflow: hidden; /* ensures no bleed */\r
+}\r
+\r
+.map-mode-btn-option:hover {\r
+	width: 40px;\r
+	height: 40px;\r
+	background: var(--yellow-colour);\r
+	border: 3px dashed black;\r
+	cursor: pointer;\r
+}\r
+\r
+.map-mode-btn-option > img {\r
+	width: 100%;\r
+  	height: 100%;\r
+  	display: block;\r
+}\r
+\r
+/* #current-map-mode-label {\r
 	display: block;\r
 	box-sizing: border-box;\r
 	margin: 5px 5px 5px 5px;\r
@@ -1840,7 +1950,7 @@ fieldset#players > a:hover {\r
 	font-weight: bold;\r
 	font-family: "Inter", 'Open Sans', sans-serif;\r
 	text-align: center;\r
-}\r
+} */\r
 \r
 /* Town popup */\r
 \r
@@ -1913,7 +2023,7 @@ fieldset#players > a:hover {\r
 }\r
 \r
 .leaflet-control {\r
-	float: inline-end !important; /** sidebar and player lookup are float: left !important */\r
+	float: inline-end !important; /** menu and player lookup are float: left !important */\r
 	clear: none !important;\r
 	backdrop-filter: blur(5px);\r
 }\r
@@ -1937,6 +2047,10 @@ fieldset#players > a:hover {\r
 .leaflet-control-layers.coordinates {\r
 	font-family: "Inter", 'Open Sans', sans-serif;\r
 	font-weight: 500 !important;\r
+}\r
+\r
+.leaflet-control-zoom {\r
+	border: none !important;\r
 }\r
 \r
 /* Fix blurry link icon */\r
@@ -1967,7 +2081,7 @@ div.leaflet-control-layers.screenshot img {\r
 	image-rendering: crisp-edges;               /* CSS4 Proposed  	*/\r
 }`);
   }
-  localStorage["emcdynmapplus-mapmode"] ?? (localStorage["emcdynmapplus-mapmode"] = "meganations");
+  localStorage["emcdynmapplus-mapmode"] ?? (localStorage["emcdynmapplus-mapmode"] = MapMode.MEGANATIONS.name);
   localStorage["emcdynmapplus-normalize-scroll"] ?? (localStorage["emcdynmapplus-normalize-scroll"] = "true");
   localStorage["emcdynmapplus-darkened"] ?? (localStorage["emcdynmapplus-darkened"] = "true");
   localStorage["emcdynmapplus-serverinfo"] ?? (localStorage["emcdynmapplus-serverinfo"] = "true");
@@ -1977,12 +2091,13 @@ div.leaflet-control-layers.screenshot img {\r
   localStorage["emcdynmapplus-nation-claims-show-excluded"] ?? (localStorage["emcdynmapplus-nation-claims-show-excluded"] = "true");
   console.log("emcdynmapplus: Initializing UI elements..");
   insertCustomStylesheets();
-  await insertSidebarMenu();
+  await insertMapModeSelector();
+  await insertExtensionMenu();
   updateServerInfo(await insertServerInfoPanel());
   await editUILayout();
   await insertScreenshotBtn();
   await insertPlayerList();
-  const insertedPanel = await tryInsertNationClaimsPanel("nationclaims");
+  const insertedPanel = await tryInsertNationClaimsPanel(MapMode.NATIONCLAIMS);
   if (insertedPanel) loadNationClaims(insertedPanel);
   initToggleOptions();
   checkForUpdate(manifest);
