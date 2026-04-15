@@ -712,20 +712,12 @@ function getNationAlliances(nationName, mapMode) {
 	return nationAlliances
 }
 
-const getArchiveURL = (date, markersURL) => `https://web.archive.org/web/${date}id_/${markersURL}`
-
 /** @param {Object} markers - The old markers response JSON data */
 async function getArchive(data) {
 	const loadingAlert = showAlert('Loading archive, please wait...')
 	const date = archiveDate()
-	
-	// markers.json URL changed over time
-	const markersURL = 
-		date < 20230212 ? "https://earthmc.net/map/aurora/tiles/_markers_/marker_earth.json" :
-		date < 20240701 ? "https://earthmc.net/map/aurora/standalone/MySQL_markers.php?marker=_markers_/marker_earth.json" :
-		"https://map.earthmc.net/tiles/minecraft_overworld/markers.json" // latest
 
-	const archive = await fetchJSON(PROXY_URL + getArchiveURL(date, markersURL))
+	const archive = await fetchArchive(date)
 	if (!archive) return showAlert('Archive service is currently unavailable, please try later.')
 
 	let actualArchiveDate // Structure of markers.json changed at some point

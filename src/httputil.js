@@ -108,6 +108,23 @@ const postJSON = (url, body) => fetchJSON(url, { body: JSON.stringify(body), met
 const fetchServerInfo = async () => fetchJSON(`${OAPI_BASE}/${CURRENT_MAP}`)
 
 /**
+ * Fetches an archived markers.json from the Wayback Machine at the given date.
+ * The markers URL is automatically determined by the date since it changed multiple times over the years.
+ * @param {number} date 
+ * @param {string} markersURL 
+ */
+const fetchArchive = async date => {
+	// markers.json URL changed over time
+	const markersURL = 
+		date < 20230212 ? "https://earthmc.net/map/aurora/tiles/_markers_/marker_earth.json" :
+		date < 20240701 ? "https://earthmc.net/map/aurora/standalone/MySQL_markers.php?marker=_markers_/marker_earth.json" :
+		"https://map.earthmc.net/tiles/minecraft_overworld/markers.json" // latest
+
+	const archiveURL = `https://web.archive.org/web/${date}id_/${markersURL}`
+	return fetchJSON(PROXY_URL + archiveURL)
+}
+
+/**
  * Sends multiple requests and concatenates the results to circumvent 
  * the query limit while adhering to the rate limit.
  * @param {string} url 
