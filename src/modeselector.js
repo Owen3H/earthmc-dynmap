@@ -49,7 +49,7 @@ const GITHUB_REPO = "https://raw.githubusercontent.com/Owen3H/earthmc-dynmap/ref
  */
 function addMapModeBtn(iconContainer, mode, clickHandler = null) {
     const button = addElement(iconContainer, INSERTABLE_HTML.mapMode.btnOption)
-    addElement(button, `<img alt="${mode.name}" src="${GITHUB_REPO + mode.img}">`)
+    addElement(button, `<img title="${mode.name}" alt="${mode.name}" src="${GITHUB_REPO + mode.img}">`)
 
     if (clickHandler) button.addEventListener('click', clickHandler)
 }
