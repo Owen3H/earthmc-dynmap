@@ -73,12 +73,12 @@ async function init(manifest) {
 	insertCustomStylesheets()
     
 	await insertMapModeSelector()
+	await insertPlayerList()
+
 	await insertExtensionMenu()
 	updateServerInfo(await insertServerInfoPanel())
     await editUILayout()
 	await insertScreenshotBtn()
-
-	await insertPlayerList()
 
 	const insertedPanel = await tryInsertNationClaimsPanel(MapMode.NATIONCLAIMS)
 	if (insertedPanel) loadNationClaims(insertedPanel)
