@@ -1,14 +1,14 @@
 /** ANY CODE RELATING TO THE MAP MODE SELECTOR GOES HERE */
 //console.log('emcdynmapplus: loaded mode selector')
 
-const DEFAULT_MODE_IMG = "https://cdn.modrinth.com/data/U3DcJoj5/6f5fd037773b1e4eb517079e69d23ded992840f4.png"
+const sortedMapModes = () => Object.values(MAP_MODES).sort((a, b) => a.order - b.order)
 const MAP_MODES = /** @type {const} */ ({
-    DEFAULT:        { name: "default",      img: DEFAULT_MODE_IMG },
-    ALLIANCES:      { name: "alliances",    img: DEFAULT_MODE_IMG },
-    MEGANATIONS:    { name: "meganations",  img: DEFAULT_MODE_IMG },
-    OVERCLAIM:      { name: "overclaim",    img: DEFAULT_MODE_IMG },
-    NATIONCLAIMS:   { name: "nationclaims", img: DEFAULT_MODE_IMG },
-    ARCHIVE:        { name: "archive",      img: DEFAULT_MODE_IMG },
+    DEFAULT:        { name: "default",      img: "resources/map-mode-default.png", order: 0 },
+    ALLIANCES:      { name: "alliances",    img: "resources/map-mode-alliances.png", order: 1 },
+    MEGANATIONS:    { name: "meganations",  img: "resources/map-mode-meganations.png", order: 2 },
+    OVERCLAIM:      { name: "overclaim",    img: "resources/map-mode-overclaim.png", order: 3 },
+    NATIONCLAIMS:   { name: "nationclaims", img: "resources/map-mode-nationclaims.png", order: 4 },
+    ARCHIVE:        { name: "archive",      img: null, order: 5 },
 })
 
 const MapMode = MAP_MODES // this exists at runtime to replace the typedef
@@ -27,16 +27,22 @@ function addMapModeSelector(parent) {
 
     const iconContainer = addElement(selectorDiv, INSERTABLE_HTML.mapMode.optionContainer)
     
-    const modes = Object.values(MAP_MODES)
+    const modes = sortedMapModes()
     for (const mode of modes) {
-        if (mode == MapMode.ARCHIVE) continue
-        addMapModeIcon(iconContainer, mode.img, _ => switchMapMode(mode))
+        if (mode.img == null) continue
+        addMapModeBtn(iconContainer, mode, _ => switchMapMode(mode))
     }
 }
 
-function addMapModeIcon(parent, imgSrc, clickHandler = null) {
-    const button = addElement(parent, INSERTABLE_HTML.mapMode.btnOption)
-    addElement(button, `<img src="${imgSrc}">`)
+/**
+ * Adds a map mode button to its parent container div using its img/icon and btn handler.
+ * @param {HTMLDivElement} iconContainer 
+ * @param {MapMode} mode 
+ * @param {(mode: MapMode) => void} clickHandler 
+ */
+function addMapModeBtn(iconContainer, mode, clickHandler = null) {
+    const button = addElement(iconContainer, INSERTABLE_HTML.mapMode.btnOption)
+    addElement(button, `<img alt="${mode.name}" src="${chrome.runtime.getURL(mode.img)}">`)
 
     if (clickHandler) button.addEventListener('click', clickHandler)
 }
@@ -46,13 +52,15 @@ const currentMapMode = () => {
     const name = localStorage['emcdynmapplus-mapmode']
 	if (!name) return MapMode.DEFAULT
 
-    return Object.values(MAP_MODES).find(m => m.name === name) ?? MAP_MODES.DEFAULT
+    return sortedMapModes().find(m => m.name == name) ?? MapMode.DEFAULT
 }
 
 /** @param {MapMode} currentMode */
 function switchMapMode(currentMode) {
-    const modes = Object.values(MAP_MODES)
-    const nextIndex = (modes.indexOf(currentMode) + 1) % modes.length
+    const modes = sortedMapModes()
+
+    const currentIndex = modes.findIndex(m => m.name === currentMode.name)
+    const nextIndex = (currentIndex + 1) % modes.length
     const nextMode = modes[nextIndex]
 
     localStorage['emcdynmapplus-mapmode'] = nextMode.name

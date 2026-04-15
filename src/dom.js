@@ -55,7 +55,6 @@ const INSERTABLE_HTML = /** @type {const} */ ({
 		btnOption: '<button class="map-mode-btn-option"></button>',
 		currentModeLabel: '<div id="current-map-mode-label">Map Mode: {currentMapMode}</div>',
 	},
-	currentMapModeLabel: '<div id="current-map-mode-label">Map Mode: {currentMapMode}</div>',
     followingPlayer: '<h1 id="following-warning">Stop following this player by clicking on the map.</h1>',
     alertBox: '<div id="alert"><p id="alert-message">{message}</p><button id="alert-close">Dismiss</button></div>',
 	// Used in main.js
