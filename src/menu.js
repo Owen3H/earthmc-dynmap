@@ -25,10 +25,6 @@ function addMainMenu(parent) {
 
 	const curMapMode = currentMapMode()
 
-	// Switch map mode button
-	const switchMapModeButton = addElement(menu, INSERTABLE_HTML.buttons.switchMapMode)
-	switchMapModeButton.addEventListener('click', _ => switchMapMode(curMapMode))
-
 	// Options button and checkboxes
 	addOptions(menu, curMapMode)
 
@@ -45,6 +41,7 @@ function addOptions(menu, curMapMode) {
 	optionsMenu.style.display = 'none'
 	optionsButton.addEventListener('click', _ => {
 		optionsMenu.style.display = (optionsMenu.style.display == 'none') ? 'grid' : 'none'
+		optionsButton.textContent = (optionsMenu.style.display == 'none') ? 'Show Options' : 'Close Options'
 	})
 
 	let i = 0

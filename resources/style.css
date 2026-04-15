@@ -1,7 +1,6 @@
 :root {
 	--max-menu-width: 210px;
 	--player-lookup-width: 220px;
-	--map-mode-btn-width: 130px;
 	--yellow-colour: #b58a3f;
 	/** TODO: Make these more robust. Probably not my best idea */
 	--screenshot-bg-image: url("https://raw.githubusercontent.com/Owen3H/earthmc-dynmap/refs/heads/main/resources/icon-screenshot.png");
@@ -333,12 +332,13 @@ fieldset#players > a:hover {
 	width: inherit;
 }
 
-#switch-map-mode {
+/* #switch-map-mode {
 	width: var(--map-mode-btn-width);
-}
+} */
 
 #options-button {
-	width: calc(var(--max-menu-width) - var(--map-mode-btn-width));
+	width: 100%;
+	/* width: calc(var(--max-menu-width) - var(--map-mode-btn-width)); */
 }
 
 #options-menu {

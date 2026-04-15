@@ -25,8 +25,8 @@ const INSERTABLE_HTML = /** @type {const} */ ({
     buttons: {
         locate: '<button class="menu-button-option" id="locate-button">Locate</button>',
         searchArchive: '<button class="menu-button-option" id="archive-button">Search Archive</button>',
-        switchMapMode: '<button class="menu-button-option" id="switch-map-mode">Switch Map Mode</button>',
-        options: '<button class="menu-button-option" id="options-button">Options</button>'
+        //switchMapMode: '<button class="menu-button-option" id="switch-map-mode">Switch Map Mode</button>',
+        options: '<button class="menu-button-option" id="options-button">Show Options</button>'
     },
     options: {
         menu: '<div id="options-menu"></div>',
