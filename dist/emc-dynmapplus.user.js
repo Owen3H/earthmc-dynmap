@@ -1549,6 +1549,7 @@ async function init(manifest) {
   if (isUserscript2) {
     GM_addStyle(`:root {\r
 	--max-menu-width: 170px;\r
+	--max-server-info-width: 190px;\r
 	--player-lookup-width: 220px;\r
 	--yellow-colour: #b58a3f;\r
 	/** TODO: Make these more robust. Probably not my best idea */\r
@@ -1702,8 +1703,7 @@ async function init(manifest) {
 \r
 /* Server info */\r
 #server-info {\r
-	width: 190px;\r
-	max-width: var(--max-menu-width);\r
+	min-width: var(--max-server-info-width);\r
 	padding: 10px;\r
 	text-align: right;\r
 	font-family: "Inter", 'Open Sans', sans-serif;\r
@@ -1939,7 +1939,7 @@ fieldset#players {\r
 	overflow-y: scroll;\r
 	height: max-content;\r
 	right: 10px;\r
-	min-width: 190px;\r
+	min-width: var(--max-server-info-width);\r
 	margin: 10px 0 10px 0;\r
 	background-color: rgba(0, 0, 0, .5);\r
 	backdrop-filter: blur(3px) opacity(0.7);\r
