@@ -22,7 +22,12 @@ const MapMode = MAP_MODES // this exists at runtime to replace the typedef
 
 /** @param {HTMLElement} parent - The "leaflet-top leaflet-left" element. */
 function addMapModeSelector(parent) {
+    /** @type {HTMLDivElement} */
     const selectorDiv = addElement(parent, INSERTABLE_HTML.mapMode.selector)
+	document.addEventListener("keydown", e => {
+		if (!(e.key === "M" && e.shiftKey)) return
+        selectorDiv.style.visibility = selectorDiv.style.visibility == 'hidden' ? 'visible' : 'hidden'
+	})
 
     const label = addElement(selectorDiv, INSERTABLE_HTML.mapMode.currentModeLabel)
     const iconContainer = addElement(selectorDiv, INSERTABLE_HTML.mapMode.optionContainer)
