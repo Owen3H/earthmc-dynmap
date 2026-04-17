@@ -1,5 +1,6 @@
 :root {
 	--max-menu-width: 170px;
+	--max-server-info-width: 190px;
 	--player-lookup-width: 220px;
 	--yellow-colour: #b58a3f;
 	/** TODO: Make these more robust. Probably not my best idea */
@@ -153,8 +154,7 @@
 
 /* Server info */
 #server-info {
-	width: 190px;
-	max-width: var(--max-menu-width);
+	min-width: var(--max-server-info-width);
 	padding: 10px;
 	text-align: right;
 	font-family: "Inter", 'Open Sans', sans-serif;
@@ -390,7 +390,7 @@ fieldset#players {
 	overflow-y: scroll;
 	height: max-content;
 	right: 10px;
-	min-width: 190px;
+	min-width: var(--max-server-info-width);
 	margin: 10px 0 10px 0;
 	background-color: rgba(0, 0, 0, .5);
 	backdrop-filter: blur(3px) opacity(0.7);
