@@ -98,9 +98,10 @@ var EMC_DOMAIN = "earthmc.net";
 var CURRENT_MAP = location.href.includes("aurora") ? "aurora" : "nostra";
 var CAPI_BASE = `https://emcstats.bot.nu`;
 var MAPI_BASE = `https://map.${EMC_DOMAIN}`;
-var OAPI_BASE = `https://api.${EMC_DOMAIN}/v4`;
+var OAPI_BASE = `https://api.${EMC_DOMAIN}`;
 var OAPI_REQ_PER_MIN = 180;
 var OAPI_ITEMS_PER_REQ = 100;
+var currentMapApiUrl = () => CURRENT_MAP == "aurora" ? `${OAPI_BASE}/v3/aurora` : `${OAPI_BASE}/v4`;
 var TokenBucket = class {
   /** @param {TokenBucketOptions} opts */
   constructor(opts) {
@@ -160,7 +161,7 @@ async function fetchJSON(url, options = null) {
   return response.json();
 }
 var postJSON = (url, body) => fetchJSON(url, { body: JSON.stringify(body), method: "POST" });
-var fetchServerInfo = async () => fetchJSON(`${OAPI_BASE}/${CURRENT_MAP}`);
+var fetchServerInfo = async () => fetchJSON(currentMapApiUrl());
 var fetchArchive = async (date) => {
   const markersURL = date < 20230212 ? "https://earthmc.net/map/aurora/tiles/_markers_/marker_earth.json" : date < 20240701 ? "https://earthmc.net/map/aurora/standalone/MySQL_markers.php?marker=_markers_/marker_earth.json" : "https://map.earthmc.net/tiles/minecraft_overworld/markers.json";
   const archiveURL = `https://web.archive.org/web/${date}id_/${markersURL}`;
@@ -962,7 +963,7 @@ async function locateNation(name, isArchiveMode) {
   let capitalName = null;
   if (!isArchiveMode) {
     const queryBody = { query: [nationName], template: { capital: true } };
-    const nations = await postJSON(`${OAPI_BASE}/${CURRENT_MAP}/nations`, queryBody);
+    const nations = await postJSON(`${currentMapApiUrl()}/nations`, queryBody);
     if (nations && nations.length > 0) capitalName = nations[0].capital?.name;
   }
   if (!capitalName) {
@@ -979,7 +980,7 @@ async function locateResident(name, isArchiveMode) {
   let townName = null;
   if (!isArchiveMode) {
     const queryBody = { query: [residentName], template: { town: true } };
-    const players = await postJSON(`${OAPI_BASE}/${CURRENT_MAP}/players`, queryBody);
+    const players = await postJSON(`${currentMapApiUrl()}/players`, queryBody);
     if (players && players.length > 0) townName = players[0].town?.name;
   }
   if (!townName) {
@@ -991,7 +992,7 @@ async function locateResident(name, isArchiveMode) {
 }
 async function getTownSpawn(townName) {
   const queryBody = { query: [townName], template: { coordinates: true } };
-  const towns = await postJSON(`${OAPI_BASE}/${CURRENT_MAP}/towns`, queryBody);
+  const towns = await postJSON(`${currentMapApiUrl()}/towns`, queryBody);
   if (!towns || towns.length < 1) return null;
   const spawn = towns[0].coordinates.spawn;
   return { x: Math.round(spawn.x), z: Math.round(spawn.z) };
@@ -1132,8 +1133,8 @@ async function modifyMarkers(data) {
     cachedAlliances = await getAlliances();
   }
   if (mapMode == MapMode.OVERCLAIM && cachedApiNations == null) {
-    const nlist = await fetchJSON(`${OAPI_BASE}/${CURRENT_MAP}/nations`);
-    const apiNations = await queryConcurrent(`${OAPI_BASE}/${CURRENT_MAP}/nations`, nlist);
+    const nlist = await fetchJSON(`${currentMapApiUrl()}/nations`);
+    const apiNations = await queryConcurrent(`${OAPI_BASE}/nations`, nlist);
     cachedApiNations = new Map(apiNations.map((n) => [n.name.toLowerCase(), n]));
   }
   const date = archiveDate();
@@ -1165,18 +1166,18 @@ async function modifyMarkers(data) {
 }
 function addCountryBordersLayer(data, borders) {
   try {
-    const isNostra = CURRENT_MAP == "nostra";
+    const isAurora = CURRENT_MAP == "aurora";
     const points = Object.keys(borders).map((country) => {
       const countryPoly = [];
       const line = borders[country];
       for (let i = 0; i < line.x.length; i++) {
         if (!isNumeric(line.x[i])) continue;
-        countryPoly.push(isNostra ? {
-          x: line.x[i] * 1.94133 + 382.5,
-          z: millerProjection(line.z[i]) + 8175
-        } : {
+        countryPoly.push(isAurora ? {
           x: line.x[i] * 1.0015,
           z: line.z[i]
+        } : {
+          x: line.x[i] * 1.94133 + 382.5,
+          z: millerProjection(line.z[i]) + 8175
         });
       }
       return countryPoly;
@@ -1322,7 +1323,7 @@ async function lookupPlayer(playerName, showOnlineStatus = true) {
   const leafletTL = document.querySelector(".leaflet-top.leaflet-left");
   if (!leafletTL) return showAlert("Error selecting element required to show player info popup.");
   const loading = addElement(leafletTL, INSERTABLE_HTML.playerLookupLoading, "#player-lookup-loading");
-  const players = await postJSON(`${OAPI_BASE}/${CURRENT_MAP}/players`, { query: [playerName] });
+  const players = await postJSON(`${currentMapApiUrl()}/players`, { query: [playerName] });
   loading.remove();
   if (!players) return showAlert("Service is currently unavailable, please try later.", 5);
   if (players.length < 1) return showAlert(`Error looking up player: ${playerName}. They have possibly opted-out.`, 3);
@@ -1548,9 +1549,9 @@ async function init(manifest) {
   const isUserscript2 = true;
   if (isUserscript2) {
     GM_addStyle(`:root {\r
-	--max-menu-width: 170px;\r
-	--max-server-info-width: 190px;\r
-	--player-lookup-width: 220px;\r
+	--max-menu-width: 200px;\r
+	--max-server-info-width: 200px;\r
+	--player-lookup-width: 190px;\r
 	--yellow-colour: #b58a3f;\r
 	/** TODO: Make these more robust. Probably not my best idea */\r
 	--screenshot-bg-image: url("https://raw.githubusercontent.com/Owen3H/earthmc-dynmap/refs/heads/main/resources/icon-screenshot.png");\r
@@ -1593,7 +1594,7 @@ async function init(manifest) {
 	height: 30px;\r
 	font-kerning: none;\r
     font-weight: 500;\r
-    font-size: 11px;\r
+    font-size: 12px;\r
     font-family: "Inter", 'Open Sans', sans-serif;\r
     border: 2px dashed var(--yellow-colour);\r
     border-radius: 2px;\r
@@ -1703,7 +1704,7 @@ async function init(manifest) {
 \r
 /* Server info */\r
 #server-info {\r
-	min-width: var(--max-server-info-width);\r
+	width: var(--max-server-info-width);\r
 	padding: 10px;\r
 	text-align: right;\r
 	font-family: "Inter", 'Open Sans', sans-serif;\r
@@ -1736,11 +1737,12 @@ async function init(manifest) {
 }\r
 \r
 #player-lookup {\r
+	box-sizing: unset;\r
 	width: var(--player-lookup-width);\r
+	max-width: var(--player-lookup-width);\r
+	padding: 10px;\r
 	font-size: larger;\r
 	font-family: "Inter", 'Open Sans', sans-serif;\r
-	padding: 8px;\r
-	box-sizing: border-box;\r
 	/* ensure it stays on the left below the menu */\r
 	clear: both !important;\r
 	display: block !important;\r
@@ -1751,11 +1753,11 @@ async function init(manifest) {
 	position: relative;\r
 	cursor: pointer;\r
 	font-size: medium;\r
-	bottom: 7px;\r
-	left: calc(var(--player-lookup-width) - 36px);\r
+	bottom: 8px;\r
+	left: calc(var(--player-lookup-width) - 19px);\r
 	padding-top: 1.5px;\r
 	padding-bottom: 2px;\r
-	padding-left: 8px;\r
+	padding-left: 9px;\r
 	padding-right: 8px;\r
 	background: rgb(174, 14, 14);\r
 	border: white 1px solid;\r
@@ -1933,14 +1935,14 @@ input[type="color"]::-webkit-color-swatch {\r
 \r
 /* Player list */\r
 fieldset#players {\r
-	display: none;\r
 	position: fixed;\r
+	display: none;\r
 	z-index: 500;\r
 	overflow-y: scroll;\r
-	height: max-content;\r
-	right: 10px;\r
+	height: stretch;\r
 	min-width: var(--max-server-info-width);\r
 	margin: 10px 0 10px 0;\r
+	right: 10px;\r
 	background-color: rgba(0, 0, 0, .5);\r
 	backdrop-filter: blur(3px) opacity(0.7);\r
 	scrollbar-width: thin;\r
@@ -1950,7 +1952,7 @@ fieldset#players {\r
 fieldset#players > legend {\r
 	color: white;\r
 	font-weight: bold;\r
-	font-size: 20px;\r
+	font-size: 23px;\r
 	font-family: "Inter", 'Open Sans', sans-serif;\r
 	text-shadow: rgba(0, 0, 0, 1) -2px -2px 10px;\r
 }\r
@@ -2079,13 +2081,12 @@ div.leaflet-control-layers.screenshot img {\r
 	background-image: var(--screenshot-bg-image) !important;\r
 }\r
 \r
-\r
-\r
 #coords-container {\r
 	display: flex;\r
 	flex-direction: row;\r
 	align-self: end;\r
 }\r
+\r
 .crisp-edges {\r
 	image-rendering: optimizeQuality;           /* Legal fallback	*/\r
 	image-rendering: -moz-crisp-edges;          /* Firefox        	*/\r
@@ -2105,10 +2106,10 @@ div.leaflet-control-layers.screenshot img {\r
   localStorage["emcdynmapplus-nation-claims-show-excluded"] ?? (localStorage["emcdynmapplus-nation-claims-show-excluded"] = "true");
   console.log("emcdynmapplus: Initializing UI elements..");
   insertCustomStylesheets();
-  await insertMapModeSelector();
-  await insertPlayerList();
   await insertExtensionMenu();
+  await insertMapModeSelector();
   updateServerInfo(await insertServerInfoPanel());
+  await insertPlayerList();
   await editUILayout();
   await insertScreenshotBtn();
   const insertedPanel = await tryInsertNationClaimsPanel(MapMode.NATIONCLAIMS);
