@@ -197,8 +197,8 @@ async function modifyMarkers(data) {
     }
 
 	if (mapMode == MapMode.OVERCLAIM && cachedApiNations == null) {
-		const nlist = await fetchJSON(`${OAPI_BASE}/${CURRENT_MAP}/nations`)
-		const apiNations = await queryConcurrent(`${OAPI_BASE}/${CURRENT_MAP}/nations`, nlist)
+		const nlist = await fetchJSON(`${currentMapApiUrl()}/nations`)
+		const apiNations = await queryConcurrent(`${OAPI_BASE}/nations`, nlist)
 		cachedApiNations = new Map(apiNations.map(n => [n.name.toLowerCase(), n]))
 	}
 
@@ -276,7 +276,7 @@ async function modifyMarkers(data) {
  */
 function addCountryBordersLayer(data, borders) {
 	try {
-		const isNostra = CURRENT_MAP == 'nostra'
+		const isAurora = CURRENT_MAP == 'aurora'
 		const points = Object.keys(borders).map(country => {
 			/** @type {Polygon} */
 			const countryPoly = []
@@ -289,13 +289,13 @@ function addCountryBordersLayer(data, borders) {
 				// 382.5 is to how much to move layer to right by
 				// 8175 ... same as above but move down
 				// 1.0015 is a horizontal adjustment for Aurora map
-				countryPoly.push(isNostra ? {
-					x: line.x[i] * 1.94133 + 382.5, 
-					z: millerProjection(line.z[i]) + 8175
-				} : {
+				countryPoly.push(isAurora ? {
 					x: line.x[i] * 1.0015, 
 					z: line.z[i] 
-				})
+				} : {
+					x: line.x[i] * 1.94133 + 382.5, 
+					z: millerProjection(line.z[i]) + 8175
+				} )
 			}
 
 			return countryPoly
@@ -545,7 +545,7 @@ async function lookupPlayer(playerName, showOnlineStatus = true) {
 	if (!leafletTL) return showAlert('Error selecting element required to show player info popup.')
 
 	const loading = addElement(leafletTL, INSERTABLE_HTML.playerLookupLoading, '#player-lookup-loading')
-	const players = await postJSON(`${OAPI_BASE}/${CURRENT_MAP}/players`, { query: [playerName] })
+	const players = await postJSON(`${currentMapApiUrl()}/players`, { query: [playerName] })
 
 	loading.remove()
 

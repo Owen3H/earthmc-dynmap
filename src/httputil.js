@@ -9,10 +9,12 @@ const CURRENT_MAP = location.href.includes('aurora') ? "aurora" : "nostra"
 
 const CAPI_BASE = `https://emcstats.bot.nu`
 const MAPI_BASE = `https://map.${EMC_DOMAIN}`
-const OAPI_BASE = `https://api.${EMC_DOMAIN}/v4` // bump number here after migrating to a new OAPI ver
+const OAPI_BASE = `https://api.${EMC_DOMAIN}`
 
 const OAPI_REQ_PER_MIN = 180
 const OAPI_ITEMS_PER_REQ = 100
+
+const currentMapApiUrl = () => CURRENT_MAP == 'aurora' ? `${OAPI_BASE}/v3/aurora` : `${OAPI_BASE}/v4`
 
 /**
  * Token/leaky bucket implementation with localStorage caching.\
@@ -105,7 +107,7 @@ const postJSON = (url, body) => fetchJSON(url, { body: JSON.stringify(body), met
  * Fetches an info object from the Official API base endpoint.
  * @returns {Promise<ServerInfo>}
  */
-const fetchServerInfo = async () => fetchJSON(`${OAPI_BASE}/${CURRENT_MAP}`)
+const fetchServerInfo = async () => fetchJSON(currentMapApiUrl())
 
 /**
  * Fetches an archived markers.json from the Wayback Machine at the given date.

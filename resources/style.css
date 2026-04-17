@@ -1,7 +1,7 @@
 :root {
-	--max-menu-width: 170px;
-	--max-server-info-width: 190px;
-	--player-lookup-width: 220px;
+	--max-menu-width: 200px;
+	--max-server-info-width: 200px;
+	--player-lookup-width: 190px;
 	--yellow-colour: #b58a3f;
 	/** TODO: Make these more robust. Probably not my best idea */
 	--screenshot-bg-image: url("https://raw.githubusercontent.com/Owen3H/earthmc-dynmap/refs/heads/main/resources/icon-screenshot.png");
@@ -44,7 +44,7 @@
 	height: 30px;
 	font-kerning: none;
     font-weight: 500;
-    font-size: 11px;
+    font-size: 12px;
     font-family: "Inter", 'Open Sans', sans-serif;
     border: 2px dashed var(--yellow-colour);
     border-radius: 2px;
@@ -154,7 +154,7 @@
 
 /* Server info */
 #server-info {
-	min-width: var(--max-server-info-width);
+	width: var(--max-server-info-width);
 	padding: 10px;
 	text-align: right;
 	font-family: "Inter", 'Open Sans', sans-serif;
@@ -187,11 +187,12 @@
 }
 
 #player-lookup {
+	box-sizing: unset;
 	width: var(--player-lookup-width);
+	max-width: var(--player-lookup-width);
+	padding: 10px;
 	font-size: larger;
 	font-family: "Inter", 'Open Sans', sans-serif;
-	padding: 8px;
-	box-sizing: border-box;
 	/* ensure it stays on the left below the menu */
 	clear: both !important;
 	display: block !important;
@@ -202,11 +203,11 @@
 	position: relative;
 	cursor: pointer;
 	font-size: medium;
-	bottom: 7px;
-	left: calc(var(--player-lookup-width) - 36px);
+	bottom: 8px;
+	left: calc(var(--player-lookup-width) - 19px);
 	padding-top: 1.5px;
 	padding-bottom: 2px;
-	padding-left: 8px;
+	padding-left: 9px;
 	padding-right: 8px;
 	background: rgb(174, 14, 14);
 	border: white 1px solid;
@@ -384,14 +385,14 @@ input[type="color"]::-webkit-color-swatch {
 
 /* Player list */
 fieldset#players {
-	display: none;
 	position: fixed;
+	display: none;
 	z-index: 500;
 	overflow-y: scroll;
-	height: max-content;
-	right: 10px;
+	height: stretch;
 	min-width: var(--max-server-info-width);
 	margin: 10px 0 10px 0;
+	right: 10px;
 	background-color: rgba(0, 0, 0, .5);
 	backdrop-filter: blur(3px) opacity(0.7);
 	scrollbar-width: thin;
@@ -401,7 +402,7 @@ fieldset#players {
 fieldset#players > legend {
 	color: white;
 	font-weight: bold;
-	font-size: 20px;
+	font-size: 23px;
 	font-family: "Inter", 'Open Sans', sans-serif;
 	text-shadow: rgba(0, 0, 0, 1) -2px -2px 10px;
 }
@@ -530,13 +531,12 @@ div.leaflet-control-layers.screenshot img {
 	background-image: var(--screenshot-bg-image) !important;
 }
 
-
-
 #coords-container {
 	display: flex;
 	flex-direction: row;
 	align-self: end;
 }
+
 .crisp-edges {
 	image-rendering: optimizeQuality;           /* Legal fallback	*/
 	image-rendering: -moz-crisp-edges;          /* Firefox        	*/

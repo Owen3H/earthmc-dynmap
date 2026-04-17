@@ -273,7 +273,7 @@ async function locateNation(name, isArchiveMode) {
 	let capitalName = null
 	if (!isArchiveMode) {
 		const queryBody = { query: [nationName], template: { capital: true } }
-		const nations = await postJSON(`${OAPI_BASE}/${CURRENT_MAP}/nations`, queryBody)
+		const nations = await postJSON(`${currentMapApiUrl()}/nations`, queryBody)
 		if (nations && nations.length > 0) capitalName = nations[0].capital?.name
 	}
 	if (!capitalName) {
@@ -298,7 +298,7 @@ async function locateResident(name, isArchiveMode) {
 	let townName = null
 	if (!isArchiveMode) {
 		const queryBody = { query: [residentName], template: { town: true } }
-		const players = await postJSON(`${OAPI_BASE}/${CURRENT_MAP}/players`, queryBody)
+		const players = await postJSON(`${currentMapApiUrl()}/players`, queryBody)
 		if (players && players.length > 0) townName = players[0].town?.name
 	}
 	if (!townName) {
@@ -313,7 +313,7 @@ async function locateResident(name, isArchiveMode) {
 /** @param {string} townName */
 async function getTownSpawn(townName) {
 	const queryBody = { query: [townName], template: { coordinates: true } }
-	const towns = await postJSON(`${OAPI_BASE}/${CURRENT_MAP}/towns`, queryBody)
+	const towns = await postJSON(`${currentMapApiUrl()}/towns`, queryBody)
 	if (!towns || towns.length < 1) return null
 
 	const spawn = towns[0].coordinates.spawn
