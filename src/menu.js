@@ -6,12 +6,46 @@
 /** @param {HTMLElement} parent - The "leaflet-top leaflet-left" element. */
 function addMainMenu(parent) {
 	const menu = addElement(parent, INSERTABLE_HTML.menu)
-	addLocateMenu(menu) // Locator button and input box
+	addLocateSection(menu) // Locator button and input box
+	addArchiveSection(menu)
 
-	//#region Archive search and date input
-	const archiveContainer = addElement(menu, INSERTABLE_HTML.menuOption, '.menu-option', true)[1]
-	const archiveButton = addElement(archiveContainer, INSERTABLE_HTML.buttons.searchArchive)
-	const archiveInput = addElement(archiveContainer, INSERTABLE_HTML.archiveInput)
+	// Options button and checkboxes
+	addOptions(menu, currentMapMode())
+
+	return menu
+}
+
+/** @param {HTMLElement} menu */
+function addLocateSection(menu) {
+	const locateMenu = addElement(menu, INSERTABLE_HTML.locateMenu)
+	const locateButton = addElement(locateMenu, INSERTABLE_HTML.buttons.locate)
+	const locateSubmenu = addElement(locateMenu, INSERTABLE_HTML.menuOption, '.menu-option')
+
+	//#region sub menu (dropdown and input)
+	const locateSelect = addElement(locateSubmenu, INSERTABLE_HTML.locateSelect)
+	const locateInput = addElement(locateSubmenu, INSERTABLE_HTML.locateInput)
+	locateSelect.addEventListener('change', () => {
+		switch (locateSelect.value) {
+			case 'Town': locateInput.placeholder = 'London'; break
+			case 'Nation': locateInput.placeholder = 'Nubia'; break
+			case 'Resident': locateInput.placeholder = 'Fix'; break
+		}
+	})
+	locateInput.addEventListener('keyup', event => {
+		if (event.key != 'Enter') return
+		locate(locateSelect.value, locateInput.value)
+	})
+	locateButton.addEventListener('click', () => {
+		locate(locateSelect.value, locateInput.value)
+	})
+	//#endregion
+}
+
+/** @param {HTMLElement} menu */
+function addArchiveSection(menu) {
+	const archiveMenu = addElement(menu, INSERTABLE_HTML.archiveMenu)
+	const archiveButton = addElement(archiveMenu, INSERTABLE_HTML.buttons.searchArchive)
+	const archiveInput = addElement(archiveMenu, INSERTABLE_HTML.archiveInput)
 	
 	archiveButton.addEventListener('click', _ => searchArchive(archiveInput.value))
 
@@ -21,14 +55,6 @@ function addMainMenu(parent) {
 		const URLDate = archiveInput.value.replaceAll('-', '')
 		localStorage['emcdynmapplus-archive-date'] = URLDate
 	})
-	//#endregion
-
-	const curMapMode = currentMapMode()
-
-	// Options button and checkboxes
-	addOptions(menu, curMapMode)
-
-	return menu
 }
 
 /** 
@@ -86,32 +112,6 @@ function addCheckboxOption(menu, index, optionId, optionText, variable, listener
 	
 	if (listener) checkbox.addEventListener('change', listener)
 	return checkbox
-}
-
-/** @param {HTMLElement} menu */
-function addLocateMenu(menu) {
-	const locateMenu = addElement(menu, INSERTABLE_HTML.locateMenu, '#locate-menu')
-	const locateButton = addElement(locateMenu, INSERTABLE_HTML.buttons.locate, '#locate-button')
-	const locateSubmenu = addElement(locateMenu, INSERTABLE_HTML.menuOption, '.menu-option')
-
-	//#region sub menu (dropdown and input)
-	const locateSelect = addElement(locateSubmenu, INSERTABLE_HTML.locateSelect, '#locate-select')
-	const locateInput = addElement(locateSubmenu, INSERTABLE_HTML.locateInput, '#locate-input')
-	locateSelect.addEventListener('change', () => {
-		switch (locateSelect.value) {
-			case 'Town': locateInput.placeholder = 'London'; break
-			case 'Nation': locateInput.placeholder = 'Germany'; break
-			case 'Resident': locateInput.placeholder = 'Notch'; break
-		}
-	})
-	locateInput.addEventListener('keyup', event => {
-		if (event.key != 'Enter') return
-		locate(locateSelect.value, locateInput.value)
-	})
-	locateButton.addEventListener('click', () => {
-		locate(locateSelect.value, locateInput.value)
-	})
-	//#endregion
 }
 
 /**  @param {boolean} boxTicked */

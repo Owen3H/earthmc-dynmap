@@ -48,6 +48,7 @@ const INSERTABLE_HTML = /** @type {const} */ ({
     locateMenu: '<div id="locate-menu"></div>',
 	locateInput: '<input class="menu-input-option" id="locate-input" placeholder="London">',
     locateSelect: '<select id="locate-select"><option>Town</option><option>Nation</option><option>Resident</option></select>',
+    archiveMenu: '<div id="archive-menu"></div>',
     archiveInput: `<input class="menu-input-option" id="archive-input" type="date" min="${ARCHIVE_DATE.MIN}" max="${ARCHIVE_DATE.MAX}">`,
 	mapMode: {
 		selector: '<div class="leaflet-control-layers leaflet-control" id="map-mode-selector"></div>',
