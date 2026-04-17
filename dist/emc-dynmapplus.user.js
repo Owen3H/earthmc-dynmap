@@ -740,7 +740,6 @@ function addMapModeSelector(parent) {
     addMapModeBtn(iconContainer, mode, (_) => selectMapMode(mode));
   }
   const curMode = currentMapMode();
-  console.log(curMode.name);
   label.textContent = `Map Mode: ${curMode.name}`;
 }
 var GITHUB_REPO = "https://raw.githubusercontent.com/Owen3H/earthmc-dynmap/refs/heads/main/";
@@ -1109,6 +1108,14 @@ async function modifyMarkers(data) {
   if (mapMode == MapMode.ARCHIVE) {
     data = await getArchive(data);
   }
+  const borders = isUserscript() ? define_BORDERS_default : await fetch(GM_getResourceURL("resources/borders.json")).then((r) => r.json());
+  if (!borders) showAlert("An unexpected error occurred fetching the borders resource file.");
+  else {
+    for (const key in borders) {
+      borders[key] = { ...borders[key], ...EXTRA_BORDER_OPTS };
+    }
+    addCountryBordersLayer(data, borders);
+  }
   if (!data?.[0]?.markers?.length) {
     showAlert("Unexpected error occurred while loading the map, EarthMC may be down. Try again later.");
     return data;
@@ -1121,14 +1128,6 @@ async function modifyMarkers(data) {
     const nlist = await fetchJSON(`${OAPI_BASE}/${CURRENT_MAP}/nations`);
     const apiNations = await queryConcurrent(`${OAPI_BASE}/${CURRENT_MAP}/nations`, nlist);
     cachedApiNations = new Map(apiNations.map((n) => [n.name.toLowerCase(), n]));
-  }
-  const borders = isUserscript() ? define_BORDERS_default : await fetch(GM_getResourceURL("resources/borders.json")).then((r) => r.json());
-  if (!borders) showAlert("An unexpected error occurred fetching the borders resource file.");
-  else {
-    for (const key in borders) {
-      borders[key] = { ...borders[key], ...EXTRA_BORDER_OPTS };
-    }
-    addCountryBordersLayer(data, borders);
   }
   const date = archiveDate();
   const isSquaremap = mapMode != "archive" || date >= 20240701;
@@ -1180,7 +1179,7 @@ function addCountryBordersLayer(data, borders) {
       "id": "borders",
       "order": 125,
       // Put it before the last layer 'Folia Regions' (150) but after the 'Chunk Borders' (100) layer.
-      "hide": true,
+      "hide": false,
       "control": true,
       "markers": [makePolyline(points)]
     });
@@ -2079,7 +2078,7 @@ div.leaflet-control-layers.screenshot img {\r
 }\r
 \r
 .crisp-edges {\r
-	image-rendering: optimizeQuality;             /* Legal fallback	*/\r
+	image-rendering: optimizeQuality;           /* Legal fallback	*/\r
 	image-rendering: -moz-crisp-edges;          /* Firefox        	*/\r
 	image-rendering: -o-crisp-edges;            /* Opera			*/\r
 	image-rendering: -webkit-optimize-contrast; /* Chrome + Safari	*/\r

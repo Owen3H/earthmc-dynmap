@@ -33,9 +33,12 @@ const archive = archiver.create('zip', { zlib: { level: 9 } })
 archive.pipe(output)
 
 addDirIgnore(archive, 'src', EXT_NAME+'/src', ['types.d.ts']) // Types are just for developing
-archive.directory('resources', EXT_NAME+'/resources')
+
 archive.file('manifest.json', { name: EXT_NAME+'/manifest.json' })
 archive.file('README.md', { name: EXT_NAME+'/README.md' })
+archive.directory('resources', EXT_NAME+'/resources', entry => {
+    return entry.name.startsWith('map-mode') && entry.name.endsWith('.png') ? false : entry
+})
 
 archive.finalize().then(() => {
 	const elapsed = (performance.now() - start).toFixed(2)
