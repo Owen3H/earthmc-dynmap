@@ -34,8 +34,6 @@ function addMapModeSelector(parent) {
     }
 
     const curMode = currentMapMode()
-    console.log(curMode.name)
-
     label.textContent = `Map Mode: ${curMode.name}`
 }
 
