@@ -1,11 +1,258 @@
 :root {
-	--max-menu-width: 210px;
+	--max-menu-width: 200px;
 	--player-lookup-width: 220px;
 	--yellow-colour: #b58a3f;
 	/** TODO: Make these more robust. Probably not my best idea */
 	--screenshot-bg-image: url("https://raw.githubusercontent.com/Owen3H/earthmc-dynmap/refs/heads/main/resources/icon-screenshot.png");
 	--show-icon: url("https://raw.githubusercontent.com/Owen3H/earthmc-dynmap/refs/heads/main/resources/icon-show.png");
 	--hide-icon: url("https://raw.githubusercontent.com/Owen3H/earthmc-dynmap/refs/heads/main/resources/icon-hide.png");
+}
+
+/* Onscreen extension menu */
+#menu {
+	width: auto;
+	max-width: var(--max-menu-width);
+	padding: 5px;
+	float: left !important;
+}
+
+.option {
+	display: flex;
+	justify-content: space-between;
+	padding-top: 2px;
+	padding-left: 5px;
+	padding-right: 5px;
+}
+
+.menu-option {
+	width: inherit;
+	height: fit-content;
+	display: flex;
+	align-items: stretch;
+	margin-bottom: 10px;
+}
+
+.menu-input-option {
+	width: 100%;
+	border: 1px solid rgba(255, 255, 255, 0.5) !important;
+	border-radius: 0px 2px 2px 0px;
+}
+
+.menu-button-option {
+	height: 30px;
+	font-kerning: none;
+    font-weight: 500;
+    font-size: 11px;
+    font-family: "Inter", 'Open Sans', sans-serif;
+    border: 2px dashed var(--yellow-colour);
+    border-radius: 2px;
+	padding: 3px;
+}
+
+#archive-button {
+	flex-grow: 1;
+	max-width: calc(var(--max-menu-width) / 2);
+}
+
+#archive-input {
+	width: inherit;
+	max-width: calc(var(--max-menu-width) / 2);
+}
+
+#locate-menu {
+	display: grid;
+}
+
+#locate-select {
+	text-align: center;
+	height: 30px;
+	font-kerning: none;
+    font-weight: 500;
+    font-size: 12px;
+    font-family: "Inter", 'Open Sans', sans-serif;
+	border-radius: 0px 0px 0px 2px;
+}
+
+#locate-button {
+	width: inherit;
+}
+
+#options-button {
+	width: 100%;
+	/* width: calc(var(--max-menu-width) - var(--map-mode-btn-width)); */
+}
+
+#options-menu {
+	font-family: "Inter", 'Open Sans', sans-serif;
+	width: inherit;
+    margin-top: 5px;
+	gap: 1px;
+}
+
+/* Map mode selector */
+#map-mode-selector {
+	position: fixed;
+	display: flex;
+    align-items: center;
+    flex-direction: column;
+	margin: 0px;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+	padding: 20px;
+	gap: 10px;
+}
+
+#current-map-mode-label {
+    font-family: 'Inter';
+    font-size: 20px;
+    font-weight: 600;
+	line-height: normal;
+	text-align: center;
+	white-space: nowrap;
+	user-select: none;
+	pointer-events: none;
+}
+
+#map-mode-option-container {
+    display: flex;
+    gap: 10px;
+    flex-direction: row;
+}
+
+.map-mode-btn-option {
+	padding: 0;
+	background: white;
+	border: 2px dashed black;
+  	box-sizing: border-box;
+	width: 35px;
+	height: 35px;
+	overflow: hidden; /* ensures no bleed */
+}
+
+.map-mode-btn-option:hover {
+	width: 40px;
+	height: 40px;
+	background: var(--yellow-colour);
+	border: 3px dashed black;
+	cursor: pointer;
+}
+
+.map-mode-btn-option > img {
+	display: block;
+	width: 100%;
+	height: 100%;
+	image-rendering: auto !important;
+}
+
+/* Server info */
+#server-info {
+	width: 190px;
+	max-width: var(--max-menu-width);
+	padding: 10px;
+	text-align: right;
+	font-family: "Inter", 'Open Sans', sans-serif;
+}
+
+#server-info-title {
+	font-weight: 700;
+	font-size: large;
+	text-align: center;
+}
+
+/* A single div with a var like Online Players: 98 */
+.server-info-entry {
+	font-weight: 400;
+	font-size: medium;
+	text-align: center;
+}
+
+/* Player popup */
+#player-lookup-loading {
+	width: auto;
+	font-size: larger;
+	font-weight: 500;
+	font-family: "Inter", 'Open Sans', sans-serif;
+	padding: 5px;
+	/* ensure it stays on the left below the menu */
+	display: block !important;
+	float: left !important;
+	clear: both !important;
+}
+
+#player-lookup {
+	width: var(--player-lookup-width);
+	font-size: larger;
+	font-family: "Inter", 'Open Sans', sans-serif;
+	padding: 8px;
+	box-sizing: border-box;
+	/* ensure it stays on the left below the menu */
+	clear: both !important;
+	display: block !important;
+	float: left !important;
+}
+
+#player-lookup > .close-container {
+	position: relative;
+	cursor: pointer;
+	font-size: medium;
+	bottom: 7px;
+	left: calc(var(--player-lookup-width) - 36px);
+	padding-top: 1.5px;
+	padding-bottom: 2px;
+	padding-left: 8px;
+	padding-right: 8px;
+	background: rgb(174, 14, 14);
+	border: white 1px solid;
+	border-radius: 0px 3px 0px 0px;
+}
+
+#player-lookup > .close-container:hover {
+	background-color: rgba(127, 127, 125, 0.5);
+}
+
+#player-lookup-online {
+	position: absolute;
+	top: 5px;
+	left: 5px;
+}
+
+#player-lookup-avatar {
+	display: block;
+	width: 36px;
+	box-shadow: 0 0 10px 1px #131313;
+	margin: auto auto 0.5em auto; /** make bottom margin match the divider below */
+}
+
+#player-lookup-name {
+	font-size: 18px;
+}
+
+/* Town popup */
+
+#scrollable-list {
+	overflow: auto;
+	max-height: 200px;
+}
+
+#clamped-board {
+	max-width: 400px;
+	text-overflow: ellipsis;
+	overflow: hidden;
+	display: inline-block;
+}
+
+.resident-list {
+	white-space: pre-wrap;
+}
+
+#part-of-label {
+	font-size: 85%;
+}
+
+.resident-clickable:hover {
+	background-color: rgba(127, 127, 125, 0.5);
+	cursor: pointer;
 }
 
 #nation-claims {
@@ -129,35 +376,13 @@ input[type="color"]::-webkit-color-swatch {
   	border: none;
 }
 
-/* Server info */
-#server-info {
-	width: 190px;
-	max-width: var(--max-menu-width);
-	padding: 10px;
-	text-align: right;
-	font-family: "Inter", 'Open Sans', sans-serif;
-}
-
-#server-info-title {
-	font-weight: 700;
-	font-size: large;
-	text-align: center;
-}
-
-/* A single div with a var like Online Players: 98 */
-.server-info-entry {
-	font-weight: 400;
-	font-size: medium;
-	text-align: center;
-}
-
 /* Player list */
 fieldset#players {
 	display: none;
 	position: fixed;
 	z-index: 500;
 	overflow-y: scroll;
-	height: stretch;
+	height: max-content;
 	right: 10px;
 	min-width: 190px;
 	margin: 10px 0 10px 0;
@@ -202,244 +427,6 @@ fieldset#players > a:hover {
 	font-family: "Inter", 'Open Sans', sans-serif;
     text-shadow: rgb(0, 0, 0, 1) -2px 2px 8px;
 	backdrop-filter: blur(5px);
-}
-
-/* Player popup */
-#player-lookup-loading {
-	width: auto;
-	font-size: larger;
-	font-weight: 500;
-	font-family: "Inter", 'Open Sans', sans-serif;
-	padding: 5px;
-	/* ensure it stays on the left below the menu */
-	display: block !important;
-	float: left !important;
-	clear: both !important;
-}
-
-#player-lookup {
-	width: var(--player-lookup-width);
-	font-size: larger;
-	font-family: "Inter", 'Open Sans', sans-serif;
-	padding: 8px;
-	box-sizing: border-box;
-	/* ensure it stays on the left below the menu */
-	clear: both !important;
-	display: block !important;
-	float: left !important;
-}
-
-#player-lookup > .close-container {
-	position: relative;
-	cursor: pointer;
-	font-size: medium;
-	bottom: 7px;
-	left: calc(var(--player-lookup-width) - 36px);
-	padding-top: 1.5px;
-	padding-bottom: 2px;
-	padding-left: 8px;
-	padding-right: 8px;
-	background: rgb(174, 14, 14);
-	border: white 1px solid;
-	border-radius: 0px 3px 0px 0px;
-}
-
-#player-lookup > .close-container:hover {
-	background-color: rgba(127, 127, 125, 0.5);
-}
-
-#player-lookup-online {
-	position: absolute;
-	top: 5px;
-	left: 5px;
-}
-
-#player-lookup-avatar {
-	display: block;
-	width: 36px;
-	box-shadow: 0 0 10px 1px #131313;
-	margin: auto auto 0.5em auto; /** make bottom margin match the divider below */
-}
-
-#player-lookup-name {
-	font-size: 18px;
-}
-
-/* Onscreen extension menu */
-#menu {
-	width: auto;
-	max-width: 210px;
-	padding: 5px;
-	float: left !important;
-}
-
-.option {
-	display: flex;
-	justify-content: space-between;
-	padding-top: 2px;
-	padding-left: 5px;
-	padding-right: 5px;
-}
-
-.menu-option {
-	width: inherit;
-	height: fit-content;
-	display: flex;
-	align-items: stretch;
-	margin-bottom: 10px;
-}
-
-.menu-input-option {
-	width: 100%;
-	border: 1px solid rgba(255, 255, 255, 0.5) !important;
-	border-radius: 0px 2px 2px 0px;
-}
-
-.menu-button-option {
-	height: 30px;
-	font-kerning: none;
-    font-weight: 500;
-    font-size: 12px;
-    font-family: "Inter", 'Open Sans', sans-serif;
-    border: 2px dashed var(--yellow-colour);
-    border-radius: 2px;
-}
-
-#archive-button {
-	flex-grow: 1;
-}
-
-#archive-input {
-	width: inherit;
-	max-width: 100px;
-}
-
-#locate-menu {
-	display: grid;
-}
-
-#locate-select {
-	text-align: center;
-	height: 30px;
-	font-kerning: none;
-    font-weight: 500;
-    font-size: 12px;
-    font-family: "Inter", 'Open Sans', sans-serif;
-	border-radius: 0px 0px 0px 2px;
-}
-
-#locate-button {
-	width: inherit;
-}
-
-/* #switch-map-mode {
-	width: var(--map-mode-btn-width);
-} */
-
-#options-button {
-	width: 100%;
-	/* width: calc(var(--max-menu-width) - var(--map-mode-btn-width)); */
-}
-
-#options-menu {
-	font-family: "Inter", 'Open Sans', sans-serif;
-	width: inherit;
-    margin-top: 5px;
-	gap: 1px;
-}
-
-/* Map mode selector */
-
-#map-mode-selector {
-	position: fixed;
-	display: flex;
-    align-items: center;
-    flex-direction: column;
-	margin: 0px;
-    top: 10px;
-    left: 50%;
-    transform: translateX(-50%);
-	padding: 20px;
-	gap: 10px;
-}
-
-#current-map-mode-label {
-    font-family: 'Inter';
-    font-size: 20px;
-    font-weight: 600;
-	line-height: normal;
-	text-align: center;
-	white-space: nowrap;
-	user-select: none;
-	pointer-events: none;
-}
-
-#map-mode-option-container {
-    display: flex;
-    gap: 10px;
-    flex-direction: row;
-}
-
-.map-mode-btn-option {
-	padding: 0;
-	background: white;
-	border: 2px dashed black;
-  	box-sizing: border-box;
-	width: 35px;
-	height: 35px;
-	overflow: hidden; /* ensures no bleed */
-}
-
-.map-mode-btn-option:hover {
-	width: 40px;
-	height: 40px;
-	background: var(--yellow-colour);
-	border: 3px dashed black;
-	cursor: pointer;
-}
-
-.map-mode-btn-option > img {
-	display: block;
-	width: 100%;
-	height: 100%;
-	image-rendering: auto !important;
-}
-
-/* #current-map-mode-label {
-	display: block;
-	box-sizing: border-box;
-	margin: 5px 5px 5px 5px;
-	font-size: 16px;
-	font-weight: bold;
-	font-family: "Inter", 'Open Sans', sans-serif;
-	text-align: center;
-} */
-
-/* Town popup */
-
-#scrollable-list {
-	overflow: auto;
-	max-height: 200px;
-}
-
-#clamped-board {
-	max-width: 400px;
-	text-overflow: ellipsis;
-	overflow: hidden;
-	display: inline-block;
-}
-
-.resident-list {
-	white-space: pre-wrap;
-}
-
-#part-of-label {
-	font-size: 85%;
-}
-
-.resident-clickable:hover {
-	background-color: rgba(127, 127, 125, 0.5);
-	cursor: pointer;
 }
 
 /* Alert */
@@ -534,7 +521,6 @@ div.leaflet-control-layers.screenshot img {
 	flex-direction: row;
 	align-self: end;
 }
-
 .crisp-edges {
 	image-rendering: optimizeQuality;           /* Legal fallback	*/
 	image-rendering: -moz-crisp-edges;          /* Firefox        	*/
