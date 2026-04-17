@@ -232,6 +232,7 @@ var INSERTABLE_HTML = (
     locateMenu: '<div id="locate-menu"></div>',
     locateInput: '<input class="menu-input-option" id="locate-input" placeholder="London">',
     locateSelect: '<select id="locate-select"><option>Town</option><option>Nation</option><option>Resident</option></select>',
+    archiveMenu: '<div id="archive-menu"></div>',
     archiveInput: `<input class="menu-input-option" id="archive-input" type="date" min="${ARCHIVE_DATE.MIN}" max="${ARCHIVE_DATE.MAX}">`,
     mapMode: {
       selector: '<div class="leaflet-control-layers leaflet-control" id="map-mode-selector"></div>',
@@ -732,6 +733,10 @@ Object.freeze(MAP_MODES);
 var MapMode = MAP_MODES;
 function addMapModeSelector(parent) {
   const selectorDiv = addElement(parent, INSERTABLE_HTML.mapMode.selector);
+  document.addEventListener("keydown", (e) => {
+    if (!(e.key === "M" && e.shiftKey)) return;
+    selectorDiv.style.visibility = selectorDiv.style.visibility == "hidden" ? "visible" : "hidden";
+  });
   const label = addElement(selectorDiv, INSERTABLE_HTML.mapMode.currentModeLabel);
   const iconContainer = addElement(selectorDiv, INSERTABLE_HTML.mapMode.optionContainer);
   const modes = sortedMapModes();
@@ -761,10 +766,42 @@ function selectMapMode(mode) {
 // src/menu.js
 function addMainMenu(parent) {
   const menu = addElement(parent, INSERTABLE_HTML.menu);
-  addLocateMenu(menu);
-  const archiveContainer = addElement(menu, INSERTABLE_HTML.menuOption, ".menu-option", true)[1];
-  const archiveButton = addElement(archiveContainer, INSERTABLE_HTML.buttons.searchArchive);
-  const archiveInput = addElement(archiveContainer, INSERTABLE_HTML.archiveInput);
+  addLocateSection(menu);
+  addArchiveSection(menu);
+  addOptions(menu, currentMapMode());
+  return menu;
+}
+function addLocateSection(menu) {
+  const locateMenu = addElement(menu, INSERTABLE_HTML.locateMenu);
+  const locateButton = addElement(locateMenu, INSERTABLE_HTML.buttons.locate);
+  const locateSubmenu = addElement(locateMenu, INSERTABLE_HTML.menuOption, ".menu-option");
+  const locateSelect = addElement(locateSubmenu, INSERTABLE_HTML.locateSelect);
+  const locateInput = addElement(locateSubmenu, INSERTABLE_HTML.locateInput);
+  locateSelect.addEventListener("change", () => {
+    switch (locateSelect.value) {
+      case "Town":
+        locateInput.placeholder = "London";
+        break;
+      case "Nation":
+        locateInput.placeholder = "Nubia";
+        break;
+      case "Resident":
+        locateInput.placeholder = "Fix";
+        break;
+    }
+  });
+  locateInput.addEventListener("keyup", (event) => {
+    if (event.key != "Enter") return;
+    locate(locateSelect.value, locateInput.value);
+  });
+  locateButton.addEventListener("click", () => {
+    locate(locateSelect.value, locateInput.value);
+  });
+}
+function addArchiveSection(menu) {
+  const archiveMenu = addElement(menu, INSERTABLE_HTML.archiveMenu);
+  const archiveButton = addElement(archiveMenu, INSERTABLE_HTML.buttons.searchArchive);
+  const archiveInput = addElement(archiveMenu, INSERTABLE_HTML.archiveInput);
   archiveButton.addEventListener("click", (_) => searchArchive(archiveInput.value));
   archiveInput.addEventListener("keyup", (e) => {
     if (e.key == "Enter") searchArchive(archiveInput.value);
@@ -773,9 +810,6 @@ function addMainMenu(parent) {
     const URLDate = archiveInput.value.replaceAll("-", "");
     localStorage["emcdynmapplus-archive-date"] = URLDate;
   });
-  const curMapMode = currentMapMode();
-  addOptions(menu, curMapMode);
-  return menu;
 }
 function addOptions(menu, curMapMode) {
   const optionsButton = addElement(menu, INSERTABLE_HTML.buttons.options);
@@ -823,33 +857,6 @@ function addCheckboxOption(menu, index, optionId, optionText, variable, listener
   checkbox.checked = localStorage["emcdynmapplus-" + variable] == "true";
   if (listener) checkbox.addEventListener("change", listener);
   return checkbox;
-}
-function addLocateMenu(menu) {
-  const locateMenu = addElement(menu, INSERTABLE_HTML.locateMenu, "#locate-menu");
-  const locateButton = addElement(locateMenu, INSERTABLE_HTML.buttons.locate, "#locate-button");
-  const locateSubmenu = addElement(locateMenu, INSERTABLE_HTML.menuOption, ".menu-option");
-  const locateSelect = addElement(locateSubmenu, INSERTABLE_HTML.locateSelect, "#locate-select");
-  const locateInput = addElement(locateSubmenu, INSERTABLE_HTML.locateInput, "#locate-input");
-  locateSelect.addEventListener("change", () => {
-    switch (locateSelect.value) {
-      case "Town":
-        locateInput.placeholder = "London";
-        break;
-      case "Nation":
-        locateInput.placeholder = "Germany";
-        break;
-      case "Resident":
-        locateInput.placeholder = "Notch";
-        break;
-    }
-  });
-  locateInput.addEventListener("keyup", (event) => {
-    if (event.key != "Enter") return;
-    locate(locateSelect.value, locateInput.value);
-  });
-  locateButton.addEventListener("click", () => {
-    locate(locateSelect.value, locateInput.value);
-  });
 }
 function toggleDarkened(boxTicked) {
   const element = document.querySelector(".leaflet-tile-pane");
@@ -1541,13 +1548,266 @@ async function init(manifest) {
   const isUserscript2 = true;
   if (isUserscript2) {
     GM_addStyle(`:root {\r
-	--max-menu-width: 210px;\r
+	--max-menu-width: 170px;\r
 	--player-lookup-width: 220px;\r
 	--yellow-colour: #b58a3f;\r
 	/** TODO: Make these more robust. Probably not my best idea */\r
 	--screenshot-bg-image: url("https://raw.githubusercontent.com/Owen3H/earthmc-dynmap/refs/heads/main/resources/icon-screenshot.png");\r
 	--show-icon: url("https://raw.githubusercontent.com/Owen3H/earthmc-dynmap/refs/heads/main/resources/icon-show.png");\r
 	--hide-icon: url("https://raw.githubusercontent.com/Owen3H/earthmc-dynmap/refs/heads/main/resources/icon-hide.png");\r
+}\r
+\r
+/* Onscreen extension menu */\r
+#menu {\r
+	width: auto;\r
+	max-width: var(--max-menu-width);\r
+	padding: 5px;\r
+	float: left !important;\r
+}\r
+\r
+.option {\r
+	display: flex;\r
+	justify-content: space-between;\r
+	padding-top: 2px;\r
+	padding-left: 5px;\r
+	padding-right: 5px;\r
+	font-size: 10.5px;\r
+}\r
+\r
+.menu-option {\r
+	width: inherit;\r
+	height: fit-content;\r
+	display: flex;\r
+	align-items: stretch;\r
+}\r
+\r
+.menu-input-option {\r
+	width: 100%;\r
+	border: 1px solid rgba(255, 255, 255, 0.5) !important;\r
+	border-radius: 0px 2px 2px 0px;\r
+}\r
+\r
+.menu-button-option {\r
+	width: 100%;\r
+	height: 30px;\r
+	font-kerning: none;\r
+    font-weight: 500;\r
+    font-size: 11px;\r
+    font-family: "Inter", 'Open Sans', sans-serif;\r
+    border: 2px dashed var(--yellow-colour);\r
+    border-radius: 2px;\r
+	padding: 3px;\r
+}\r
+\r
+#locate-menu {\r
+	display: grid;\r
+	margin-bottom: 10px;\r
+}\r
+\r
+#locate-select {\r
+	text-align: center;\r
+	height: 30px;\r
+	font-kerning: none;\r
+    font-weight: 500;\r
+    font-size: 12px;\r
+    font-family: "Inter", 'Open Sans', sans-serif;\r
+	border-radius: 0px 0px 0px 2px;\r
+}\r
+\r
+/* #locate-button {\r
+	width: inherit;\r
+} */\r
+\r
+#archive-menu {\r
+	display: grid;\r
+	margin-bottom: 10px;\r
+}\r
+\r
+#archive-button {\r
+	flex-grow: 1;\r
+}\r
+\r
+#archive-input {\r
+	width: auto;\r
+    height: 25px;\r
+	text-align: center;\r
+}\r
+\r
+/* #options-button {\r
+	width: 100%;\r
+}*/\r
+\r
+#options-menu {\r
+	font-family: "Inter", 'Open Sans', sans-serif;\r
+	width: inherit;\r
+    margin-top: 5px;\r
+	gap: 1px;\r
+}\r
+\r
+/* Map mode selector */\r
+#map-mode-selector {\r
+	position: fixed;\r
+	display: flex;\r
+    align-items: center;\r
+    flex-direction: column;\r
+	margin: 0px;\r
+    top: 10px;\r
+    left: 50%;\r
+    transform: translateX(-50%);\r
+	padding: 20px;\r
+	gap: 10px;\r
+}\r
+\r
+#current-map-mode-label {\r
+    font-family: 'Inter';\r
+    font-size: 20px;\r
+    font-weight: 600;\r
+	line-height: normal;\r
+	text-align: center;\r
+	white-space: nowrap;\r
+	user-select: none;\r
+	pointer-events: none;\r
+}\r
+\r
+#map-mode-option-container {\r
+    display: flex;\r
+    gap: 10px;\r
+    flex-direction: row;\r
+}\r
+\r
+.map-mode-btn-option {\r
+	padding: 0;\r
+	background: white;\r
+	border: 2px dashed black;\r
+  	box-sizing: border-box;\r
+	width: 35px;\r
+	height: 35px;\r
+	overflow: hidden; /* ensures no bleed */\r
+}\r
+\r
+.map-mode-btn-option:hover {\r
+	width: 40px;\r
+	height: 40px;\r
+	background: var(--yellow-colour);\r
+	border: 3px dashed black;\r
+	cursor: pointer;\r
+}\r
+\r
+.map-mode-btn-option > img {\r
+	display: block;\r
+	width: 100%;\r
+	height: 100%;\r
+	image-rendering: auto !important;\r
+}\r
+\r
+/* Server info */\r
+#server-info {\r
+	width: 190px;\r
+	max-width: var(--max-menu-width);\r
+	padding: 10px;\r
+	text-align: right;\r
+	font-family: "Inter", 'Open Sans', sans-serif;\r
+}\r
+\r
+#server-info-title {\r
+	font-weight: 700;\r
+	font-size: large;\r
+	text-align: center;\r
+}\r
+\r
+/* A single div with a var like Online Players: 98 */\r
+.server-info-entry {\r
+	font-weight: 400;\r
+	font-size: medium;\r
+	text-align: center;\r
+}\r
+\r
+/* Player popup */\r
+#player-lookup-loading {\r
+	width: auto;\r
+	font-size: larger;\r
+	font-weight: 500;\r
+	font-family: "Inter", 'Open Sans', sans-serif;\r
+	padding: 5px;\r
+	/* ensure it stays on the left below the menu */\r
+	display: block !important;\r
+	float: left !important;\r
+	clear: both !important;\r
+}\r
+\r
+#player-lookup {\r
+	width: var(--player-lookup-width);\r
+	font-size: larger;\r
+	font-family: "Inter", 'Open Sans', sans-serif;\r
+	padding: 8px;\r
+	box-sizing: border-box;\r
+	/* ensure it stays on the left below the menu */\r
+	clear: both !important;\r
+	display: block !important;\r
+	float: left !important;\r
+}\r
+\r
+#player-lookup > .close-container {\r
+	position: relative;\r
+	cursor: pointer;\r
+	font-size: medium;\r
+	bottom: 7px;\r
+	left: calc(var(--player-lookup-width) - 36px);\r
+	padding-top: 1.5px;\r
+	padding-bottom: 2px;\r
+	padding-left: 8px;\r
+	padding-right: 8px;\r
+	background: rgb(174, 14, 14);\r
+	border: white 1px solid;\r
+	border-radius: 0px 3px 0px 0px;\r
+}\r
+\r
+#player-lookup > .close-container:hover {\r
+	background-color: rgba(127, 127, 125, 0.5);\r
+}\r
+\r
+#player-lookup-online {\r
+	position: absolute;\r
+	top: 5px;\r
+	left: 5px;\r
+}\r
+\r
+#player-lookup-avatar {\r
+	display: block;\r
+	width: 36px;\r
+	box-shadow: 0 0 10px 1px #131313;\r
+	margin: auto auto 0.5em auto; /** make bottom margin match the divider below */\r
+}\r
+\r
+#player-lookup-name {\r
+	font-size: 18px;\r
+}\r
+\r
+/* Town popup */\r
+\r
+#scrollable-list {\r
+	overflow: auto;\r
+	max-height: 200px;\r
+}\r
+\r
+#clamped-board {\r
+	max-width: 400px;\r
+	text-overflow: ellipsis;\r
+	overflow: hidden;\r
+	display: inline-block;\r
+}\r
+\r
+.resident-list {\r
+	white-space: pre-wrap;\r
+}\r
+\r
+#part-of-label {\r
+	font-size: 85%;\r
+}\r
+\r
+.resident-clickable:hover {\r
+	background-color: rgba(127, 127, 125, 0.5);\r
+	cursor: pointer;\r
 }\r
 \r
 #nation-claims {\r
@@ -1671,35 +1931,13 @@ input[type="color"]::-webkit-color-swatch {\r
   	border: none;\r
 }\r
 \r
-/* Server info */\r
-#server-info {\r
-	width: 190px;\r
-	max-width: var(--max-menu-width);\r
-	padding: 10px;\r
-	text-align: right;\r
-	font-family: "Inter", 'Open Sans', sans-serif;\r
-}\r
-\r
-#server-info-title {\r
-	font-weight: 700;\r
-	font-size: large;\r
-	text-align: center;\r
-}\r
-\r
-/* A single div with a var like Online Players: 98 */\r
-.server-info-entry {\r
-	font-weight: 400;\r
-	font-size: medium;\r
-	text-align: center;\r
-}\r
-\r
 /* Player list */\r
 fieldset#players {\r
 	display: none;\r
 	position: fixed;\r
 	z-index: 500;\r
 	overflow-y: scroll;\r
-	height: stretch;\r
+	height: max-content;\r
 	right: 10px;\r
 	min-width: 190px;\r
 	margin: 10px 0 10px 0;\r
@@ -1744,244 +1982,7 @@ fieldset#players > a:hover {\r
 	font-family: "Inter", 'Open Sans', sans-serif;\r
     text-shadow: rgb(0, 0, 0, 1) -2px 2px 8px;\r
 	backdrop-filter: blur(5px);\r
-}\r
-\r
-/* Player popup */\r
-#player-lookup-loading {\r
-	width: auto;\r
-	font-size: larger;\r
-	font-weight: 500;\r
-	font-family: "Inter", 'Open Sans', sans-serif;\r
-	padding: 5px;\r
-	/* ensure it stays on the left below the menu */\r
-	display: block !important;\r
-	float: left !important;\r
-	clear: both !important;\r
-}\r
-\r
-#player-lookup {\r
-	width: var(--player-lookup-width);\r
-	font-size: larger;\r
-	font-family: "Inter", 'Open Sans', sans-serif;\r
-	padding: 8px;\r
-	box-sizing: border-box;\r
-	/* ensure it stays on the left below the menu */\r
-	clear: both !important;\r
-	display: block !important;\r
-	float: left !important;\r
-}\r
-\r
-#player-lookup > .close-container {\r
-	position: relative;\r
-	cursor: pointer;\r
-	font-size: medium;\r
-	bottom: 7px;\r
-	left: calc(var(--player-lookup-width) - 36px);\r
-	padding-top: 1.5px;\r
-	padding-bottom: 2px;\r
-	padding-left: 8px;\r
-	padding-right: 8px;\r
-	background: rgb(174, 14, 14);\r
-	border: white 1px solid;\r
-	border-radius: 0px 3px 0px 0px;\r
-}\r
-\r
-#player-lookup > .close-container:hover {\r
-	background-color: rgba(127, 127, 125, 0.5);\r
-}\r
-\r
-#player-lookup-online {\r
-	position: absolute;\r
-	top: 5px;\r
-	left: 5px;\r
-}\r
-\r
-#player-lookup-avatar {\r
-	display: block;\r
-	width: 36px;\r
-	box-shadow: 0 0 10px 1px #131313;\r
-	margin: auto auto 0.5em auto; /** make bottom margin match the divider below */\r
-}\r
-\r
-#player-lookup-name {\r
-	font-size: 18px;\r
-}\r
-\r
-/* Onscreen extension menu */\r
-#menu {\r
-	width: auto;\r
-	max-width: 210px;\r
-	padding: 5px;\r
-	float: left !important;\r
-}\r
-\r
-.option {\r
-	display: flex;\r
-	justify-content: space-between;\r
-	padding-top: 2px;\r
-	padding-left: 5px;\r
-	padding-right: 5px;\r
-}\r
-\r
-.menu-option {\r
-	width: inherit;\r
-	height: fit-content;\r
-	display: flex;\r
-	align-items: stretch;\r
-	margin-bottom: 10px;\r
-}\r
-\r
-.menu-input-option {\r
-	width: 100%;\r
-	border: 1px solid rgba(255, 255, 255, 0.5) !important;\r
-	border-radius: 0px 2px 2px 0px;\r
-}\r
-\r
-.menu-button-option {\r
-	height: 30px;\r
-	font-kerning: none;\r
-    font-weight: 500;\r
-    font-size: 12px;\r
-    font-family: "Inter", 'Open Sans', sans-serif;\r
-    border: 2px dashed var(--yellow-colour);\r
-    border-radius: 2px;\r
-}\r
-\r
-#archive-button {\r
-	flex-grow: 1;\r
-}\r
-\r
-#archive-input {\r
-	width: inherit;\r
-	max-width: 100px;\r
-}\r
-\r
-#locate-menu {\r
-	display: grid;\r
-}\r
-\r
-#locate-select {\r
-	text-align: center;\r
-	height: 30px;\r
-	font-kerning: none;\r
-    font-weight: 500;\r
-    font-size: 12px;\r
-    font-family: "Inter", 'Open Sans', sans-serif;\r
-	border-radius: 0px 0px 0px 2px;\r
-}\r
-\r
-#locate-button {\r
-	width: inherit;\r
-}\r
-\r
-/* #switch-map-mode {\r
-	width: var(--map-mode-btn-width);\r
-} */\r
-\r
-#options-button {\r
-	width: 100%;\r
-	/* width: calc(var(--max-menu-width) - var(--map-mode-btn-width)); */\r
-}\r
-\r
-#options-menu {\r
-	font-family: "Inter", 'Open Sans', sans-serif;\r
-	width: inherit;\r
-    margin-top: 5px;\r
-	gap: 1px;\r
-}\r
-\r
-/* Map mode selector */\r
-\r
-#map-mode-selector {\r
-	position: fixed;\r
-	display: flex;\r
-    align-items: center;\r
-    flex-direction: column;\r
-	margin: 0px;\r
-    top: 10px;\r
-    left: 50%;\r
-    transform: translateX(-50%);\r
-	padding: 20px;\r
-	gap: 10px;\r
-}\r
-\r
-#current-map-mode-label {\r
-    font-family: 'Inter';\r
-    font-size: 20px;\r
-    font-weight: 600;\r
-	line-height: normal;\r
-	text-align: center;\r
 	white-space: nowrap;\r
-	user-select: none;\r
-	pointer-events: none;\r
-}\r
-\r
-#map-mode-option-container {\r
-    display: flex;\r
-    gap: 10px;\r
-    flex-direction: row;\r
-}\r
-\r
-.map-mode-btn-option {\r
-	padding: 0;\r
-	background: white;\r
-	border: 2px dashed black;\r
-  	box-sizing: border-box;\r
-	width: 35px;\r
-	height: 35px;\r
-	overflow: hidden; /* ensures no bleed */\r
-}\r
-\r
-.map-mode-btn-option:hover {\r
-	width: 40px;\r
-	height: 40px;\r
-	background: var(--yellow-colour);\r
-	border: 3px dashed black;\r
-	cursor: pointer;\r
-}\r
-\r
-.map-mode-btn-option > img {\r
-	display: block;\r
-	width: 100%;\r
-	height: 100%;\r
-	image-rendering: auto !important;\r
-}\r
-\r
-/* #current-map-mode-label {\r
-	display: block;\r
-	box-sizing: border-box;\r
-	margin: 5px 5px 5px 5px;\r
-	font-size: 16px;\r
-	font-weight: bold;\r
-	font-family: "Inter", 'Open Sans', sans-serif;\r
-	text-align: center;\r
-} */\r
-\r
-/* Town popup */\r
-\r
-#scrollable-list {\r
-	overflow: auto;\r
-	max-height: 200px;\r
-}\r
-\r
-#clamped-board {\r
-	max-width: 400px;\r
-	text-overflow: ellipsis;\r
-	overflow: hidden;\r
-	display: inline-block;\r
-}\r
-\r
-.resident-list {\r
-	white-space: pre-wrap;\r
-}\r
-\r
-#part-of-label {\r
-	font-size: 85%;\r
-}\r
-\r
-.resident-clickable:hover {\r
-	background-color: rgba(127, 127, 125, 0.5);\r
-	cursor: pointer;\r
 }\r
 \r
 /* Alert */\r
@@ -2028,7 +2029,7 @@ fieldset#players > a:hover {\r
 }\r
 \r
 .leaflet-control {\r
-	float: inline-end !important; /** menu and player lookup are float: left !important */\r
+	float: inline-end !important; /* menu and player lookup are float: left !important */\r
 	clear: none !important;\r
 	backdrop-filter: blur(5px);\r
 }\r
@@ -2036,7 +2037,14 @@ fieldset#players > a:hover {\r
 .leaflet-control-layers {\r
 	border: none !important;\r
 	border-radius: 3px !important;\r
-	background: #ffffffa6 !important; /** INSERTABLE_HTML.darkMode will override this if enabled */\r
+	background: #ffffffa6 !important; /* INSERTABLE_HTML.darkMode will override this if enabled */\r
+}\r
+\r
+/* Reduces the size of the layer selector icon and associated image */ \r
+.leaflet-control-layers-toggle {\r
+	height: 32px !important;\r
+    width: 32px !important;\r
+	background-size: 20px 20px !important;\r
 }\r
 \r
 .leaflet-bottom.leaflet-left {\r
@@ -2071,12 +2079,13 @@ div.leaflet-control-layers.screenshot img {\r
 	background-image: var(--screenshot-bg-image) !important;\r
 }\r
 \r
+\r
+\r
 #coords-container {\r
 	display: flex;\r
 	flex-direction: row;\r
 	align-self: end;\r
 }\r
-\r
 .crisp-edges {\r
 	image-rendering: optimizeQuality;           /* Legal fallback	*/\r
 	image-rendering: -moz-crisp-edges;          /* Firefox        	*/\r
