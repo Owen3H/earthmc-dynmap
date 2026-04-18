@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name        EarthMC Dynmap+ (Owen3H Fork)
-// @version     2.1
+// @version     2.1.1
 // @description Extension to enrich the EarthMC map experience
 // @author      3meraldK
 // @include     https://map.earthmc.net/*
@@ -887,8 +887,15 @@ function togglePlayerList(boxTicked) {
 }
 function toggleShowCapitalStars(boxTicked) {
   localStorage["emcdynmapplus-capital-stars"] = boxTicked;
-  const iconContainer = document.querySelector(".leaflet-pane.leaflet-marker-pane");
-  iconContainer.setAttribute("style", `visibility: ${boxTicked ? "visible" : "hidden"}`);
+  const pane = document.querySelector(".leaflet-pane.leaflet-marker-pane");
+  if (!pane) return;
+  const imgs = pane.querySelectorAll("img");
+  for (const img of imgs) {
+    const src = img.getAttribute("src") || "";
+    if (src.endsWith("towny_capital_icon.png") || src.includes("capital_icon.png")) {
+      img.style.visibility = boxTicked ? "visible" : "hidden";
+    }
+  }
 }
 function toggleDarkMode(boxTicked) {
   localStorage["emcdynmapplus-darkmode"] = boxTicked;
@@ -1133,8 +1140,9 @@ async function modifyMarkers(data) {
     cachedAlliances = await getAlliances();
   }
   if (mapMode == MapMode.OVERCLAIM && cachedApiNations == null) {
-    const nlist = await fetchJSON(`${currentMapApiUrl()}/nations`);
-    const apiNations = await queryConcurrent(`${OAPI_BASE}/nations`, nlist);
+    const url = `${currentMapApiUrl()}/nations`;
+    const nlist = await fetchJSON(url);
+    const apiNations = await queryConcurrent(url, nlist);
     cachedApiNations = new Map(apiNations.map((n) => [n.name.toLowerCase(), n]));
   }
   const date = archiveDate();
@@ -1504,7 +1512,7 @@ function millerProjection(z) {
 }
 
 // <define:MANIFEST>
-var define_MANIFEST_default = { manifest_version: 3, name: "EarthMC Dynmap+ (Owen3H Fork)", version: "2.1", author: "3meraldK", description: "Extension to enrich the EarthMC map experience", icons: { "48": "resources/icon48.png", "128": "resources/icon128.png" }, web_accessible_resources: [{ run_at: "document_idle", matches: ["https://map.earthmc.net/*", "https://aurora.earthmc.net/*"], resources: ["resources/map-mode-default.png", "resources/map-mode-alliances.png", "resources/map-mode-meganations.png", "resources/map-mode-overclaim.png", "resources/map-mode-nationclaims.png", "resources/interceptor.js", "resources/borders.json"] }], content_scripts: [{ matches: ["https://map.earthmc.net/*", "https://aurora.earthmc.net/*"], css: ["resources/style.css"], js: ["src/httputil.js", "src/dom.js", "src/screenshot.js", "src/modeselector.js", "src/menu.js", "src/main.js", "src/entrypoint.js"] }] };
+var define_MANIFEST_default = { manifest_version: 3, name: "EarthMC Dynmap+ (Owen3H Fork)", version: "2.1.1", author: "3meraldK", description: "Extension to enrich the EarthMC map experience", icons: { "48": "resources/icon48.png", "128": "resources/icon128.png" }, web_accessible_resources: [{ run_at: "document_idle", matches: ["https://map.earthmc.net/*", "https://aurora.earthmc.net/*"], resources: ["resources/map-mode-default.png", "resources/map-mode-alliances.png", "resources/map-mode-meganations.png", "resources/map-mode-overclaim.png", "resources/map-mode-nationclaims.png", "resources/interceptor.js", "resources/borders.json"] }], content_scripts: [{ matches: ["https://map.earthmc.net/*", "https://aurora.earthmc.net/*"], css: ["resources/style.css"], js: ["src/httputil.js", "src/dom.js", "src/screenshot.js", "src/modeselector.js", "src/menu.js", "src/main.js", "src/entrypoint.js"] }] };
 
 // src/entrypoint.js
 function isUserscript() {
@@ -1753,7 +1761,7 @@ async function init(manifest) {
 	position: relative;\r
 	cursor: pointer;\r
 	font-size: medium;\r
-	bottom: 8px;\r
+	bottom: 9px;\r
 	left: calc(var(--player-lookup-width) - 19px);\r
 	padding-top: 1.5px;\r
 	padding-bottom: 2px;\r
@@ -2056,6 +2064,13 @@ fieldset#players > a:hover {\r
 \r
 .leaflet-popup {\r
 	backdrop-filter: blur(2px);\r
+}\r
+\r
+.leaflet-marker-pane img[src*="capital_icon.png"] {\r
+	width: 25px !important;\r
+	height: 25px !important;\r
+	margin-left: -12.5px !important;\r
+	margin-top: -12.5px !important;\r
 }\r
 \r
 /* Make coords easier to read and nicer to look at */\r

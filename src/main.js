@@ -197,8 +197,9 @@ async function modifyMarkers(data) {
     }
 
 	if (mapMode == MapMode.OVERCLAIM && cachedApiNations == null) {
-		const nlist = await fetchJSON(`${currentMapApiUrl()}/nations`)
-		const apiNations = await queryConcurrent(`${OAPI_BASE}/nations`, nlist)
+		const url = `${currentMapApiUrl()}/nations`
+		const nlist = await fetchJSON(url) // GET
+		const apiNations = await queryConcurrent(url, nlist) // POST
 		cachedApiNations = new Map(apiNations.map(n => [n.name.toLowerCase(), n]))
 	}
 

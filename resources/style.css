@@ -508,6 +508,13 @@ fieldset#players > a:hover {
 	backdrop-filter: blur(2px);
 }
 
+.leaflet-marker-pane img[src*="capital_icon.png"] {
+	width: 25px !important;
+	height: 25px !important;
+	margin-left: -12.5px !important;
+	margin-top: -12.5px !important;
+}
+
 /* Make coords easier to read and nicer to look at */
 .leaflet-control-layers.coordinates {
 	font-family: "Inter", 'Open Sans', sans-serif;

@@ -156,8 +156,17 @@ function togglePlayerList(boxTicked) {
 /** @param {boolean} boxTicked */
 function toggleShowCapitalStars(boxTicked) {
 	localStorage['emcdynmapplus-capital-stars'] = boxTicked
-	const iconContainer = document.querySelector('.leaflet-pane.leaflet-marker-pane')
-	iconContainer.setAttribute('style', `visibility: ${boxTicked ? 'visible' : 'hidden'}`)
+
+	const pane = document.querySelector('.leaflet-pane.leaflet-marker-pane')
+	if (!pane) return
+
+	const imgs = pane.querySelectorAll('img')
+	for (const img of imgs) {
+		const src = img.getAttribute('src') || ''
+		if (src.endsWith('towny_capital_icon.png') || src.includes("capital_icon.png")) {
+			img.style.visibility = boxTicked ? 'visible' : 'hidden'
+		}
+	}
 }
 
 //#region Dark Mode
