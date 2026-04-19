@@ -2,7 +2,13 @@
 //console.log('emcdynmapplus: loaded httputil')
 
 const PROJECT_URL = `https://github.com/3meraldK/earthmc-dynmap`
-const PROXY_URL = `https://proxy.killcors.com/?url=`
+const PROXY_URLS = [
+	`https://api.codetabs.com/v1/proxy/?quest=`, // Main proxy
+	`https://everyorigin.jwvbremen.nl/get?url=`, // Fallback #1
+	`https://proxy.corsfix.com`,				 // Fallback #2
+	`https://api.cors.lol/?url=`,				 // Fallback #3
+	`https://proxy.killcors.com/?url=`			 // Fallback #4
+]
 
 const EMC_DOMAIN = "earthmc.net"
 const CURRENT_MAP = location.href.includes('aurora') ? "aurora" : "nostra"
@@ -113,17 +119,25 @@ const fetchServerInfo = async () => fetchJSON(currentMapApiUrl())
  * Fetches an archived markers.json from the Wayback Machine at the given date.
  * The markers URL is automatically determined by the date since it changed multiple times over the years.
  * @param {number} date 
- * @param {string} markersURL 
+ * @param {string} markersURL
  */
 const fetchArchive = async date => {
-	// markers.json URL changed over time
-	const markersURL = 
-		date < 20230212 ? "https://earthmc.net/map/aurora/tiles/_markers_/marker_earth.json" :
-		date < 20240701 ? "https://earthmc.net/map/aurora/standalone/MySQL_markers.php?marker=_markers_/marker_earth.json" :
-		"https://map.earthmc.net/tiles/minecraft_overworld/markers.json" // latest
+	const markersURL = // markers.json URL changed over time
+		date < 20230212 ? `https://earthmc.net/map/aurora/tiles/_markers_/marker_earth.json` :
+		date < 20240701 ? `https://earthmc.net/map/aurora/standalone/MySQL_markers.php?marker=_markers_/marker_earth.json` :
+		`https://map.earthmc.net/tiles/minecraft_overworld/markers.json` // latest
 
 	const archiveURL = `https://web.archive.org/web/${date}id_/${markersURL}`
-	return fetchJSON(PROXY_URL + archiveURL)
+	for (const proxyUrl of PROXY_URLS) {
+		try {
+			const res = await fetch(proxyUrl + archiveURL)
+			if (!res.ok) continue
+
+			return await res.json()
+		} catch {}
+	}
+
+	throw new Error(`Could not fetch archive! All ${PROXY_URLS.length} proxies failed :(`)
 }
 
 /**

@@ -208,7 +208,7 @@ async function modifyMarkers(data) {
 	
 	// Get current local storage values
 	const date = archiveDate()
-	const isSquaremap = mapMode != 'archive' || date >= 20240701
+	const isSquaremap = mapMode != MapMode.ARCHIVE || date >= 20240701
 
 	const claimsCustomizerInfo = new Map(nationClaimsInfo()
 		.filter(obj => obj.input != null)
@@ -715,31 +715,35 @@ function getNationAlliances(nationName, mapMode) {
 
 /** @param {Object} markers - The old markers response JSON data */
 async function getArchive(data) {
-	const loadingAlert = showAlert('Loading archive, please wait...')
+	const loadingAlert = showAlert('Loading archive, please wait...', 10)
 	const date = archiveDate()
 
-	const archive = await fetchArchive(date)
-	if (!archive) return showAlert('Archive service is currently unavailable, please try later.')
+	try {
+		const archive = await fetchArchive(date)
 
-	let actualArchiveDate // Structure of markers.json changed at some point
-	if (date < 20240701) {
-		data[0].markers = convertOldMarkersStructure(archive.sets['townyPlugin.markerset'])
-		actualArchiveDate = archive.timestamp
-	} else {
-		data = archive
-		actualArchiveDate = archive[0].timestamp
+		let actualArchiveDate // Structure of markers.json changed at some point
+		if (date < 20240701) {
+			data[0].markers = convertOldMarkersStructure(archive.sets['townyPlugin.markerset'])
+			actualArchiveDate = archive.timestamp
+		} else {
+			data = archive
+			actualArchiveDate = archive[0].timestamp
+		}
+
+		// THIS HAS TO BE EN-CA SO REPLACING DASHES WORKS TO MATCH STORED DATE
+		actualArchiveDate = new Date(parseInt(actualArchiveDate)).toLocaleDateString('en-ca')
+		document.querySelector('#current-map-mode-label').textContent += ` (${actualArchiveDate})`
+		
+		loadingAlert.remove()
+		if (actualArchiveDate.replaceAll('-', '') != date) {
+			showAlert(`The closest archive to your prompt comes from ${actualArchiveDate}.`)
+		}
+
+		return data
+	} catch (e) {
+		console.error(e)
+		return showAlert('Archive service is currently unavailable, please try later.', 5)
 	}
-
-	// THIS HAS TO BE EN-CA SO REPLACING DASHES WORKS TO MATCH STORED DATE
-	actualArchiveDate = new Date(parseInt(actualArchiveDate)).toLocaleDateString('en-ca')
-	document.querySelector('#current-map-mode-label').textContent += ` (${actualArchiveDate})`
-	
-	loadingAlert.remove()
-	if (actualArchiveDate.replaceAll('-', '') != date) {
-		showAlert(`The closest archive to your prompt comes from ${actualArchiveDate}.`)
-	}
-
-	return data
 }
 
 /** @param {Object} markerset - The towny markerset of the old markers response JSON data */
