@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name        EarthMC Dynmap+ (Owen3H Fork)
-// @version     2.1.1
+// @version     2.1.2
 // @description Extension to enrich the EarthMC map experience
 // @author      3meraldK
 // @include     https://map.earthmc.net/*
@@ -93,7 +93,18 @@ var __privateMethod = (obj, member, method) => (__accessCheck(obj, member, "acce
 // src/httputil.js
 var _TokenBucket_instances, save_fn;
 var PROJECT_URL = `https://github.com/3meraldK/earthmc-dynmap`;
-var PROXY_URL = `https://proxy.killcors.com/?url=`;
+var PROXY_URLS = [
+  `https://api.codetabs.com/v1/proxy/?quest=`,
+  // Main proxy
+  `https://everyorigin.jwvbremen.nl/get?url=`,
+  // Fallback #1
+  `https://proxy.corsfix.com`,
+  // Fallback #2
+  `https://api.cors.lol/?url=`,
+  // Fallback #3
+  `https://proxy.killcors.com/?url=`
+  // Fallback #4
+];
 var EMC_DOMAIN = "earthmc.net";
 var CURRENT_MAP = location.href.includes("aurora") ? "aurora" : "nostra";
 var CAPI_BASE = `https://emcstats.bot.nu`;
@@ -163,9 +174,20 @@ async function fetchJSON(url, options = null) {
 var postJSON = (url, body) => fetchJSON(url, { body: JSON.stringify(body), method: "POST" });
 var fetchServerInfo = async () => fetchJSON(currentMapApiUrl());
 var fetchArchive = async (date) => {
-  const markersURL = date < 20230212 ? "https://earthmc.net/map/aurora/tiles/_markers_/marker_earth.json" : date < 20240701 ? "https://earthmc.net/map/aurora/standalone/MySQL_markers.php?marker=_markers_/marker_earth.json" : "https://map.earthmc.net/tiles/minecraft_overworld/markers.json";
+  const markersURL = (
+    // markers.json URL changed over time
+    date < 20230212 ? `https://earthmc.net/map/aurora/tiles/_markers_/marker_earth.json` : date < 20240701 ? `https://earthmc.net/map/aurora/standalone/MySQL_markers.php?marker=_markers_/marker_earth.json` : `https://map.earthmc.net/tiles/minecraft_overworld/markers.json`
+  );
   const archiveURL = `https://web.archive.org/web/${date}id_/${markersURL}`;
-  return fetchJSON(PROXY_URL + archiveURL);
+  for (const proxyUrl of PROXY_URLS) {
+    try {
+      const res = await fetch(proxyUrl + archiveURL);
+      if (!res.ok) continue;
+      return await res.json();
+    } catch {
+    }
+  }
+  throw new Error(`Could not fetch archive! All ${PROXY_URLS.length} proxies failed :(`);
 };
 async function queryConcurrent(url, arr) {
   const chunks = chunkArr(arr, OAPI_ITEMS_PER_REQ);
@@ -1146,7 +1168,7 @@ async function modifyMarkers(data) {
     cachedApiNations = new Map(apiNations.map((n) => [n.name.toLowerCase(), n]));
   }
   const date = archiveDate();
-  const isSquaremap = mapMode != "archive" || date >= 20240701;
+  const isSquaremap = mapMode != MapMode.ARCHIVE || date >= 20240701;
   const claimsCustomizerInfo = new Map(
     nationClaimsInfo().filter((obj) => obj.input != null).map((obj) => [obj.input?.toLowerCase(), obj.color])
   );
@@ -1444,25 +1466,29 @@ function getNationAlliances(nationName, mapMode) {
   return nationAlliances;
 }
 async function getArchive(data) {
-  const loadingAlert = showAlert("Loading archive, please wait...");
+  const loadingAlert = showAlert("Loading archive, please wait...", 10);
   const date = archiveDate();
-  const archive = await fetchArchive(date);
-  if (!archive) return showAlert("Archive service is currently unavailable, please try later.");
-  let actualArchiveDate;
-  if (date < 20240701) {
-    data[0].markers = convertOldMarkersStructure(archive.sets["townyPlugin.markerset"]);
-    actualArchiveDate = archive.timestamp;
-  } else {
-    data = archive;
-    actualArchiveDate = archive[0].timestamp;
+  try {
+    const archive = await fetchArchive(date);
+    let actualArchiveDate;
+    if (date < 20240701) {
+      data[0].markers = convertOldMarkersStructure(archive.sets["townyPlugin.markerset"]);
+      actualArchiveDate = archive.timestamp;
+    } else {
+      data = archive;
+      actualArchiveDate = archive[0].timestamp;
+    }
+    actualArchiveDate = new Date(parseInt(actualArchiveDate)).toLocaleDateString("en-ca");
+    document.querySelector("#current-map-mode-label").textContent += ` (${actualArchiveDate})`;
+    loadingAlert.remove();
+    if (actualArchiveDate.replaceAll("-", "") != date) {
+      showAlert(`The closest archive to your prompt comes from ${actualArchiveDate}.`);
+    }
+    return data;
+  } catch (e) {
+    console.error(e);
+    return showAlert("Archive service is currently unavailable, please try later.", 5);
   }
-  actualArchiveDate = new Date(parseInt(actualArchiveDate)).toLocaleDateString("en-ca");
-  document.querySelector("#current-map-mode-label").textContent += ` (${actualArchiveDate})`;
-  loadingAlert.remove();
-  if (actualArchiveDate.replaceAll("-", "") != date) {
-    showAlert(`The closest archive to your prompt comes from ${actualArchiveDate}.`);
-  }
-  return data;
 }
 function convertOldMarkersStructure(markerset) {
   return Object.entries(markerset.areas).filter(([key]) => !key.includes("_Shop")).map(([_, v]) => ({
@@ -1512,7 +1538,7 @@ function millerProjection(z) {
 }
 
 // <define:MANIFEST>
-var define_MANIFEST_default = { manifest_version: 3, name: "EarthMC Dynmap+ (Owen3H Fork)", version: "2.1.1", author: "3meraldK", description: "Extension to enrich the EarthMC map experience", icons: { "48": "resources/icon48.png", "128": "resources/icon128.png" }, web_accessible_resources: [{ run_at: "document_idle", matches: ["https://map.earthmc.net/*", "https://aurora.earthmc.net/*"], resources: ["resources/map-mode-default.png", "resources/map-mode-alliances.png", "resources/map-mode-meganations.png", "resources/map-mode-overclaim.png", "resources/map-mode-nationclaims.png", "resources/interceptor.js", "resources/borders.json"] }], content_scripts: [{ matches: ["https://map.earthmc.net/*", "https://aurora.earthmc.net/*"], css: ["resources/style.css"], js: ["src/httputil.js", "src/dom.js", "src/screenshot.js", "src/modeselector.js", "src/menu.js", "src/main.js", "src/entrypoint.js"] }] };
+var define_MANIFEST_default = { manifest_version: 3, name: "EarthMC Dynmap+ (Owen3H Fork)", version: "2.1.2", author: "3meraldK", description: "Extension to enrich the EarthMC map experience", icons: { "48": "resources/icon48.png", "128": "resources/icon128.png" }, web_accessible_resources: [{ run_at: "document_idle", matches: ["https://map.earthmc.net/*", "https://aurora.earthmc.net/*"], resources: ["resources/map-mode-default.png", "resources/map-mode-alliances.png", "resources/map-mode-meganations.png", "resources/map-mode-overclaim.png", "resources/map-mode-nationclaims.png", "resources/interceptor.js", "resources/borders.json"] }], content_scripts: [{ matches: ["https://map.earthmc.net/*", "https://aurora.earthmc.net/*"], css: ["resources/style.css"], js: ["src/httputil.js", "src/dom.js", "src/screenshot.js", "src/modeselector.js", "src/menu.js", "src/main.js", "src/entrypoint.js"] }] };
 
 // src/entrypoint.js
 function isUserscript() {
