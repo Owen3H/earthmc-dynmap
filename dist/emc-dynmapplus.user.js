@@ -1142,9 +1142,7 @@ var makePolyline = (linePoints, weight = 1, colour = "#ffffff") => ({
 });
 async function modifyMarkers(data) {
   const mapMode = currentMapMode();
-  if (mapMode == MapMode.ARCHIVE) {
-    data = await getArchive(data);
-  }
+  console.log(`Modifying markers according to current map mode: ${mapMode.name}`);
   const borders = isUserscript() ? define_BORDERS_default : await fetch(GM_getResourceURL("resources/borders.json")).then((r) => r.json());
   if (!borders) showAlert("An unexpected error occurred fetching the borders resource file.");
   else {
@@ -1152,6 +1150,9 @@ async function modifyMarkers(data) {
       borders[key] = { ...borders[key], ...EXTRA_BORDER_OPTS };
     }
     addCountryBordersLayer(data, borders);
+  }
+  if (mapMode == MapMode.ARCHIVE) {
+    data = await getArchive(data);
   }
   if (!data?.[0]?.markers?.length) {
     showAlert("Unexpected error occurred while loading the map, EarthMC may be down. Try again later.");
@@ -1321,11 +1322,11 @@ function colorTown(rawMarker, parsedMarker, mapMode) {
   const isRuin = !!mayor?.match(/NPC[0-9]+/);
   if (isRuin) return colorMarker(rawMarker, "#000000", "#000000");
   const { nationName } = parsedMarker;
-  if (mapMode.name == "meganations") {
+  if (mapMode == MapMode.MEGANATIONS) {
     const isDefaultCol = rawMarker.color == DEFAULT_BLUE && rawMarker.fillColor == DEFAULT_BLUE;
     rawMarker.color = isDefaultCol ? "#363636" : DEFAULT_GREEN;
     rawMarker.fillColor = isDefaultCol ? hashCode(nationName) : rawMarker.fillColor;
-  } else if (mapMode.name == "overclaim") {
+  } else if (mapMode == MapMode.OVERCLAIM) {
     const nation = nationName ? cachedApiNations.get(nationName.toLowerCase()) : null;
     const overclaimInfo = !nation ? checkOverclaimedNationless(parsedMarker.area, parsedMarker.residentNum) : checkOverclaimed(parsedMarker.area, parsedMarker.residentNum, nation.stats.numResidents);
     const colour = overclaimInfo.isOverclaimed ? "#ff0000" : "#00ff00";
@@ -1438,15 +1439,15 @@ async function getAlliances() {
     childrenByParent.set(a.parentAlliance, arr);
   }
   const allianceData = [];
-  for (const alliance of alliances) {
-    const allianceType = alliance.type?.toLowerCase() || "mega";
-    const children = childrenByParent.get(alliance.identifier) || [];
-    const puppetNations = children.flatMap((a) => a.ownNations || []);
-    const ownNations = alliance.ownNations || [];
+  for (const a of alliances) {
+    const allianceType = a.type?.toLowerCase() || "mega";
+    const children = childrenByParent.get(a.identifier) || [];
+    const puppetNations = children.flatMap((a2) => a2.ownNations || []);
+    const ownNations = a.ownNations || [];
     allianceData.push({
-      name: alliance.label || alliance.identifier,
+      name: a.label || a.identifier,
       modeType: allianceType == "mega" ? "meganations" : "alliances",
-      colours: parseColours(alliance.optional.colours),
+      colours: parseColours(a.optional.colours),
       ownNations,
       puppetNations,
       _nationSet: /* @__PURE__ */ new Set([...ownNations, ...puppetNations])
@@ -1459,7 +1460,7 @@ function getNationAlliances(nationName, mapMode) {
   if (cachedAlliances == null) return [];
   const nationAlliances = [];
   for (const alliance of cachedAlliances) {
-    if (alliance.modeType != mapMode) continue;
+    if (alliance.modeType != mapMode.name) continue;
     if (!alliance._nationSet.has(nationName)) continue;
     nationAlliances.push({ name: alliance.name, colours: alliance.colours });
   }
@@ -2159,16 +2160,11 @@ div.leaflet-control-layers.screenshot img {\r
   checkForUpdate(manifest);
 }
 function checkForUpdate(manifest) {
-  const cachedVer = localStorage["emcdynmapplus-version"];
   const latestVer = manifest.version;
+  const cachedVer = localStorage["emcdynmapplus-version"];
   console.log("emcdynmapplus: current version is: " + latestVer);
-  if (!cachedVer) return localStorage["emcdynmapplus-version"] = latestVer;
-  if (cachedVer != latestVer) {
-    const changelogURL = `${PROJECT_URL}/releases/v${latestVer}`;
-    showAlert(`
-            Extension has been automatically updated from ${cachedVer} to ${latestVer}. 
-            Read what has been changed <a href="${changelogURL}" target="_blank">here</a>.
-        `);
+  if (cachedVer && cachedVer !== latestVer) {
+    showAlert(`Extension has been automatically updated from v${cachedVer} to v${latestVer}.`);
   }
   return localStorage["emcdynmapplus-version"] = latestVer;
 }
