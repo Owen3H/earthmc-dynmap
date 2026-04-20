@@ -173,9 +173,7 @@ const makePolyline = (linePoints, weight = 1, colour = '#ffffff') => ({
  */
 async function modifyMarkers(data) {
 	const mapMode = currentMapMode()
-	if (mapMode == MapMode.ARCHIVE) {
-		data = await getArchive(data)
-	}
+	console.log(`Modifying markers according to current map mode: ${mapMode.name}`)
 
 	const borders = isUserscript() ? BORDERS : await fetch(chrome.runtime.getURL('resources/borders.json')).then(r => r.json())
 	if (!borders) showAlert("An unexpected error occurred fetching the borders resource file.")
@@ -184,6 +182,10 @@ async function modifyMarkers(data) {
 			borders[key] = { ...borders[key], ...EXTRA_BORDER_OPTS }
 		}
 		addCountryBordersLayer(data, borders)
+	}
+
+	if (mapMode == MapMode.ARCHIVE) {
+		data = await getArchive(data)
 	}
 
 	if (!data?.[0]?.markers?.length) {
@@ -490,12 +492,12 @@ function colorTown(rawMarker, parsedMarker, mapMode) {
 
 	const { nationName } = parsedMarker
 
-	if (mapMode.name == 'meganations') {
+	if (mapMode == MapMode.MEGANATIONS) {
 		const isDefaultCol = rawMarker.color == DEFAULT_BLUE && rawMarker.fillColor == DEFAULT_BLUE
 		rawMarker.color = isDefaultCol ? '#363636' : DEFAULT_GREEN
 		rawMarker.fillColor = isDefaultCol ? hashCode(nationName) : rawMarker.fillColor
 	}
-	else if (mapMode.name == 'overclaim') {
+	else if (mapMode == MapMode.OVERCLAIM) {
 		const nation = nationName ? cachedApiNations.get(nationName.toLowerCase()) : null
 		const overclaimInfo = !nation
 			? checkOverclaimedNationless(parsedMarker.area, parsedMarker.residentNum)
