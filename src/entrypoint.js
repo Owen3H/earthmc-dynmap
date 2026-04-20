@@ -89,17 +89,12 @@ async function init(manifest) {
 
 /** @param {Manifest} manifest */
 function checkForUpdate(manifest) {
-    const cachedVer = localStorage['emcdynmapplus-version']
     const latestVer = manifest.version
-    console.log("emcdynmapplus: current version is: " + latestVer)
-
-    if (!cachedVer) return localStorage['emcdynmapplus-version'] = latestVer
-    if (cachedVer != latestVer) {
-        const changelogURL = `${PROJECT_URL}/releases/v${latestVer}`
-        showAlert(`
-            Extension has been automatically updated from ${cachedVer} to ${latestVer}. 
-            Read what has been changed <a href="${changelogURL}" target="_blank">here</a>.
-        `)
+    const cachedVer = localStorage['emcdynmapplus-version']
+	
+	console.log("emcdynmapplus: current version is: " + latestVer)
+    if (cachedVer && cachedVer !== latestVer) {
+        showAlert(`Extension has been automatically updated from v${cachedVer} to v${latestVer}.`)
     }
 
     return localStorage['emcdynmapplus-version'] = latestVer
