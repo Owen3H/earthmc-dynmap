@@ -674,18 +674,18 @@ async function getAlliances() {
 
 	/** @type {Array<Alliance>} */
 	const allianceData = []
-	for (const alliance of alliances) {
-		const allianceType = alliance.type?.toLowerCase() || 'mega'
+	for (const a of alliances) {
+		const allianceType = a.type?.toLowerCase() || 'mega'
 		//if (alliance.parentAlliance) continue // this is a child alliance, skip it
 
-		const children = childrenByParent.get(alliance.identifier) || []
+		const children = childrenByParent.get(a.identifier) || []
 		const puppetNations = children.flatMap(a => a.ownNations || [])
-		const ownNations = alliance.ownNations || []
+		const ownNations = a.ownNations || []
 
 		allianceData.push({
-			name: alliance.label || alliance.identifier,
+			name: a.label || a.identifier,
 			modeType: allianceType == 'mega' ? 'meganations' : 'alliances',
-			colours: parseColours(alliance.optional.colours),
+			colours: parseColours(a.optional.colours),
 			ownNations, puppetNations,
 			_nationSet: new Set([...ownNations, ...puppetNations])
 		})
@@ -706,7 +706,7 @@ function getNationAlliances(nationName, mapMode) {
 	/** @type {Array<{name: string, colours: AllianceColours}>} */
 	const nationAlliances = []
 	for (const alliance of cachedAlliances) {
-		if (alliance.modeType != mapMode) continue
+		if (alliance.modeType != mapMode.name) continue
 		if (!alliance._nationSet.has(nationName)) continue
 
 		nationAlliances.push({ name: alliance.name, colours: alliance.colours })
