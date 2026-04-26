@@ -42,7 +42,7 @@ function addMapModeSelector(parent) {
     label.textContent = `Map Mode: ${curMode.name}`
 }
 
-const GITHUB_REPO = "https://raw.githubusercontent.com/Owen3H/earthmc-dynmap/refs/heads/main/"
+const GITHUB_REPO = "https://raw.githubusercontent.com/EarthMC-Toolkit/earthmc-dynmap/refs/heads/main/"
 
 /**
  * Adds a map mode button to its parent container div using its img/icon and btn handler.

@@ -1,4 +1,4 @@
-![Release](https://img.shields.io/github/v/release/3meraldK/earthmc-dynmap) ![Repo size](https://img.shields.io/github/repo-size/Owen3H/earthmc-dynmap) ![Downloads](https://img.shields.io/github/downloads/3meraldK/earthmc-dynmap/total)
+![Release](https://img.shields.io/github/v/release/3meraldK/earthmc-dynmap) ![Repo size](https://img.shields.io/github/repo-size/EarthMC-Toolkit/earthmc-dynmap) ![Downloads](https://img.shields.io/github/downloads/3meraldK/earthmc-dynmap/total)
 
 > [!IMPORTANT]
 > This fork is based on the original **earthmc-dynmap+** project by **3meraldK**, all credit goes to them!\
