@@ -1,12 +1,12 @@
 // ==UserScript==
 // @name        EarthMC Dynmap+ (Owen3H Fork)
-// @version     2.1.3
+// @version     2.1.4
 // @description Extension to enrich the EarthMC map experience
 // @author      3meraldK
 // @include     https://map.earthmc.net/*
 // @include     https://aurora.earthmc.net/*
-// @icon        https://raw.githubusercontent.com/Owen3H/earthmc-dynmap/main/resources/icon48.png
-// @downloadURL https://raw.githubusercontent.com/Owen3H/earthmc-dynmap/main/dist/emc-dynmapplus.user.js
+// @icon        https://raw.githubusercontent.com/EarthMC-Toolkit/earthmc-dynmap/main/resources/icon48.png
+// @downloadURL https://raw.githubusercontent.com/EarthMC-Toolkit/earthmc-dynmap/main/dist/emc-dynmapplus.user.js
 // @grant       GM_addStyle
 // ==/UserScript==
 
@@ -770,7 +770,7 @@ function addMapModeSelector(parent) {
   const curMode = currentMapMode();
   label.textContent = `Map Mode: ${curMode.name}`;
 }
-var GITHUB_REPO = "https://raw.githubusercontent.com/Owen3H/earthmc-dynmap/refs/heads/main/";
+var GITHUB_REPO = "https://raw.githubusercontent.com/EarthMC-Toolkit/earthmc-dynmap/refs/heads/main/";
 function addMapModeBtn(iconContainer, mode, clickHandler = null) {
   const button = addElement(iconContainer, INSERTABLE_HTML.mapMode.btnOption);
   addElement(button, `<img title="${mode.name}" alt="${mode.name}" src="${GITHUB_REPO + mode.img}">`);
@@ -1539,7 +1539,7 @@ function millerProjection(z) {
 }
 
 // <define:MANIFEST>
-var define_MANIFEST_default = { manifest_version: 3, name: "EarthMC Dynmap+ (Owen3H Fork)", version: "2.1.3", author: "3meraldK", description: "Extension to enrich the EarthMC map experience", icons: { "48": "resources/icon48.png", "128": "resources/icon128.png" }, web_accessible_resources: [{ run_at: "document_idle", matches: ["https://map.earthmc.net/*", "https://aurora.earthmc.net/*"], resources: ["resources/map-mode-default.png", "resources/map-mode-alliances.png", "resources/map-mode-meganations.png", "resources/map-mode-overclaim.png", "resources/map-mode-nationclaims.png", "resources/interceptor.js", "resources/borders.json"] }], content_scripts: [{ matches: ["https://map.earthmc.net/*", "https://aurora.earthmc.net/*"], css: ["resources/style.css"], js: ["src/httputil.js", "src/dom.js", "src/screenshot.js", "src/modeselector.js", "src/menu.js", "src/main.js", "src/entrypoint.js"] }] };
+var define_MANIFEST_default = { manifest_version: 3, name: "EarthMC Dynmap+ (Owen3H Fork)", version: "2.1.4", author: "3meraldK", description: "Extension to enrich the EarthMC map experience", icons: { "48": "resources/icon48.png", "128": "resources/icon128.png" }, web_accessible_resources: [{ run_at: "document_idle", matches: ["https://map.earthmc.net/*", "https://aurora.earthmc.net/*"], resources: ["resources/map-mode-default.png", "resources/map-mode-alliances.png", "resources/map-mode-meganations.png", "resources/map-mode-overclaim.png", "resources/map-mode-nationclaims.png", "resources/interceptor.js", "resources/borders.json"] }], content_scripts: [{ matches: ["https://map.earthmc.net/*", "https://aurora.earthmc.net/*"], css: ["resources/style.css"], js: ["src/httputil.js", "src/dom.js", "src/screenshot.js", "src/modeselector.js", "src/menu.js", "src/main.js", "src/entrypoint.js"] }] };
 
 // src/entrypoint.js
 function isUserscript() {
@@ -1589,9 +1589,9 @@ async function init(manifest) {
 	--player-lookup-width: 190px;\r
 	--yellow-colour: #b58a3f;\r
 	/** TODO: Make these more robust. Probably not my best idea */\r
-	--screenshot-bg-image: url("https://raw.githubusercontent.com/Owen3H/earthmc-dynmap/refs/heads/main/resources/icon-screenshot.png");\r
-	--show-icon: url("https://raw.githubusercontent.com/Owen3H/earthmc-dynmap/refs/heads/main/resources/icon-show.png");\r
-	--hide-icon: url("https://raw.githubusercontent.com/Owen3H/earthmc-dynmap/refs/heads/main/resources/icon-hide.png");\r
+	--screenshot-bg-image: url("https://raw.githubusercontent.com/EarthMC-Toolkit/earthmc-dynmap/refs/heads/main/resources/icon-screenshot.png");\r
+	--show-icon: url("https://raw.githubusercontent.com/EarthMC-Toolkit/earthmc-dynmap/refs/heads/main/resources/icon-show.png");\r
+	--hide-icon: url("https://raw.githubusercontent.com/EarthMC-Toolkit/earthmc-dynmap/refs/heads/main/resources/icon-hide.png");\r
 }\r
 \r
 /* Onscreen extension menu */\r
