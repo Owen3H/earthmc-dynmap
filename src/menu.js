@@ -163,9 +163,9 @@ function toggleShowCapitalStars(boxTicked) {
 	const imgs = pane.querySelectorAll('img')
 	for (const img of imgs) {
 		const src = img.getAttribute('src') || ''
-		if (src.endsWith('towny_capital_icon.png') || src.includes("capital_icon.png")) {
-			img.style.visibility = boxTicked ? 'visible' : 'hidden'
-		}
+		if (!src.endsWith('towny_capital_icon.png')) continue
+		
+		img.style.visibility = boxTicked ? 'visible' : 'hidden'
 	}
 }
 
