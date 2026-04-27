@@ -43,7 +43,8 @@ const INSERTABLE_HTML = /** @type {const} */ ({
 		'<div class="leaflet-control-layers link leaflet-control"><a href=""><img class="crisp-edges" src="images/clear.png"></a></div>' +
 		'</div>',
 	serverInfo: '<div class="leaflet-control-layers leaflet-control" id="server-info"></div>',
-    menu: '<div class="leaflet-control-layers leaflet-control" id="menu"></div>',
+	menuHeader: `<div id="menu-header" class="menu-header">EarthMC Dynmap+<span id="menu-arrow">▼</span></div>`,
+	menu: '<div class="leaflet-control-layers leaflet-control" id="menu"></div>',
     menuOption: '<div class="menu-option"></div>',
     locateMenu: '<div id="locate-menu"></div>',
 	locateInput: '<input class="menu-input-option" id="locate-input" placeholder="London">',
@@ -401,7 +402,7 @@ function insertServerInfoPanel() {
 function insertExtensionMenu() {
     return waitForElement('.leaflet-top.leaflet-left').then(el => {
         disablePanAndZoom(el)
-        return addMainMenu(el)
+        return addExtensionMenu(el)
     })
 }
 

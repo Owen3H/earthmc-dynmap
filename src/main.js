@@ -205,9 +205,6 @@ async function modifyMarkers(data) {
 		cachedApiNations = new Map(apiNations.map(n => [n.name.toLowerCase(), n]))
 	}
 
-	// The map now has this natively. Uncomment if they ever take it away again.
-	// addChunksLayer(data)
-	
 	// Get current local storage values
 	const date = archiveDate()
 	const isSquaremap = mapMode != MapMode.ARCHIVE || date >= 20240701
@@ -250,55 +247,42 @@ async function modifyMarkers(data) {
 	return data
 }
 
-/** @param {MarkersResponse} data - The markers response JSON data. */
-// function addChunksLayer(data) {
-// 	const { L, R, U, D } = BORDER_CHUNK_COORDS
+const isAurora = CURRENT_MAP === 'aurora'
 
-// 	/** @param {number} x */
-// 	const ver = (x) => [{ x, z: U }, { x, z: D }, { x, z: U }]
-// 	/** @param {number} z */
-// 	const hor = (z) => [{ x: L, z }, { x: R, z }, { x: L, z }]
+// Hand-picked constants
+// 1.94 is how many times Nostra's map is horizontally bigger than Aurora's
+const SCALE_X = isAurora ? 1.0015 : 1.94133 // Aurora is slightly stretched horizontally
+const MOVE_DOWN = isAurora ? 0 : 8175 // How much to move the layer down by
+const MOVE_RIGHT = isAurora ? 0 : 382.5 // How much to move the layer right by
 
-// 	/** @type {MarkerPoints} */
-// 	const chunkLines = []
-// 	for (let x = L; x <= R; x += 16) chunkLines.push(ver(x))
-// 	for (let z = U; z <= D; z += 16) chunkLines.push(hor(z))
-
-// 	data.push({
-// 		'name': 'Chunks',
-// 		'id': 'chunks',
-// 		'hide': true,
-// 		'control': true,
-// 		'markers': [makePolyline(chunkLines, 0.33, '#000000')]
-// 	})
-// }
+/**
+ * Projects the Z coordinate for the current map.
+ * Aurora uses raw coordinates (borders are Plate Carree), while Nostra uses Miller projection.
+ * @param {number} z
+ * @returns {number}
+ */
+const projectZ = z => isAurora ? z : millerProjection(z) + MOVE_DOWN
 
 /**
  * @param {MarkersResponse} data - The markers response JSON data.
  * @param {Object} borders - The borders JSON data.
  */
 function addCountryBordersLayer(data, borders) {
+	const isAurora = CURRENT_MAP == 'aurora'
 	try {
-		const isAurora = CURRENT_MAP == 'aurora'
 		const points = Object.keys(borders).map(country => {
 			/** @type {Polygon} */
 			const countryPoly = []
 			const line = borders[country]
 			for (let i = 0; i < line.x.length; i++) {
-				if (!isNumeric(line.x[i])) continue
+				const xCoord = line.x[i]
+				if (!isNumeric(xCoord)) continue
 
-				// Hand-picked constants
-				// 1.94 is how many times Nostra map horizontally bigger is than Aurora's
-				// 382.5 is to how much to move layer to right by
-				// 8175 ... same as above but move down
-				// 1.0015 is a horizontal adjustment for Aurora map
-				countryPoly.push(isAurora ? {
-					x: line.x[i] * 1.0015, 
-					z: line.z[i] 
-				} : {
-					x: line.x[i] * 1.94133 + 382.5, 
-					z: millerProjection(line.z[i]) + 8175
-				} )
+				const zCoord = line.z[i]
+				countryPoly.push(isAurora ? { x: xCoord * SCALE_X, z: zCoord } : {
+					x: xCoord * SCALE_X + MOVE_RIGHT,
+					z: millerProjection(zCoord) + MOVE_DOWN
+				})
 			}
 
 			return countryPoly
@@ -785,9 +769,9 @@ function checkOverclaimedNationless(claimedChunks, numResidents) {
  * @param {number} numNationResidents
  */
 function checkOverclaimed(claimedChunks, numResidents, numNationResidents) {
-    const resLimit = numResidents * CHUNKS_PER_RES
-	
 	const bonus = auroraNationBonus(numNationResidents)
+
+    const resLimit = numResidents * CHUNKS_PER_RES
     const totalClaimLimit = resLimit + bonus
     const isOverclaimed = claimedChunks > totalClaimLimit
 	
@@ -800,32 +784,27 @@ function checkOverclaimed(claimedChunks, numResidents, numNationResidents) {
 }
 
 /** @param {number} numNationResidents */
-function auroraNationBonus(numNationResidents) {
-	return numNationResidents >= 200 ? 100
-		: numNationResidents >= 120 ? 80
-		: numNationResidents >= 80 ? 60
-		: numNationResidents >= 60 ? 50
-		: numNationResidents >= 40 ? 30
-		: numNationResidents >= 20 ? 10 : 0
-}
+const auroraNationBonus = numNationResidents => numNationResidents >= 200 ? 100
+	: numNationResidents >= 120 ? 80
+	: numNationResidents >= 80 ? 60
+	: numNationResidents >= 60 ? 50
+	: numNationResidents >= 40 ? 30
+	: numNationResidents >= 20 ? 10 : 0
+
+const AURORA_ZBOUNDS = { min: -16640, max: 16508 } // Vertical bounds of old map (Plate Carree projection)
+const NORTH_HEMISPHERE_FACTOR = 0.994 // Project from Plate Carree to Miller Cylindrical. Adjust projection of north hemisphere
+const MAP_SCALE_FACTOR = 94704 / 33148 // Estimated height of new (Nostra) map if it wasn't cropped / Height of old map
 
 // 16574 is a mean average of old map vertical bounds
 // 2.304 is a magic number from 5/4 * Math.asinh(Math.tan(4/5 * (90 * (Math.PI / 180))))
 const MILLER_Y_NORMALIZER = 16574 / 2.3034125433763912
 
-// project from Plate Carree to Miller Cylindrical. Adjust projection of north hemisphere
-const NORTH_HEMISPHERE_FACTOR = 0.994
-
-// 33148 = height of old map | 94704 = estimated height of new (Nostra) map if it wasn't cropped
-const MAP_SCALE_FACTOR = 94704 / 33148
-
 function millerProjection(z) {
-	// -16640 and 16508 are vertical bounds of old map (Plate Carree projection)
 	// Converts old (Aurora) map's Z-coord to latitude. Assuming old map covers every latitude. 
-	const latDeg = (z + 16640) * 180 / (16508 + 16640) - 90
+	const latDeg = ((z - AURORA_ZBOUNDS.min) * 180 / (AURORA_ZBOUNDS.max - AURORA_ZBOUNDS.min)) - 90
 	const latRad = latDeg * (Math.PI / 180)
 
-	let millerOldZ = 5/4 * Math.asinh(Math.tan(4/5 * latRad)) * MILLER_Y_NORMALIZER
+	let millerOldZ = (5/4) * Math.asinh(Math.tan((4 / 5) * latRad)) * MILLER_Y_NORMALIZER
 	if (millerOldZ < 0) millerOldZ *= NORTH_HEMISPHERE_FACTOR
 
 	return millerOldZ * MAP_SCALE_FACTOR

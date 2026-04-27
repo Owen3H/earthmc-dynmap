@@ -13,10 +13,49 @@
 #menu {
 	width: auto;
 	max-width: var(--max-menu-width);
-	padding: 5px;
+    min-height: 32px;
+	max-height: max-content;
+	padding: 3px;
 	float: left !important;
 }
 
+/* collapsible part */
+#menu-body {
+	overflow: hidden;
+	max-height: 1000px;
+	opacity: 1;
+	transition: max-height 0.25s ease, opacity 0.2s ease;
+}
+
+#menu-body.collapsed {
+	max-height: 0;
+	opacity: 0;
+}
+
+/* header always visible */
+.menu-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: 5px;
+	font-family: "Inter", 'Open Sans', sans-serif;
+	font-size: 14px;
+	font-weight: 600;
+	cursor: pointer;
+	user-select: none;
+	border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+	background: none;
+}
+
+.menu-header:hover {
+	background: rgba(255, 255, 255, 0.05);
+}
+
+#menu-arrow {
+	transition: transform 0.12s ease;
+}
+
+/* Existing styles */
 .option {
 	display: flex;
 	justify-content: space-between;
@@ -43,11 +82,11 @@
 	width: 100%;
 	height: 30px;
 	font-kerning: none;
-    font-weight: 500;
-    font-size: 12px;
-    font-family: "Inter", 'Open Sans', sans-serif;
-    border: 2px dashed var(--yellow-colour);
-    border-radius: 2px;
+	font-weight: 500;
+	font-size: 12px;
+	font-family: "Inter", 'Open Sans', sans-serif;
+	border: 2px dashed var(--yellow-colour);
+	border-radius: 2px;
 	padding: 3px;
 }
 
@@ -60,15 +99,11 @@
 	text-align: center;
 	height: 30px;
 	font-kerning: none;
-    font-weight: 500;
-    font-size: 12px;
-    font-family: "Inter", 'Open Sans', sans-serif;
+	font-weight: 500;
+	font-size: 12px;
+	font-family: "Inter", 'Open Sans', sans-serif;
 	border-radius: 0px 0px 0px 2px;
 }
-
-/* #locate-button {
-	width: inherit;
-} */
 
 #archive-menu {
 	display: grid;
@@ -81,38 +116,35 @@
 
 #archive-input {
 	width: auto;
-    height: 25px;
+	height: 25px;
 	text-align: center;
 }
-
-/* #options-button {
-	width: 100%;
-}*/
 
 #options-menu {
 	font-family: "Inter", 'Open Sans', sans-serif;
 	width: inherit;
-    margin-top: 5px;
+	margin-top: 5px;
 	gap: 1px;
 }
 
 /* Map mode selector */
 #map-mode-selector {
-	position: fixed;
 	display: flex;
+	position: fixed;
     align-items: center;
     flex-direction: column;
 	margin: 0px;
     top: 10px;
     left: 50%;
     transform: translateX(-50%);
-	padding: 20px;
+	min-width: var(--max-menu-width);
+    padding: 15px 18px 18px 18px;
 	gap: 10px;
 }
 
 #current-map-mode-label {
     font-family: 'Inter';
-    font-size: 20px;
+    font-size: 18px;
     font-weight: 600;
 	line-height: normal;
 	text-align: center;
@@ -131,18 +163,23 @@
 	padding: 0;
 	background: white;
 	border: 2px dashed black;
-  	box-sizing: border-box;
+	box-sizing: border-box;
 	width: 35px;
 	height: 35px;
-	overflow: hidden; /* ensures no bleed */
+	overflow: visible;
+
+	transition: transform 0.1s ease, background 0.1s ease;
+	transform-origin: center;
+	position: relative;
+	z-index: 1;
 }
 
 .map-mode-btn-option:hover {
-	width: 40px;
-	height: 40px;
+	transform: scale(1.15);
 	background: var(--yellow-colour);
 	border: 3px dashed black;
 	cursor: pointer;
+	z-index: 10;
 }
 
 .map-mode-btn-option > img {
@@ -273,6 +310,14 @@
     top: 130px;
     left: 50%;
     transform: translateX(-50%);
+}
+
+#nation-claims.no-selector {
+	top: 10px;
+}
+
+#nation-claims.no-selector * #nation-claims-entry-container {
+	max-height: calc(100vh - 200px);
 }
 
 #nation-claims-titlebar {
@@ -494,9 +539,9 @@ fieldset#players > a:hover {
 
 /* Reduces the size of the layer selector icon and associated image */ 
 .leaflet-control-layers-toggle {
-	height: 32px !important;
-    width: 32px !important;
-	background-size: 20px 20px !important;
+	height: 38px !important;
+    width: 38px !important;
+	background-size: 22px 22px !important;
 }
 
 .leaflet-bottom.leaflet-left {

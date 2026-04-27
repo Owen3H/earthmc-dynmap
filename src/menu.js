@@ -4,13 +4,25 @@
 // TODO: Use Custom Element Registry and convert the main menu into one.
 
 /** @param {HTMLElement} parent - The "leaflet-top leaflet-left" element. */
-function addMainMenu(parent) {
+function addExtensionMenu(parent) {
 	const menu = addElement(parent, INSERTABLE_HTML.menu)
-	addLocateSection(menu) // Locator button and input box
-	addArchiveSection(menu)
+	const header = addElement(menu, INSERTABLE_HTML.menuHeader) // for toggling the menu open and closed.
+	const body = addElement(menu, `<div id="menu-body"></div>`)
+	
+	addLocateSection(body) // Locator button and input box
+	addArchiveSection(body)
 
 	// Options button and checkboxes
-	addOptions(menu, currentMapMode())
+	addOptions(body, currentMapMode())
+
+	const arrow = header.querySelector('#menu-arrow')
+	let collapsed = false
+	header.addEventListener('click', () => {
+		collapsed = !collapsed
+		body.classList.toggle('collapsed', collapsed)
+
+		if (arrow) arrow.style.transform = collapsed ? 'rotate(-90deg)' : 'rotate(0deg)'
+	})
 
 	return menu
 }
@@ -126,16 +138,15 @@ function toggleDarkened(boxTicked) {
 /** @param {boolean} boxTicked */
 function toggleServerInfo(boxTicked) {
 	localStorage['emcdynmapplus-serverinfo'] = boxTicked
-	const serverInfoPanel = document.querySelector('#server-info')
 
-	const visibility = boxTicked ? 'visible' : 'hidden'
-	const float = boxTicked ? 'none !important' : 'right !important'
-	serverInfoPanel?.setAttribute('style', `visibility: ${visibility}; float: ${float};`)
+	/** @type {HTMLElement} */
+	const serverInfoPanel = document.querySelector('#server-info')
+	serverInfoPanel.style.visibility = boxTicked ? 'visible' : 'hidden'
+	serverInfoPanel.style.float = boxTicked ? 'none !important' : 'right !important'
 
 	if (!boxTicked) {
 		if (serverInfoScheduler != null) clearTimeout(serverInfoScheduler) // stop future runs
 		serverInfoScheduler = null
-
 		return
 	}
 
@@ -164,7 +175,7 @@ function toggleShowCapitalStars(boxTicked) {
 	for (const img of imgs) {
 		const src = img.getAttribute('src') || ''
 		if (!src.endsWith('towny_capital_icon.png')) continue
-		
+
 		img.style.visibility = boxTicked ? 'visible' : 'hidden'
 	}
 }

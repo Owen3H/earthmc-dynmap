@@ -26,7 +26,10 @@ function addMapModeSelector(parent) {
     const selectorDiv = addElement(parent, INSERTABLE_HTML.mapMode.selector)
 	document.addEventListener("keydown", e => {
 		if (!(e.key === "M" && e.shiftKey)) return
-        selectorDiv.style.visibility = selectorDiv.style.visibility == 'hidden' ? 'visible' : 'hidden'
+
+        const hidden = selectorDiv.style.display == 'none'
+        selectorDiv.style.display = hidden ? 'flex' : 'none'
+        document.getElementById('nation-claims').classList.toggle('no-selector', !hidden)
 	})
 
     const label = addElement(selectorDiv, INSERTABLE_HTML.mapMode.currentModeLabel)
