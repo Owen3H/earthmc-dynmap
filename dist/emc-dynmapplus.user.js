@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name        EarthMC Dynmap+ (Owen3H Fork)
-// @version     2.1.4
+// @version     2.2.0
 // @description Extension to enrich the EarthMC map experience
 // @author      3meraldK
 // @include     https://map.earthmc.net/*
@@ -250,6 +250,7 @@ var INSERTABLE_HTML = (
     nationClaimsTextInput: '<input type="text" id="nation-text-entry{index}" placeholder="Enter nation name..."></input>',
     nationClaimsTitlebar: '<div id="nation-claims-titlebar"><p>Nation Claims Customizer</p><div class="leaflet-control-layers link leaflet-control"><a href=""><img class="crisp-edges" src="images/clear.png"></a></div></div>',
     serverInfo: '<div class="leaflet-control-layers leaflet-control" id="server-info"></div>',
+    menuHeader: `<div id="menu-header" class="menu-header">EarthMC Dynmap+<span id="menu-arrow">\u25BC</span></div>`,
     menu: '<div class="leaflet-control-layers leaflet-control" id="menu"></div>',
     menuOption: '<div class="menu-option"></div>',
     locateMenu: '<div id="locate-menu"></div>',
@@ -500,7 +501,7 @@ function insertServerInfoPanel() {
 function insertExtensionMenu() {
   return waitForElement(".leaflet-top.leaflet-left").then((el) => {
     disablePanAndZoom(el);
-    return addMainMenu(el);
+    return addExtensionMenu(el);
   });
 }
 function insertMapModeSelector() {
@@ -758,7 +759,9 @@ function addMapModeSelector(parent) {
   const selectorDiv = addElement(parent, INSERTABLE_HTML.mapMode.selector);
   document.addEventListener("keydown", (e) => {
     if (!(e.key === "M" && e.shiftKey)) return;
-    selectorDiv.style.visibility = selectorDiv.style.visibility == "hidden" ? "visible" : "hidden";
+    const hidden = selectorDiv.style.display == "none";
+    selectorDiv.style.display = hidden ? "flex" : "none";
+    document.getElementById("nation-claims").classList.toggle("no-selector", !hidden);
   });
   const label = addElement(selectorDiv, INSERTABLE_HTML.mapMode.currentModeLabel);
   const iconContainer = addElement(selectorDiv, INSERTABLE_HTML.mapMode.optionContainer);
@@ -787,11 +790,20 @@ function selectMapMode(mode) {
 }
 
 // src/menu.js
-function addMainMenu(parent) {
+function addExtensionMenu(parent) {
   const menu = addElement(parent, INSERTABLE_HTML.menu);
-  addLocateSection(menu);
-  addArchiveSection(menu);
-  addOptions(menu, currentMapMode());
+  const header = addElement(menu, INSERTABLE_HTML.menuHeader);
+  const body = addElement(menu, `<div id="menu-body"></div>`);
+  addLocateSection(body);
+  addArchiveSection(body);
+  addOptions(body, currentMapMode());
+  const arrow = header.querySelector("#menu-arrow");
+  let collapsed = false;
+  header.addEventListener("click", () => {
+    collapsed = !collapsed;
+    body.classList.toggle("collapsed", collapsed);
+    if (arrow) arrow.style.transform = collapsed ? "rotate(-90deg)" : "rotate(0deg)";
+  });
   return menu;
 }
 function addLocateSection(menu) {
@@ -890,9 +902,8 @@ function toggleDarkened(boxTicked) {
 function toggleServerInfo(boxTicked) {
   localStorage["emcdynmapplus-serverinfo"] = boxTicked;
   const serverInfoPanel = document.querySelector("#server-info");
-  const visibility = boxTicked ? "visible" : "hidden";
-  const float = boxTicked ? "none !important" : "right !important";
-  serverInfoPanel?.setAttribute("style", `visibility: ${visibility}; float: ${float};`);
+  serverInfoPanel.style.visibility = boxTicked ? "visible" : "hidden";
+  serverInfoPanel.style.float = boxTicked ? "none !important" : "right !important";
   if (!boxTicked) {
     if (serverInfoScheduler != null) clearTimeout(serverInfoScheduler);
     serverInfoScheduler = null;
@@ -914,9 +925,8 @@ function toggleShowCapitalStars(boxTicked) {
   const imgs = pane.querySelectorAll("img");
   for (const img of imgs) {
     const src = img.getAttribute("src") || "";
-    if (src.endsWith("towny_capital_icon.png") || src.includes("capital_icon.png")) {
-      img.style.visibility = boxTicked ? "visible" : "hidden";
-    }
+    if (!src.endsWith("towny_capital_icon.png")) continue;
+    img.style.visibility = boxTicked ? "visible" : "hidden";
   }
 }
 function toggleDarkMode(boxTicked) {
@@ -1195,20 +1205,24 @@ async function modifyMarkers(data) {
   console.log(`emcdynmapplus: modified description and colour of all markers. took ${elapsed.toFixed(2)}ms`);
   return data;
 }
+var isAurora = CURRENT_MAP === "aurora";
+var SCALE_X = isAurora ? 1.0015 : 1.94133;
+var MOVE_DOWN = isAurora ? 0 : 8175;
+var MOVE_RIGHT = isAurora ? 0 : 382.5;
+var projectZ = (z) => isAurora ? z : millerProjection(z) + MOVE_DOWN;
 function addCountryBordersLayer(data, borders) {
+  const isAurora2 = CURRENT_MAP == "aurora";
   try {
-    const isAurora = CURRENT_MAP == "aurora";
     const points = Object.keys(borders).map((country) => {
       const countryPoly = [];
       const line = borders[country];
       for (let i = 0; i < line.x.length; i++) {
-        if (!isNumeric(line.x[i])) continue;
-        countryPoly.push(isAurora ? {
-          x: line.x[i] * 1.0015,
-          z: line.z[i]
-        } : {
-          x: line.x[i] * 1.94133 + 382.5,
-          z: millerProjection(line.z[i]) + 8175
+        const xCoord = line.x[i];
+        if (!isNumeric(xCoord)) continue;
+        const zCoord = line.z[i];
+        countryPoly.push(isAurora2 ? { x: xCoord * SCALE_X, z: zCoord } : {
+          x: xCoord * SCALE_X + MOVE_RIGHT,
+          z: millerProjection(zCoord) + MOVE_DOWN
         });
       }
       return countryPoly;
@@ -1512,8 +1526,8 @@ function checkOverclaimedNationless(claimedChunks, numResidents) {
   };
 }
 function checkOverclaimed(claimedChunks, numResidents, numNationResidents) {
-  const resLimit = numResidents * CHUNKS_PER_RES;
   const bonus = auroraNationBonus(numNationResidents);
+  const resLimit = numResidents * CHUNKS_PER_RES;
   const totalClaimLimit = resLimit + bonus;
   const isOverclaimed = claimedChunks > totalClaimLimit;
   return {
@@ -1524,14 +1538,13 @@ function checkOverclaimed(claimedChunks, numResidents, numNationResidents) {
     totalClaimLimit
   };
 }
-function auroraNationBonus(numNationResidents) {
-  return numNationResidents >= 200 ? 100 : numNationResidents >= 120 ? 80 : numNationResidents >= 80 ? 60 : numNationResidents >= 60 ? 50 : numNationResidents >= 40 ? 30 : numNationResidents >= 20 ? 10 : 0;
-}
-var MILLER_Y_NORMALIZER = 16574 / 2.3034125433763912;
+var auroraNationBonus = (numNationResidents) => numNationResidents >= 200 ? 100 : numNationResidents >= 120 ? 80 : numNationResidents >= 80 ? 60 : numNationResidents >= 60 ? 50 : numNationResidents >= 40 ? 30 : numNationResidents >= 20 ? 10 : 0;
+var AURORA_ZBOUNDS = { min: -16640, max: 16508 };
 var NORTH_HEMISPHERE_FACTOR = 0.994;
 var MAP_SCALE_FACTOR = 94704 / 33148;
+var MILLER_Y_NORMALIZER = 16574 / 2.3034125433763912;
 function millerProjection(z) {
-  const latDeg = (z + 16640) * 180 / (16508 + 16640) - 90;
+  const latDeg = (z - AURORA_ZBOUNDS.min) * 180 / (AURORA_ZBOUNDS.max - AURORA_ZBOUNDS.min) - 90;
   const latRad = latDeg * (Math.PI / 180);
   let millerOldZ = 5 / 4 * Math.asinh(Math.tan(4 / 5 * latRad)) * MILLER_Y_NORMALIZER;
   if (millerOldZ < 0) millerOldZ *= NORTH_HEMISPHERE_FACTOR;
@@ -1539,7 +1552,7 @@ function millerProjection(z) {
 }
 
 // <define:MANIFEST>
-var define_MANIFEST_default = { manifest_version: 3, name: "EarthMC Dynmap+ (Owen3H Fork)", version: "2.1.4", author: "3meraldK", description: "Extension to enrich the EarthMC map experience", icons: { "48": "resources/icon48.png", "128": "resources/icon128.png" }, web_accessible_resources: [{ run_at: "document_idle", matches: ["https://map.earthmc.net/*", "https://aurora.earthmc.net/*"], resources: ["resources/map-mode-default.png", "resources/map-mode-alliances.png", "resources/map-mode-meganations.png", "resources/map-mode-overclaim.png", "resources/map-mode-nationclaims.png", "resources/interceptor.js", "resources/borders.json"] }], content_scripts: [{ matches: ["https://map.earthmc.net/*", "https://aurora.earthmc.net/*"], css: ["resources/style.css"], js: ["src/httputil.js", "src/dom.js", "src/screenshot.js", "src/modeselector.js", "src/menu.js", "src/main.js", "src/entrypoint.js"] }] };
+var define_MANIFEST_default = { manifest_version: 3, name: "EarthMC Dynmap+ (Owen3H Fork)", version: "2.2.0", author: "3meraldK", description: "Extension to enrich the EarthMC map experience", icons: { "48": "resources/icon48.png", "128": "resources/icon128.png" }, web_accessible_resources: [{ run_at: "document_idle", matches: ["https://map.earthmc.net/*", "https://aurora.earthmc.net/*"], resources: ["resources/map-mode-default.png", "resources/map-mode-alliances.png", "resources/map-mode-meganations.png", "resources/map-mode-overclaim.png", "resources/map-mode-nationclaims.png", "resources/interceptor.js", "resources/borders.json"] }], content_scripts: [{ matches: ["https://map.earthmc.net/*", "https://aurora.earthmc.net/*"], css: ["resources/style.css"], js: ["src/httputil.js", "src/dom.js", "src/screenshot.js", "src/modeselector.js", "src/menu.js", "src/main.js", "src/entrypoint.js"] }] };
 
 // src/entrypoint.js
 function isUserscript() {
@@ -1598,10 +1611,49 @@ async function init(manifest) {
 #menu {\r
 	width: auto;\r
 	max-width: var(--max-menu-width);\r
-	padding: 5px;\r
+    min-height: 32px;\r
+	max-height: max-content;\r
+	padding: 3px;\r
 	float: left !important;\r
 }\r
 \r
+/* collapsible part */\r
+#menu-body {\r
+	overflow: hidden;\r
+	max-height: 1000px;\r
+	opacity: 1;\r
+	transition: max-height 0.25s ease, opacity 0.2s ease;\r
+}\r
+\r
+#menu-body.collapsed {\r
+	max-height: 0;\r
+	opacity: 0;\r
+}\r
+\r
+/* header always visible */\r
+.menu-header {\r
+	display: flex;\r
+	justify-content: space-between;\r
+	align-items: center;\r
+	padding: 5px;\r
+	font-family: "Inter", 'Open Sans', sans-serif;\r
+	font-size: 14px;\r
+	font-weight: 600;\r
+	cursor: pointer;\r
+	user-select: none;\r
+	border-bottom: 1px solid rgba(255, 255, 255, 0.15);\r
+	background: none;\r
+}\r
+\r
+.menu-header:hover {\r
+	background: rgba(255, 255, 255, 0.05);\r
+}\r
+\r
+#menu-arrow {\r
+	transition: transform 0.12s ease;\r
+}\r
+\r
+/* Existing styles */\r
 .option {\r
 	display: flex;\r
 	justify-content: space-between;\r
@@ -1628,11 +1680,11 @@ async function init(manifest) {
 	width: 100%;\r
 	height: 30px;\r
 	font-kerning: none;\r
-    font-weight: 500;\r
-    font-size: 12px;\r
-    font-family: "Inter", 'Open Sans', sans-serif;\r
-    border: 2px dashed var(--yellow-colour);\r
-    border-radius: 2px;\r
+	font-weight: 500;\r
+	font-size: 12px;\r
+	font-family: "Inter", 'Open Sans', sans-serif;\r
+	border: 2px dashed var(--yellow-colour);\r
+	border-radius: 2px;\r
 	padding: 3px;\r
 }\r
 \r
@@ -1645,15 +1697,11 @@ async function init(manifest) {
 	text-align: center;\r
 	height: 30px;\r
 	font-kerning: none;\r
-    font-weight: 500;\r
-    font-size: 12px;\r
-    font-family: "Inter", 'Open Sans', sans-serif;\r
+	font-weight: 500;\r
+	font-size: 12px;\r
+	font-family: "Inter", 'Open Sans', sans-serif;\r
 	border-radius: 0px 0px 0px 2px;\r
 }\r
-\r
-/* #locate-button {\r
-	width: inherit;\r
-} */\r
 \r
 #archive-menu {\r
 	display: grid;\r
@@ -1666,38 +1714,35 @@ async function init(manifest) {
 \r
 #archive-input {\r
 	width: auto;\r
-    height: 25px;\r
+	height: 25px;\r
 	text-align: center;\r
 }\r
-\r
-/* #options-button {\r
-	width: 100%;\r
-}*/\r
 \r
 #options-menu {\r
 	font-family: "Inter", 'Open Sans', sans-serif;\r
 	width: inherit;\r
-    margin-top: 5px;\r
+	margin-top: 5px;\r
 	gap: 1px;\r
 }\r
 \r
 /* Map mode selector */\r
 #map-mode-selector {\r
-	position: fixed;\r
 	display: flex;\r
+	position: fixed;\r
     align-items: center;\r
     flex-direction: column;\r
 	margin: 0px;\r
     top: 10px;\r
     left: 50%;\r
     transform: translateX(-50%);\r
-	padding: 20px;\r
+	min-width: var(--max-menu-width);\r
+    padding: 15px 18px 18px 18px;\r
 	gap: 10px;\r
 }\r
 \r
 #current-map-mode-label {\r
     font-family: 'Inter';\r
-    font-size: 20px;\r
+    font-size: 18px;\r
     font-weight: 600;\r
 	line-height: normal;\r
 	text-align: center;\r
@@ -1716,18 +1761,23 @@ async function init(manifest) {
 	padding: 0;\r
 	background: white;\r
 	border: 2px dashed black;\r
-  	box-sizing: border-box;\r
+	box-sizing: border-box;\r
 	width: 35px;\r
 	height: 35px;\r
-	overflow: hidden; /* ensures no bleed */\r
+	overflow: visible;\r
+\r
+	transition: transform 0.1s ease, background 0.1s ease;\r
+	transform-origin: center;\r
+	position: relative;\r
+	z-index: 1;\r
 }\r
 \r
 .map-mode-btn-option:hover {\r
-	width: 40px;\r
-	height: 40px;\r
+	transform: scale(1.15);\r
 	background: var(--yellow-colour);\r
 	border: 3px dashed black;\r
 	cursor: pointer;\r
+	z-index: 10;\r
 }\r
 \r
 .map-mode-btn-option > img {\r
@@ -1858,6 +1908,14 @@ async function init(manifest) {
     top: 130px;\r
     left: 50%;\r
     transform: translateX(-50%);\r
+}\r
+\r
+#nation-claims.no-selector {\r
+	top: 10px;\r
+}\r
+\r
+#nation-claims.no-selector * #nation-claims-entry-container {\r
+	max-height: calc(100vh - 200px);\r
 }\r
 \r
 #nation-claims-titlebar {\r
@@ -2079,9 +2137,9 @@ fieldset#players > a:hover {\r
 \r
 /* Reduces the size of the layer selector icon and associated image */ \r
 .leaflet-control-layers-toggle {\r
-	height: 32px !important;\r
-    width: 32px !important;\r
-	background-size: 20px 20px !important;\r
+	height: 38px !important;\r
+    width: 38px !important;\r
+	background-size: 22px 22px !important;\r
 }\r
 \r
 .leaflet-bottom.leaflet-left {\r
@@ -2091,13 +2149,6 @@ fieldset#players > a:hover {\r
 \r
 .leaflet-popup {\r
 	backdrop-filter: blur(2px);\r
-}\r
-\r
-.leaflet-marker-pane img[src*="capital_icon.png"] {\r
-	width: 25px !important;\r
-	height: 25px !important;\r
-	margin-left: -12.5px !important;\r
-	margin-top: -12.5px !important;\r
 }\r
 \r
 /* Make coords easier to read and nicer to look at */\r
